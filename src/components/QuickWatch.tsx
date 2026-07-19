@@ -1,7 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { X, Play, Puzzle, Server, MonitorPlay, ExternalLink, Plus, Clapperboard, LayoutGrid, Tag, Magnet, AlertCircle } from "lucide-react";
+import { X, Play, Puzzle, Server, MonitorPlay, ExternalLink, Plus, Clapperboard, LayoutGrid, Tag, Magnet, AlertCircle, MonitorSmartphone } from "lucide-react";
+import { PlayOnSheet } from "./PlayOnSheet";
+import { useDeviceProfile } from "../hooks/useDeviceProfile";
 import { getDetail } from "../services/catalog";
 import { resolveProviderUrl } from "../services/services";
 import { useAppStore, selectPersonalSources } from "../store/useAppStore";
@@ -10,6 +12,12 @@ import type { WatchProvider, MediaType } from "../services/types";
 import { useIsTV } from "../hooks/useDeviceProfile";
 import { fetchStreams, isWebPlayable, isHttpAddon, streamTitle, streamSubtitle, humanSize } from "../addons/manager";
 import type { Stream } from "../addons/types";
+import { hasNativePlayback } from "../platform/capabilities";
+import { classifyStream } from "../lib/playback";
+
+// Playable in a browser: web-ready per the addon AND a container the browser
+// (with hls.js/mpegts.js) can actually decode.
+const webPlayable = (s: Stream) => isWebPlayable(s) && classifyStream(s.url || "") !== "unsupported";
 
 interface EpisodeRef { season: number; episode: number }
 
@@ -30,6 +38,8 @@ export function QuickWatch() {
   const compact = useAppStore((s) => s.compactProviders);
   const setCompact = useAppStore((s) => s.setCompactProviders);
   const isTV = useIsTV();
+  const isMobile = useDeviceProfile() === "mobile";
+  const [playOnOpen, setPlayOnOpen] = useState(false);
 
   const { data, isLoading } = useQuery({
     queryKey: ["detail", item?.type, item?.id],
@@ -76,8 +86,10 @@ export function QuickWatch() {
   const addonSources = personal.filter((s) => s.kind === "addon" && isHttpAddon(s.url));
   const localSources = personal.filter((s) => s.kind === "plex" || s.kind === "nas");
   const imdbId = data?.imdbId ?? null;
+  const native = hasNativePlayback(); // native builds play everything; web filters
 
   return (
+    <>
     <div
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center"
       onClick={close}
@@ -102,6 +114,16 @@ export function QuickWatch() {
             <X size={22} />
           </button>
         </div>
+
+        {/* Play On — send to a TV / desktop (mobile only) */}
+        {isMobile && (
+          <button
+            onClick={() => setPlayOnOpen(true)}
+            className="focusable mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent-soft py-2.5 text-sm font-bold text-accent"
+          >
+            <MonitorSmartphone size={16} /> Play on another screen
+          </button>
+        )}
 
         {/* Your sources */}
         <div className="mt-6">
@@ -140,6 +162,7 @@ export function QuickWatch() {
                     type={item.type}
                     imdbId={imdbId}
                     episode={episode || undefined}
+                    native={native}
                     onPlay={playStream}
                   />
                 ))
@@ -212,6 +235,10 @@ export function QuickWatch() {
         </div>
       </div>
     </div>
+    {isMobile && playOnOpen && (
+      <PlayOnSheet item={item} episode={episode || undefined} onClose={() => setPlayOnOpen(false)} />
+    )}
+    </>
   );
 }
 
@@ -221,12 +248,14 @@ function AddonSource({
   type,
   imdbId,
   episode,
+  native,
   onPlay,
 }: {
   addon: Addon;
   type: MediaType;
   imdbId: string;
   episode?: EpisodeRef;
+  native: boolean;
   onPlay: (s: Stream) => void;
 }) {
   const { data, isLoading, isError } = useQuery({
@@ -235,6 +264,12 @@ function AddonSource({
     staleTime: 60_000,
     retry: 0,
   });
+
+  // On the web build, only surface streams the browser can actually play.
+  // Native builds (Tauri / Capacitor) bundle a player, so show everything.
+  const all = data || [];
+  const visible = native ? all : all.filter(webPlayable);
+  const hidden = all.length - visible.length;
 
   return (
     <div>
@@ -249,23 +284,24 @@ function AddonSource({
         <p className="flex items-center gap-2 rounded-lg bg-surface-2/50 px-3 py-2 text-xs text-muted">
           <AlertCircle size={14} className="shrink-0" /> Couldn't reach {addon.name}. Check the addon URL or its CORS policy.
         </p>
-      ) : !data || data.length === 0 ? (
+      ) : all.length === 0 ? (
         <p className="rounded-lg bg-surface-2/50 px-3 py-2 text-xs text-muted">No streams found for this title.</p>
+      ) : visible.length === 0 ? (
+        <p className="flex items-center gap-2 rounded-lg bg-surface-2/50 px-3 py-2 text-xs text-muted">
+          <Magnet size={14} className="shrink-0" />
+          {all.length} source{all.length > 1 ? "s" : ""} found, but none play in a browser (MKV / torrent). Open the TVio Windows or Android app to watch these.
+        </p>
       ) : (
         <div className="space-y-1.5">
-          {data.map((s, i) => {
-            const playable = isWebPlayable(s);
+          {visible.map((s, i) => {
             const size = humanSize(s.behaviorHints?.videoSize);
             const sub = streamSubtitle(s);
             return (
               <button
                 key={`${addon.id}-${i}`}
-                onClick={() => playable && onPlay(s)}
-                disabled={!playable}
-                title={playable ? "Play" : "Torrent / not web-playable — use the native build or an external player"}
-                className={`focusable flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left ${
-                  playable ? "bg-surface-2 hover:bg-white/10" : "cursor-not-allowed bg-surface-2/40 opacity-70"
-                }`}
+                onClick={() => onPlay(s)}
+                title="Play"
+                className="focusable flex w-full items-center gap-3 rounded-lg bg-surface-2 px-3 py-2 text-left hover:bg-white/10"
               >
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-sm font-semibold">{streamTitle(s)}</div>
@@ -273,14 +309,15 @@ function AddonSource({
                     <div className="truncate text-[11px] text-muted">{[sub, size].filter(Boolean).join("  ·  ")}</div>
                   )}
                 </div>
-                {playable ? (
-                  <Play size={16} className="shrink-0 text-accent" fill="currentColor" />
-                ) : (
-                  <Magnet size={16} className="shrink-0 text-muted" />
-                )}
+                <Play size={16} className="shrink-0 text-accent" fill="currentColor" />
               </button>
             );
           })}
+          {hidden > 0 && (
+            <p className="px-1 pt-0.5 text-[11px] text-muted">
+              +{hidden} more source{hidden > 1 ? "s" : ""} available in the Windows / Android app (MKV / torrent).
+            </p>
+          )}
         </div>
       )}
     </div>

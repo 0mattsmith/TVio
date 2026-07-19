@@ -4,6 +4,8 @@ import QRCode from "qrcode";
 import { Logo } from "../components/Logo";
 import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
+import { auth, firebaseEnabled } from "../services/firebase";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
 
 function usePairingCode() {
   // 4-digit device-pair code. In production this maps to a Firestore
@@ -17,6 +19,8 @@ export function SignIn() {
   const signIn = useAppStore((s) => s.signIn);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
   const code = usePairingCode();
   const qrRef = useRef<HTMLCanvasElement>(null);
 
@@ -31,10 +35,27 @@ export function SignIn() {
     }
   }, [code]);
 
+  const authAction = async (mode: "signin" | "register") => {
+    setError("");
+    if (!firebaseEnabled || !auth) {
+      signIn(email || "guest@tvio.app"); // demo mode: accept anything
+      navigate("/");
+      return;
+    }
+    setBusy(true);
+    try {
+      if (mode === "register") await createUserWithEmailAndPassword(auth, email, password);
+      else await signInWithEmailAndPassword(auth, email, password);
+      navigate("/");
+    } catch (err) {
+      setError(err instanceof Error ? err.message.replace(/^Firebase:\s*/, "") : "Authentication failed.");
+    } finally {
+      setBusy(false);
+    }
+  };
   const submit = (e: React.FormEvent) => {
     e.preventDefault();
-    signIn(email || "guest@tvio.app");
-    navigate("/");
+    authAction("signin");
   };
 
   return (
@@ -45,9 +66,9 @@ export function SignIn() {
         style={{ background: "radial-gradient(1200px 600px at 50% -10%, rgba(20,184,166,0.10), transparent 60%)" }}
       />
       <header className="relative flex items-center justify-between px-6 py-6 sm:px-12">
-        <Logo lite />
+        <Logo />
         <button
-          onClick={() => { signIn("newuser@tvio.app"); navigate("/"); }}
+          onClick={() => authAction("register")}
           className="focusable rounded text-sm font-semibold text-muted hover:text-white"
         >
           Register / Create Account
@@ -81,11 +102,16 @@ export function SignIn() {
                 className="focusable w-full rounded-lg border border-white/10 bg-surface-2 px-4 py-3.5 text-white placeholder:text-muted/60 focus:border-accent"
               />
             </label>
-            <Button type="submit" className="w-full py-4 text-base">Sign In</Button>
+            {error && <p className="text-sm text-red-400">{error}</p>}
+            <Button type="submit" disabled={busy} className="w-full py-4 text-base">
+              {busy ? "Signing in…" : "Sign In"}
+            </Button>
           </form>
 
           <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-muted">
-            Secured offline cloud syncing simulation. Try any email to sign in instantly!
+            {firebaseEnabled
+              ? "Signed in with your TVio account — watchlist & progress sync across your devices."
+              : "Demo mode (no Firebase configured). Try any email to sign in instantly!"}
           </div>
         </div>
 

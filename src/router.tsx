@@ -11,6 +11,7 @@ import { SearchPage } from "./pages/SearchPage";
 import { Settings } from "./pages/Settings";
 import { LiveTV } from "./pages/LiveTV";
 import { LivePlayer } from "./pages/LivePlayer";
+import { RemotePage } from "./pages/RemotePage";
 
 // Hash router keeps deep links working on GitHub Pages (no server rewrites).
 export const router = createHashRouter([
@@ -25,6 +26,7 @@ export const router = createHashRouter([
       { path: "/series", element: <Series /> },
       { path: "/live", element: <LiveTV /> },
       { path: "/search", element: <SearchPage /> },
+      { path: "/remote", element: <RemotePage /> },
       { path: "/settings", element: <Settings /> },
       { path: "/title/:type/:id", element: <Detail /> },
       { path: "/person/:id", element: <Person /> },

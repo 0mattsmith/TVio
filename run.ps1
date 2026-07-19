@@ -5,6 +5,9 @@
   Usage:
     ./run.ps1                 # commit + push using the default upgrade notes below
     ./run.ps1 "my message"    # commit + push using "my message" as the upgrade notes
+    ./run.ps1 "notes" -Tag v0.1.0   # also create + push a version tag → builds
+                                    # the Windows installer + Android APKs and
+                                    # attaches them to the GitHub Release.
 
   Behaviour:
     - Requires GitHub CLI (gh) and git. Logs you in via `gh auth login` if needed.
@@ -16,7 +19,8 @@
 [CmdletBinding()]
 param(
   [Parameter(Position = 0)]
-  [string]$UpgradeNotes
+  [string]$UpgradeNotes,
+  [string]$Tag
 )
 
 $ErrorActionPreference = "Stop"
@@ -91,6 +95,14 @@ else {
   Info "Pushing to $Slug"
   git push -u origin main
   Ok "Pushed to https://github.com/$Slug"
+}
+
+# --- Optional: cut a release by pushing a version tag ------------------------
+if ($Tag) {
+  Info "Tagging release $Tag"
+  git tag -a $Tag -m $Notes 2>$null
+  git push origin $Tag
+  Ok "Pushed tag $Tag — the Release workflow will build the Windows installer + Android APKs and attach them to the GitHub Release."
 }
 
 Info "Done. https://github.com/$Slug"

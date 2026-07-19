@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2, ListVideo, Tv } from "lucide-react";
 import { useGuide } from "../hooks/useIptv";
 import { attachStream, classifyStream } from "../lib/playback";
+import { hasNativePlayback } from "../platform/capabilities";
 import { MiniGuide } from "../components/epg/MiniGuide";
 import { ProgrammeInfoModal } from "../components/epg/ProgrammeInfoModal";
 import { nowNext, programmesFor } from "../iptv/guide";
@@ -33,7 +34,7 @@ export function LivePlayer() {
     const v = videoRef.current;
     if (!v || !current) return;
     setError(false);
-    if (classifyStream(current.url) === "unsupported") {
+    if (!hasNativePlayback() && classifyStream(current.url) === "unsupported") {
       setError(true);
       return;
     }

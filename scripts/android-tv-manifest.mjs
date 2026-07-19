@@ -1,0 +1,35 @@
+// Turns the generated Capacitor Android manifest into an Android TV (leanback)
+// build: touchscreen optional, leanback feature, and a LEANBACK_LAUNCHER entry
+// so it appears on the Android TV home row. Run between the phone and TV builds.
+import { readFileSync, writeFileSync, existsSync } from "node:fs";
+
+const MANIFEST = "android/app/src/main/AndroidManifest.xml";
+
+if (!existsSync(MANIFEST)) {
+  console.error(`Manifest not found at ${MANIFEST} — run 'npx cap add android' first.`);
+  process.exit(1);
+}
+
+let xml = readFileSync(MANIFEST, "utf8");
+
+// 1) Feature flags (idempotent) — inserted right after the opening <manifest ...>
+if (!xml.includes("android.software.leanback")) {
+  xml = xml.replace(
+    /(<manifest[^>]*>)/,
+    `$1
+    <uses-feature android:name="android.software.leanback" android:required="true" />
+    <uses-feature android:name="android.hardware.touchscreen" android:required="false" />`
+  );
+}
+
+// 2) Add the LEANBACK_LAUNCHER category to the main launcher intent-filter.
+if (!xml.includes("LEANBACK_LAUNCHER")) {
+  xml = xml.replace(
+    /(<category android:name="android\.intent\.category\.LAUNCHER"\s*\/>)/,
+    `$1
+                <category android:name="android.intent.category.LEANBACK_LAUNCHER" />`
+  );
+}
+
+writeFileSync(MANIFEST, xml);
+console.log("Android TV manifest applied (leanback + touchscreen optional).");

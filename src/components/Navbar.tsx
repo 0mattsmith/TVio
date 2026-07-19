@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Search, Home, Clapperboard, Tv, Settings, Users, Radio } from "lucide-react";
+import { Search, Home, Clapperboard, Tv, Settings, Users, Radio, Gamepad2 } from "lucide-react";
 import { Logo } from "./Logo";
 import { useAppStore } from "../store/useAppStore";
+import { useDeviceProfile } from "../hooks/useDeviceProfile";
 
 const BASE_TABS = [
   { to: "/", label: "Home", icon: Home, end: true },
@@ -14,6 +15,7 @@ export function Navbar() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const iptvEnabled = useAppStore((s) => s.iptvEnabled);
+  const isMobile = useDeviceProfile() === "mobile";
 
   // Live TV joins the centered tabs only when IPTV is enabled in Settings.
   const TABS = iptvEnabled
@@ -71,8 +73,19 @@ export function Navbar() {
           ))}
         </div>
 
-        {/* Right: settings + switch user */}
+        {/* Right: remote (mobile) + settings + switch user */}
         <div className="flex flex-1 items-center justify-end gap-1">
+          {isMobile && (
+            <NavLink
+              to="/remote"
+              className={({ isActive }) =>
+                `focusable flex h-10 w-10 items-center justify-center rounded-full ${isActive ? "text-accent" : "text-white/85 hover:text-white"}`
+              }
+              aria-label="Companion remote"
+            >
+              <Gamepad2 size={20} />
+            </NavLink>
+          )}
           <NavLink
             to="/settings"
             className="focusable flex h-10 w-10 items-center justify-center rounded-full text-white/85 hover:text-white"

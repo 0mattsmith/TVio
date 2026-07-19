@@ -6,3 +6,17 @@ dist-ssr
 .env.local
 .DS_Store
 Screenshot*.png
+
+# Tauri (Rust build output + generated files)
+src-tauri/target
+src-tauri/gen
+
+# Capacitor (generated native projects — regenerated in CI / via `npx cap add`)
+/android
+/ios
+.gradle
+
+# Misc
+*.apk
+*.msi
+*.exe

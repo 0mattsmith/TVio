@@ -7,6 +7,7 @@ import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { attachStream, classifyStream } from "../lib/playback";
 import { useIsTV } from "../hooks/useDeviceProfile";
+import { hasNativePlayback } from "../platform/capabilities";
 
 // Big Buck Bunny — royalty-free sample so the player is usable before addon
 // stream sources are wired in.
@@ -72,7 +73,7 @@ export function Player() {
       v.src = SAMPLE;
       return;
     }
-    if (classifyStream(streamUrl) === "unsupported") {
+    if (!hasNativePlayback() && classifyStream(streamUrl) === "unsupported") {
       setError(true);
       return;
     }

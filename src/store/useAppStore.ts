@@ -1,6 +1,8 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { signOut as fbSignOut } from "firebase/auth";
 import { ALL_SERVICE_KEYS } from "../services/services";
+import { auth, firebaseEnabled } from "../services/firebase";
 import type { MediaItem } from "../services/types";
 
 interface ProgressEntry extends MediaItem {
@@ -49,6 +51,10 @@ interface AppState {
   watchlist: MediaItem[];
   inWatchlist: (id: number) => boolean;
   toggleWatchlist: (item: MediaItem) => void;
+  // Fires when an item is ADDED (locally or, once Firebase sync lands, from
+  // another same-account device) so the big-screen app can surface a toast.
+  lastWatchlistAdd: { item: MediaItem; at: number } | null;
+  clearWatchlistAdd: () => void;
 
   // Continue watching
   progress: ProgressEntry[];
@@ -92,7 +98,10 @@ export const useAppStore = create<AppState>()(
     (set, get) => ({
       user: null,
       signIn: (email) => set({ user: { email, name: email.split("@")[0] || "You" } }),
-      signOut: () => set({ user: null }),
+      signOut: () => {
+        if (firebaseEnabled && auth) fbSignOut(auth).catch(() => {});
+        set({ user: null });
+      },
 
       enabledServices: [...ALL_SERVICE_KEYS],
       toggleService: (key) =>
@@ -106,11 +115,15 @@ export const useAppStore = create<AppState>()(
       watchlist: [],
       inWatchlist: (id) => get().watchlist.some((w) => w.id === id),
       toggleWatchlist: (item) =>
-        set((s) => ({
-          watchlist: s.watchlist.some((w) => w.id === item.id)
-            ? s.watchlist.filter((w) => w.id !== item.id)
-            : [{ ...item }, ...s.watchlist],
-        })),
+        set((s) => {
+          const exists = s.watchlist.some((w) => w.id === item.id);
+          return {
+            watchlist: exists ? s.watchlist.filter((w) => w.id !== item.id) : [{ ...item }, ...s.watchlist],
+            lastWatchlistAdd: exists ? s.lastWatchlistAdd : { item, at: Date.now() },
+          };
+        }),
+      lastWatchlistAdd: null,
+      clearWatchlistAdd: () => set({ lastWatchlistAdd: null }),
 
       progress: [],
       setProgress: (item, positionSec, durationSec) =>
