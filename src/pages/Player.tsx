@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Play, Pause, Volume2, VolumeX, Subtitles, Maximize, SkipForward } from "lucide-react";
+import { ArrowLeft, Play, Pause, Volume2, VolumeX, Subtitles, Maximize, SkipForward, Loader2 } from "lucide-react";
 import { getDetail } from "../services/catalog";
 import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { attachStream, classifyStream } from "../lib/playback";
 import { useIsTV } from "../hooks/useDeviceProfile";
 import { hasNativePlayback } from "../platform/capabilities";
+import { prepareStream, stopStream, waitForPlaylist } from "../services/nativePlayer";
 
 // Big Buck Bunny — royalty-free sample so the player is usable before addon
 // stream sources are wired in.
@@ -42,6 +43,8 @@ export function Player() {
   const [duration, setDuration] = useState(0);
   const [showUI, setShowUI] = useState(true);
   const [error, setError] = useState(false);
+  // "" = not preparing; "copy" = remuxing (fast); "transcode" = re-encoding.
+  const [preparing, setPreparing] = useState<"" | "copy" | "transcode">("");
 
   const { data } = useQuery({
     queryKey: ["detail", type, id],
@@ -65,29 +68,61 @@ export function Player() {
     return () => clearTimeout(t);
   }, [showUI, playing]);
 
-  // Attach the right playback engine for the resolved stream.
+  // Attach the right playback engine for the resolved stream. Formats the
+  // WebView can't decode are routed through the desktop ffmpeg sidecar.
   useEffect(() => {
     const v = videoRef.current;
     if (!v) return;
     setError(false);
+    setPreparing("");
     if (!streamUrl) {
       v.src = SAMPLE;
       return;
     }
-    if (!hasNativePlayback() && classifyStream(streamUrl) === "unsupported") {
-      setError(true);
-      return;
-    }
+
     let cleanup = () => {};
     let active = true;
-    attachStream(v, streamUrl).then((r) => {
+
+    (async () => {
+      let playable = streamUrl;
+
+      if (classifyStream(streamUrl) === "unsupported") {
+        if (!hasNativePlayback()) {
+          setError(true); // web/mobile: nothing we can do
+          return;
+        }
+        try {
+          const native = await prepareStream(streamUrl);
+          if (!native || !active) return;
+          setPreparing(native.mode);
+          const ready = await waitForPlaylist(native.url);
+          if (!active) return;
+          if (!ready) {
+            setError(true);
+            setPreparing("");
+            return;
+          }
+          playable = native.url;
+          setPreparing("");
+        } catch {
+          if (active) {
+            setError(true);
+            setPreparing("");
+          }
+          return;
+        }
+      }
+
+      const r = await attachStream(v, playable);
       if (!active) return r.cleanup();
       cleanup = r.cleanup;
       v.play?.().catch(() => {});
-    });
+    })();
+
     return () => {
       active = false;
       cleanup();
+      stopStream(); // don't leave ffmpeg running after we navigate away
     };
   }, [streamUrl]);
 
@@ -128,6 +163,21 @@ export function Player() {
           <span className="rounded bg-black/70 px-3 py-1 text-lg font-medium text-white">
             [ Subtitles enabled — sample track ]
           </span>
+        </div>
+      )}
+
+      {/* Converting an undecodable stream via the desktop sidecar */}
+      {preparing && !error && (
+        <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/85 p-6 text-center">
+          <Loader2 className="animate-spin text-accent" size={28} />
+          <p className="text-lg font-bold">
+            {preparing === "copy" ? "Preparing this source…" : "Converting this source…"}
+          </p>
+          <p className="max-w-md text-sm text-white/70">
+            {preparing === "copy"
+              ? "Repackaging the stream so it plays here. This is quick."
+              : "This source uses a codec the player can't read directly, so it's being converted. The first few seconds take longest."}
+          </p>
         </div>
       )}
 
