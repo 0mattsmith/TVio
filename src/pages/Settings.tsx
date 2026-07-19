@@ -11,6 +11,7 @@ import type { Addon, PlatformOverride } from "../store/useAppStore";
 import { AvatarPicker } from "../components/AvatarPicker";
 import { PairQr } from "../components/PairQr";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
+import { isNativeShell, hasNativePlayback } from "../platform/capabilities";
 import { fetchManifest } from "../addons/manager";
 import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
@@ -552,6 +553,12 @@ export function Settings() {
           </Button>
         </section>
       )}
+
+      {/* Build identity — so "which version am I on?" is always answerable. */}
+      <p className="mt-8 text-center text-xs text-muted">
+        {isNativeShell() ? "TVio" : "TVio Lite"} v{__APP_VERSION__}
+        {isNativeShell() && !hasNativePlayback() && " · playback components pending"}
+      </p>
     </div>
   );
 }
