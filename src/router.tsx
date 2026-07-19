@@ -2,6 +2,7 @@ import { createHashRouter } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { SignIn } from "./pages/SignIn";
 import { Onboarding } from "./pages/Onboarding";
+import { Profiles } from "./pages/Profiles";
 import { Home } from "./pages/Home";
 import { Movies } from "./pages/Movies";
 import { Series } from "./pages/Series";
@@ -18,6 +19,7 @@ import { RemotePage } from "./pages/RemotePage";
 export const router = createHashRouter([
   { path: "/signin", element: <SignIn /> },
   { path: "/onboarding", element: <Onboarding /> },
+  { path: "/profiles", element: <Profiles /> },
   { path: "/watch/:type/:id", element: <Player /> },
   { path: "/live/watch/:channelId", element: <LivePlayer /> },
   {

@@ -3,7 +3,7 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db, firebaseEnabled } from "./firebase";
 import { useAppStore } from "../store/useAppStore";
-import type { Addon } from "../store/useAppStore";
+import type { Addon, Profile, ProgressEntry } from "../store/useAppStore";
 import type { MediaItem } from "./types";
 
 // While applying a remote snapshot we must not echo it back up to Firestore.
@@ -44,7 +44,17 @@ export function FirebaseSync() {
         const remoteWatch: MediaItem[] = (data?.watchlist as MediaItem[]) || [];
 
         // Account-level settings that should travel across devices.
-        const account: { tmdbKey?: string; tmdbRegion?: string; addons?: Addon[] } = {};
+        const account: {
+          tmdbKey?: string;
+          tmdbRegion?: string;
+          addons?: Addon[];
+          profiles?: Profile[];
+          profileData?: Record<string, { watchlist: MediaItem[]; progress: ProgressEntry[] }>;
+        } = {};
+        if (Array.isArray(data?.profiles)) account.profiles = data.profiles as Profile[];
+        if (data?.profileData && typeof data.profileData === "object") {
+          account.profileData = data.profileData as Record<string, { watchlist: MediaItem[]; progress: ProgressEntry[] }>;
+        }
         if (typeof data?.tmdbKey === "string") account.tmdbKey = data.tmdbKey;
         if (typeof data?.tmdbRegion === "string") account.tmdbRegion = data.tmdbRegion;
         if (Array.isArray(data?.addons)) {
@@ -56,19 +66,26 @@ export function FirebaseSync() {
           account.addons = [...localKeep, ...remote.filter((a) => !seen.has(a.id))];
         }
 
+        // Prefer THIS device's active profile bucket over the doc's top-level
+        // list (which belongs to whichever device wrote last).
+        const localActiveId = useAppStore.getState().activeProfileId;
+        const bucket = localActiveId ? account.profileData?.[localActiveId] : undefined;
+        const activeWatch: MediaItem[] = bucket?.watchlist ?? remoteWatch;
+        const activeProgress = bucket?.progress ?? data?.progress ?? useAppStore.getState().progress;
+
         applyingRemote = true;
         if (!ready) {
           // First load: merge local (offline) items with remote, no toast.
-          const merged = unionById(remoteWatch, useAppStore.getState().watchlist);
+          const merged = unionById(activeWatch, useAppStore.getState().watchlist);
           prevWatchIds = new Set(merged.map((w) => w.id));
-          useAppStore.setState({ watchlist: merged, progress: data?.progress || useAppStore.getState().progress, ...account });
+          useAppStore.setState({ watchlist: merged, progress: activeProgress, ...account });
           ready = true;
         } else {
-          const added = remoteWatch.find((w) => !prevWatchIds.has(w.id));
-          prevWatchIds = new Set(remoteWatch.map((w) => w.id));
+          const added = activeWatch.find((w) => !prevWatchIds.has(w.id));
+          prevWatchIds = new Set(activeWatch.map((w) => w.id));
           useAppStore.setState({
-            watchlist: remoteWatch,
-            progress: data?.progress || useAppStore.getState().progress,
+            watchlist: activeWatch,
+            progress: activeProgress,
             ...account,
             ...(added ? { lastWatchlistAdd: { item: added, at: Date.now() } } : {}),
           });
@@ -86,7 +103,9 @@ export function FirebaseSync() {
         s.progress !== prev.progress ||
         s.tmdbKey !== prev.tmdbKey ||
         s.tmdbRegion !== prev.tmdbRegion ||
-        s.addons !== prev.addons;
+        s.addons !== prev.addons ||
+        s.profiles !== prev.profiles ||
+        s.profileData !== prev.profileData;
       if (!changed) return;
       const u = a.currentUser;
       if (!u) return;
@@ -99,6 +118,11 @@ export function FirebaseSync() {
             progress: s.progress,
             tmdbKey: s.tmdbKey,
             tmdbRegion: s.tmdbRegion,
+            profiles: s.profiles,
+            // Fold the active profile's live data into the per-profile buckets.
+            profileData: s.activeProfileId
+              ? { ...s.profileData, [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress } }
+              : s.profileData,
             // Only sources the user opted to save to the account (default on).
             addons: s.addons.filter((a) => a.sync !== false && a.kind !== "builtin"),
           },

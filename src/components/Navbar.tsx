@@ -15,6 +15,9 @@ export function Navbar() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const iptvEnabled = useAppStore((s) => s.iptvEnabled);
+  const profiles = useAppStore((s) => s.profiles);
+  const activeProfileId = useAppStore((s) => s.activeProfileId);
+  const activeProfile = profiles.find((p) => p.id === activeProfileId);
   const isMobile = useDeviceProfile() === "mobile";
 
   // Live TV joins the centered tabs only when IPTV is enabled in Settings.
@@ -94,11 +97,16 @@ export function Navbar() {
             <Settings size={20} />
           </NavLink>
           <button
-            onClick={() => navigate("/signin")}
+            onClick={() => navigate("/profiles")}
             className="focusable flex h-10 w-10 items-center justify-center rounded-full text-white/85 hover:text-white"
-            aria-label="Switch user"
+            aria-label={activeProfile ? `Switch profile (${activeProfile.name})` : "Switch profile"}
+            title={activeProfile ? `${activeProfile.name} — switch profile` : "Switch profile"}
           >
-            <Users size={20} />
+            {activeProfile ? (
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-surface-2 text-lg">{activeProfile.avatar}</span>
+            ) : (
+              <Users size={20} />
+            )}
           </button>
         </div>
       </nav>

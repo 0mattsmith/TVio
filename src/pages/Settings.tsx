@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock } from "lucide-react";
+import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users } from "lucide-react";
 import { SERVICES, OTHER_SERVICE } from "../services/services";
 import { hasTmdbKey, currentRegion } from "../services/tmdb";
 import { firebaseEnabled } from "../services/firebase";
@@ -43,7 +43,10 @@ export function Settings() {
     iptvEnabled, setIptvEnabled,
     iptvPlaylists, iptvEpgUrls, addIptvPlaylist, removeIptvPlaylist, addIptvEpg, removeIptvEpg,
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
+    profiles, activeProfileId,
   } = useAppStore();
+  const activeProfile = profiles.find((p) => p.id === activeProfileId);
+  const isMasterProfile = activeProfile?.isMaster ?? false;
   const isTV = useDeviceProfile() === "tv";
   const queryClient = useQueryClient();
   const [keyInput, setKeyInput] = useState(tmdbKey);
@@ -92,8 +95,8 @@ export function Settings() {
         <h2 className="text-lg font-bold">Account</h2>
         <p className="mt-1 text-sm text-muted">{user ? user.email : "Not signed in"}</p>
         <div className="mt-4 flex gap-3">
-          <Button variant="secondary" onClick={() => navigate("/signin")}>
-            <MonitorPlay size={16} /> Switch user
+          <Button variant="secondary" onClick={() => navigate("/profiles")}>
+            <Users size={16} /> Switch profile
           </Button>
           {user && (
             <Button variant="ghost" onClick={() => { signOut(); navigate("/signin"); }}>
@@ -195,6 +198,8 @@ export function Settings() {
         </div>
       </section>
 
+      {isMasterProfile ? (
+      <>
       {/* Sources */}
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
         <h2 className="flex items-center gap-2 text-lg font-bold"><Puzzle size={18} /> Your sources</h2>
@@ -389,6 +394,21 @@ export function Settings() {
           </p>
         </div>
       </section>
+      </>
+      ) : (
+        <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
+          <h2 className="flex items-center gap-2 text-lg font-bold text-muted">
+            <Lock size={18} /> Sources, Live TV &amp; API
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Only the <span className="font-semibold text-white">Master</span> profile can change sources, Live TV and API
+            settings. Switch to the Master profile to edit them.
+          </p>
+          <Button variant="secondary" className="mt-4" onClick={() => navigate("/profiles")}>
+            <Users size={16} /> Switch profile
+          </Button>
+        </section>
+      )}
     </div>
   );
 }

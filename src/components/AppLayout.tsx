@@ -9,11 +9,13 @@ export function AppLayout() {
   const user = useAppStore((s) => s.user);
   const tmdbKey = useAppStore((s) => s.tmdbKey); // subscribe so the gate reacts to key changes
   const onboardingDone = useAppStore((s) => s.onboardingDone);
+  const activeProfileId = useAppStore((s) => s.activeProfileId);
 
-  // First-run gate: sign in, then ensure a TMDB key (or an explicit skip).
+  // First-run gate: sign in → TMDB key (or explicit skip) → pick a profile.
   void tmdbKey;
   if (!user) return <Navigate to="/signin" replace />;
   if (!hasTmdbKey() && !onboardingDone) return <Navigate to="/onboarding" replace />;
+  if (!activeProfileId) return <Navigate to="/profiles" replace />;
 
   return (
     <div className="min-h-screen bg-bg">

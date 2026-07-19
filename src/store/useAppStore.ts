@@ -6,10 +6,26 @@ import { auth, firebaseEnabled } from "../services/firebase";
 import { configureTmdb } from "../services/tmdb";
 import type { MediaItem } from "../services/types";
 
-interface ProgressEntry extends MediaItem {
+export interface ProgressEntry extends MediaItem {
   positionSec: number;
   durationSec: number;
   updatedAt: number;
+}
+
+// Netflix-style profiles. The first profile created is the Master, which is the
+// only one allowed to edit sensitive settings (API key, sources, Live TV).
+export interface Profile {
+  id: string;
+  name: string;
+  avatar: string; // emoji
+  isMaster: boolean;
+}
+
+export const PROFILE_AVATARS = ["🍿", "🎬", "🎮", "🐱", "🚀", "🌊", "🔥", "⭐", "🦊", "🐼", "🎧", "🌙"];
+
+interface ProfileBucket {
+  watchlist: MediaItem[];
+  progress: ProgressEntry[];
 }
 
 export type SourceKind = "builtin" | "aiostreams" | "addon" | "plex" | "jellyfin" | "emby" | "nas";
@@ -65,7 +81,16 @@ interface AppState {
   toggleService: (key: string) => void;
   setAllServices: (on: boolean) => void;
 
-  // Watchlist
+  // Profiles (each has its own watchlist + continue-watching)
+  profiles: Profile[];
+  activeProfileId: string | null;
+  profileData: Record<string, ProfileBucket>;
+  addProfile: (name: string, avatar: string) => string;
+  updateProfile: (id: string, patch: Partial<Pick<Profile, "name" | "avatar">>) => void;
+  removeProfile: (id: string) => void;
+  switchProfile: (id: string) => void;
+
+  // Watchlist (of the ACTIVE profile)
   watchlist: MediaItem[];
   inWatchlist: (id: number) => boolean;
   toggleWatchlist: (item: MediaItem) => void;
@@ -138,6 +163,55 @@ export const useAppStore = create<AppState>()(
             : [...s.enabledServices, key],
         })),
       setAllServices: (on) => set({ enabledServices: on ? [...ALL_SERVICE_KEYS] : [] }),
+
+      profiles: [],
+      activeProfileId: null,
+      profileData: {},
+      addProfile: (name, avatar) => {
+        const id = crypto.randomUUID();
+        set((s) => {
+          const isMaster = s.profiles.length === 0;
+          const profile: Profile = { id, name: name.trim() || "Profile", avatar, isMaster };
+          // The first (Master) profile inherits any data already on the device.
+          const bucket: ProfileBucket = isMaster
+            ? { watchlist: s.watchlist, progress: s.progress }
+            : { watchlist: [], progress: [] };
+          return {
+            profiles: [...s.profiles, profile],
+            profileData: { ...s.profileData, [id]: bucket },
+            ...(isMaster ? { activeProfileId: id } : {}),
+          };
+        });
+        return id;
+      },
+      updateProfile: (id, patch) =>
+        set((s) => ({ profiles: s.profiles.map((p) => (p.id === id ? { ...p, ...patch } : p)) })),
+      removeProfile: (id) =>
+        set((s) => {
+          const target = s.profiles.find((p) => p.id === id);
+          if (!target || target.isMaster) return s; // never remove the Master
+          const { [id]: _drop, ...rest } = s.profileData;
+          return {
+            profiles: s.profiles.filter((p) => p.id !== id),
+            profileData: rest,
+            ...(s.activeProfileId === id ? { activeProfileId: null, watchlist: [], progress: [] } : {}),
+          };
+        }),
+      switchProfile: (id) =>
+        set((s) => {
+          // Park the current profile's data, then load the target's.
+          const saved: Record<string, ProfileBucket> = s.activeProfileId
+            ? { ...s.profileData, [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress } }
+            : { ...s.profileData };
+          const target = saved[id] || { watchlist: [], progress: [] };
+          return {
+            profileData: saved,
+            activeProfileId: id,
+            watchlist: target.watchlist,
+            progress: target.progress,
+            lastWatchlistAdd: null,
+          };
+        }),
 
       watchlist: [],
       inWatchlist: (id) => get().watchlist.some((w) => w.id === id),
@@ -213,6 +287,9 @@ export const useAppStore = create<AppState>()(
       partialize: (s) => ({
         user: s.user,
         enabledServices: s.enabledServices,
+        profiles: s.profiles,
+        activeProfileId: s.activeProfileId,
+        profileData: s.profileData,
         watchlist: s.watchlist,
         progress: s.progress,
         addons: s.addons,
