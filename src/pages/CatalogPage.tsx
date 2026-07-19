@@ -51,7 +51,10 @@ export function CatalogPage({ type }: { type: MediaType }) {
       <DemoBanner />
       <Hero item={heroQ.data?.[0]} />
 
-      <div className="relative z-10 -mt-14">
+      {/* The filters ride up over the hero's fade. The overlap has to stay
+          smaller than the hero's bottom padding or it eats the Play buttons —
+          mobile's padding is smaller, so the overlap is too. */}
+      <div className="relative z-10 -mt-4 sm:-mt-14">
         {isTV ? (
           // TV: collapse both filters into one focus target to cut D-pad stops.
           <div className="flex items-center gap-3 px-4 pb-3 sm:px-8">

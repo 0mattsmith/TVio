@@ -21,7 +21,7 @@ export function Hero({ item }: { item?: MediaItem }) {
       <div className="absolute inset-0 hero-fade" />
       <div className="absolute inset-0 hero-fade-left" />
 
-      <div className="absolute bottom-0 left-0 max-w-2xl p-4 pb-10 sm:p-8 sm:pb-14">
+      <div className="absolute bottom-0 left-0 max-w-2xl p-4 pb-12 sm:p-8 sm:pb-14">
         <h1 className="mb-3 text-4xl font-black leading-none tracking-tight drop-shadow-lg sm:text-6xl">
           {item.title}
         </h1>
