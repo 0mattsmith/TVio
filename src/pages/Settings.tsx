@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock } from "lucide-react";
 import { SERVICES, OTHER_SERVICE } from "../services/services";
 import { hasTmdbKey, currentRegion } from "../services/tmdb";
@@ -42,13 +43,18 @@ export function Settings() {
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
   } = useAppStore();
   const isTV = useDeviceProfile() === "tv";
+  const queryClient = useQueryClient();
   const [keyInput, setKeyInput] = useState(tmdbKey);
   const [regionInput, setRegionInput] = useState(tmdbRegion);
+  const [saved, setSaved] = useState(false);
   const saveTmdb = () => {
+    // Persist + apply the key to the TMDB client, then refetch everything with
+    // it. No page reload (that broke under the service worker on Pages).
     setTmdbKey(keyInput);
     setTmdbRegion(regionInput);
-    // Reload so the whole app + cached queries pick up the new key/region.
-    setTimeout(() => window.location.reload(), 60);
+    queryClient.invalidateQueries();
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
   };
 
   const [url, setUrl] = useState("");
@@ -337,11 +343,12 @@ export function Settings() {
 
           <div className="flex flex-wrap items-center gap-3">
             <Button onClick={saveTmdb} disabled={keyInput === tmdbKey && regionInput === tmdbRegion}>
-              Save &amp; reload
+              Save
             </Button>
             <span className="text-xs">
               {hasTmdbKey() ? <span className="text-accent">● Connected</span> : <span className="text-yellow-400">● Demo mode</span>}
               {" · "}Region {currentRegion()}
+              {saved && <span className="ml-2 text-accent">Saved ✓</span>}
             </span>
           </div>
 

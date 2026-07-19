@@ -1,5 +1,5 @@
 // Minimal offline-first service worker (app shell cache).
-const CACHE = "tvio-v1";
+const CACHE = "tvio-v2";
 const SHELL = ["./", "./index.html", "./manifest.webmanifest", "./icon.svg"];
 
 self.addEventListener("install", (e) => {
@@ -27,6 +27,24 @@ self.addEventListener("fetch", (e) => {
     /\.(m3u8?|ts|xml|xml\.gz)(\?|$)/i.test(request.url)
   )
     return;
+
+  // Network-first for page navigations so a fresh app shell is always used
+  // (a stale cached shell caused white screens needing a hard reload). Falls
+  // back to cache only when offline.
+  if (request.mode === "navigate") {
+    e.respondWith(
+      fetch(request)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put("./index.html", copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match("./index.html").then((r) => r || caches.match("./")))
+    );
+    return;
+  }
+
+  // Cache-first for hashed static assets (they never change under one URL).
   e.respondWith(
     caches.match(request).then((cached) =>
       cached ||
