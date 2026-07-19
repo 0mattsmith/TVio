@@ -59,11 +59,23 @@ jobs:
           node-version: 20
           cache: npm
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
       # Caches ~/.cargo and src-tauri/target — the single biggest win here,
       # cutting repeat builds from ~10 min to ~2-3 min.
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: "src-tauri -> target"
+      # Tauri downloads its OWN vendored NSIS/WiX at bundle time (not the system
+      # ones), which is what timed out. Caching them means it's fetched once and
+      # reused, so a flaky download can't break a release.
+      - name: Cache Tauri bundler tools (NSIS / WiX)
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/AppData/Local/tauri
+            ~/.cargo/tauri
+          key: tauri-bundler-tools-${{ runner.os }}-v1
       - name: Sync version from the release tag
         if: startsWith(github.ref, 'refs/tags/v')
         run: node scripts/sync-version.mjs "${{ github.ref_name }}"
@@ -76,10 +88,26 @@ jobs:
         run: node scripts/gen-installer-assets.mjs
       - run: npx @tauri-apps/cli icon build/icon-1024.png
       - name: Build desktop app (MSI + NSIS) and attach to release
+        id: bundle
+        continue-on-error: true
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Signs the update artifacts so the silent updater will accept them.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
+          releaseName: TVio ${{ github.ref_name }}
+          releaseDraft: false
+          prerelease: false
+      # The bundler fetches NSIS/WiX over the network, which occasionally times
+      # out ("failed to bundle project: timeout: global"). One retry clears it.
+      - name: Retry bundle (transient download failures)
+        if: steps.bundle.outcome == 'failure'
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
