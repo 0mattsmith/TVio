@@ -1,10 +1,11 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil } from "lucide-react";
+import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw } from "lucide-react";
 import { SERVICES, OTHER_SERVICE } from "../services/services";
 import { hasTmdbKey, currentRegion, usingBuiltInKey } from "../services/tmdb";
 import { firebaseEnabled } from "../services/firebase";
+import { pullAccountSources } from "../services/firebaseSync";
 import { useAppStore, buildAiostreamsUrl, PROFILE_AVATARS } from "../store/useAppStore";
 import type { Addon, PlatformOverride } from "../store/useAppStore";
 import { AvatarPicker } from "../components/AvatarPicker";
@@ -83,6 +84,18 @@ export function Settings() {
   const [aioKey, setAioKey] = useState("");
   const [aioSave, setAioSave] = useState(true);
   const [installing, setInstalling] = useState(false);
+  // TV: pull sources saved on the account instead of typing the key on a remote.
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState("");
+  const syncFromAccount = async () => {
+    setSyncing(true);
+    setSyncMsg("");
+    const res = await pullAccountSources();
+    setSyncMsg(
+      res.error ?? (res.added > 0 ? `Synced ${res.added} source${res.added > 1 ? "s" : ""} from your account.` : "Already up to date.")
+    );
+    setSyncing(false);
+  };
   const [plName, setPlName] = useState("");
   const [plUrl, setPlUrl] = useState("");
   const [epgName, setEpgName] = useState("");
@@ -323,7 +336,14 @@ export function Settings() {
             <Button onClick={installAiostreams} disabled={installing || hasAiostreams}>
               <Plus size={16} /> {installing ? "Adding…" : "Add"}
             </Button>
+            {/* On TV, pull the key from the account rather than typing it on a remote. */}
+            {isTV && (
+              <Button variant="secondary" onClick={syncFromAccount} disabled={syncing}>
+                <RefreshCw size={16} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync"}
+              </Button>
+            )}
           </div>
+          {isTV && syncMsg && <p className="mt-1.5 text-xs text-accent">{syncMsg}</p>}
           {firebaseEnabled && !hasAiostreams && (
             <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-muted">
               <input

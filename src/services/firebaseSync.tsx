@@ -1,6 +1,6 @@
 import { useEffect } from "react";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db, firebaseEnabled } from "./firebase";
 import { useAppStore } from "../store/useAppStore";
 import type { Addon, Profile, ProgressEntry } from "../store/useAppStore";
@@ -12,6 +12,35 @@ let applyingRemote = false;
 function unionById(primary: MediaItem[], extra: MediaItem[]): MediaItem[] {
   const ids = new Set(primary.map((p) => p.id));
   return [...primary, ...extra.filter((e) => !ids.has(e.id))];
+}
+
+/**
+ * Pulls the sources saved on the account right now (rather than waiting for the
+ * live listener). Handy on Android TV, where typing an AIOStreams key with a
+ * remote is miserable — add it on your phone, then hit Sync on the TV.
+ * Existing sources are matched by URL so syncing twice can't duplicate them.
+ */
+export async function pullAccountSources(): Promise<{ added: number; error?: string }> {
+  if (!firebaseEnabled || !auth || !db) {
+    return { added: 0, error: "Account sync isn't configured on this build." };
+  }
+  const user = auth.currentUser;
+  if (!user) return { added: 0, error: "Sign in first to sync from your account." };
+
+  try {
+    const snap = await getDoc(doc(db, "users", user.uid));
+    const remote = (snap.data()?.addons as Addon[] | undefined) ?? [];
+    if (remote.length === 0) {
+      return { added: 0, error: "No saved sources on your account yet — add one on your phone first." };
+    }
+    const current = useAppStore.getState().addons;
+    const known = new Set(current.map((a) => a.url));
+    const toAdd = remote.filter((a) => !known.has(a.url));
+    if (toAdd.length > 0) useAppStore.setState({ addons: [...current, ...toAdd] });
+    return { added: toAdd.length };
+  } catch {
+    return { added: 0, error: "Couldn't reach your account. Check the connection and try again." };
+  }
 }
 
 // Mounts once. When Firebase is configured, keeps auth state and the user's
