@@ -25,9 +25,18 @@ export function isTauri(): boolean {
   return Boolean(w.__TAURI__ || w.__TAURI_INTERNALS__);
 }
 
-function isCapacitor(): boolean {
+export function isCapacitor(): boolean {
   const cap = (window as unknown as { Capacitor?: { isNativePlatform?: () => boolean } }).Capacitor;
   return Boolean(cap && (cap.isNativePlatform ? cap.isNativePlatform() : true));
+}
+
+/** Which update mechanism this build actually uses. */
+export type UpdateChannel = "desktop" | "android" | "web";
+
+export function updateChannel(): UpdateChannel {
+  if (isTauri()) return "desktop";
+  if (isCapacitor()) return "android";
+  return "web";
 }
 
 /** Semver-ish compare: true when `remote` is newer than `local`. */
@@ -64,15 +73,13 @@ export async function checkDesktopUpdate(): Promise<DesktopUpdate | null> {
   }
 }
 
-/** Downloads + installs the update, reporting progress, then relaunches. */
-export async function runDesktopUpdate(update: DesktopUpdate, onProgress?: (pct: number) => void): Promise<void> {
-  const handle = update.handle as {
-    downloadAndInstall: (cb: (e: { event: string; data?: { contentLength?: number; chunkLength?: number } }) => void) => Promise<void>;
-  };
+type DownloadEvent = { event: string; data?: { contentLength?: number; chunkLength?: number } };
+
+/** Turns the plugin's chunk events into a 0-100 percentage. */
+function progressReporter(onProgress?: (pct: number) => void) {
   let total = 0;
   let received = 0;
-
-  await handle.downloadAndInstall((e) => {
+  return (e: DownloadEvent) => {
     if (e.event === "Started") {
       total = e.data?.contentLength ?? 0;
     } else if (e.event === "Progress") {
@@ -81,8 +88,39 @@ export async function runDesktopUpdate(update: DesktopUpdate, onProgress?: (pct:
     } else if (e.event === "Finished") {
       onProgress?.(100);
     }
-  });
+  };
+}
 
+/** Downloads + installs the update, reporting progress, then relaunches. */
+export async function runDesktopUpdate(update: DesktopUpdate, onProgress?: (pct: number) => void): Promise<void> {
+  const handle = update.handle as {
+    downloadAndInstall: (cb: (e: DownloadEvent) => void) => Promise<void>;
+  };
+  await handle.downloadAndInstall(progressReporter(onProgress));
+
+  const { relaunch } = await import("@tauri-apps/plugin-process");
+  await relaunch();
+}
+
+/**
+ * Fetches the update but stops short of installing it, so the user picks the
+ * moment. That matters on Windows: the installer force-exits the app, so an
+ * install the user didn't ask for looks exactly like a crash.
+ */
+export async function downloadDesktopUpdate(update: DesktopUpdate, onProgress?: (pct: number) => void): Promise<void> {
+  const handle = update.handle as { download: (cb: (e: DownloadEvent) => void) => Promise<void> };
+  await handle.download(progressReporter(onProgress));
+}
+
+/**
+ * Installs an already-downloaded update and restarts into it. Silent, because
+ * the updater is configured with installMode "quiet".
+ */
+export async function installDesktopUpdate(update: DesktopUpdate): Promise<void> {
+  const handle = update.handle as { install: () => Promise<void> };
+  await handle.install();
+  // Windows usually exits during install and NSIS restarts us, so this is a
+  // belt-and-braces relaunch for the platforms that don't.
   const { relaunch } = await import("@tauri-apps/plugin-process");
   await relaunch();
 }
