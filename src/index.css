@@ -1,0 +1,52 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: dark;
+  --accent: #14b8a6;
+}
+
+html, body, #root { height: 100%; }
+
+body {
+  margin: 0;
+  background: #0a0a0a;
+  color: #f5f5f5;
+  font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Hide scrollbars on horizontal rows but keep scrolling */
+.no-scrollbar::-webkit-scrollbar { display: none; }
+.no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* Cinematic top gradient used on Home hero */
+.hero-fade {
+  background: linear-gradient(180deg, rgba(10,10,10,0) 0%, rgba(10,10,10,0.6) 60%, #0a0a0a 100%);
+}
+.hero-fade-left {
+  background: linear-gradient(90deg, rgba(10,10,10,0.95) 0%, rgba(10,10,10,0.6) 40%, rgba(10,10,10,0) 100%);
+}
+
+/* Focus ring for keyboard + D-pad (TV) navigation */
+.focusable:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 2px #14b8a6, 0 0 24px rgba(20,184,166,0.35);
+  transform: scale(1.04);
+  z-index: 5;
+}
+
+@keyframes shimmer { 100% { transform: translateX(100%); } }
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: #1a1a1a;
+}
+.skeleton::after {
+  content: "";
+  position: absolute; inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.04), transparent);
+  animation: shimmer 1.4s infinite;
+}

@@ -1,0 +1,6 @@
+npm error code EJSONPARSE
+npm error path /sessions/fervent-funny-clarke/mnt/TVio/package.json
+npm error JSON.parse Unexpected non-whitespace character after JSON at position 891 (line 35 column 1) while parsing near "...te\": \"^5.3.3\"\n  }\n}\n\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000\u0000..."
+npm error JSON.parse Failed to parse JSON data.
+npm error JSON.parse Note: package.json must be actual JSON, not just JavaScript.
+npm error A complete log of this run can be found in: /sessions/fervent-funny-clarke/.npm/_logs/2026-07-14T21_29_08_165Z-debug-0.log
