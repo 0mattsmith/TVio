@@ -34,9 +34,19 @@ export default {
     incoming.searchParams.forEach((v, k) => {
       if (k !== "api_key") target.searchParams.set(k, v); // never trust a client-supplied key
     });
-    target.searchParams.set("api_key", env.TMDB_KEY);
 
-    const res = await fetch(target.toString(), { headers: { accept: "application/json" } });
+    // Accept either credential: the v3 API Key (?api_key=) or the v4 Read
+    // Access Token (a JWT sent as a Bearer header).
+    const key = env.TMDB_KEY || "";
+    const isReadToken = key.startsWith("eyJ");
+    if (!isReadToken) target.searchParams.set("api_key", key);
+
+    const res = await fetch(target.toString(), {
+      headers: {
+        accept: "application/json",
+        ...(isReadToken ? { authorization: `Bearer ${key}` } : {}),
+      },
+    });
 
     return new Response(res.body, {
       status: res.status,
