@@ -4,8 +4,8 @@
  * Run AFTER `npx cap add android` — it writes straight into the generated
  * project, replacing Capacitor's stock icons:
  *
- *   res/mipmap-*/ic_launcher.png            legacy launcher (48→192)
- *   res/mipmap-*/ic_launcher_round.png      round mask variant
+ *   res/mipmap-<dpi>/ic_launcher.png        legacy launcher (48→192)
+ *   res/mipmap-<dpi>/ic_launcher_round.png  round mask variant
  *   res/drawable/ic_launcher_foreground.png adaptive foreground (432, safe-zoned)
  *   res/values/ic_launcher_background.xml   adaptive background colour
  *   res/mipmap-anydpi-v26/ic_launcher*.xml  adaptive icon definitions
