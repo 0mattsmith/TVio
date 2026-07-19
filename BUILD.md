@@ -23,6 +23,17 @@ VITE_TMDB_KEY, VITE_TMDB_TOKEN, VITE_TMDB_REGION, VITE_OMDB_KEY,
 VITE_FIREBASE_API_KEY, VITE_FIREBASE_AUTH_DOMAIN, VITE_FIREBASE_PROJECT_ID, VITE_FIREBASE_APP_ID
 ```
 
+### 1b. (Recommended) Zero-config data via a TMDB proxy
+Anything `VITE_*` is compiled into the client bundle, so a baked-in `VITE_TMDB_KEY` is extractable from the deployed JS. To keep the key private *and* give users a no-setup experience, put it behind the included Cloudflare Worker (`proxy/tmdb-worker.js`, free tier):
+
+1. Cloudflare dashboard → **Workers & Pages → Create → Worker**, paste `proxy/tmdb-worker.js`, Deploy.
+2. Worker → **Settings → Variables and Secrets** → add secret `TMDB_KEY` = your TMDB v3 key.
+3. GitHub → repo **Settings → Secrets and variables → Actions** → add
+   `VITE_TMDB_PROXY = https://<your-worker>.workers.dev/tmdb`
+4. **Remove `VITE_TMDB_KEY`** from the GitHub secrets — otherwise the key is still embedded in the bundle.
+
+The app then sends no key from the browser at all, and the first-run "add your TMDB key" step is skipped for everyone. Verify: Settings shows **● Connected (built-in)** and network calls go to `workers.dev` with no `api_key` parameter.
+
 ### 2. Enable GitHub Pages
 Settings → Pages → **Source: GitHub Actions**. The site publishes at `https://<user>.github.io/TVio/`.
 

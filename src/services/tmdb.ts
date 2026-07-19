@@ -16,6 +16,11 @@ const ENV_KEY = import.meta.env.VITE_TMDB_KEY as string | undefined;
 const TOKEN = import.meta.env.VITE_TMDB_TOKEN as string | undefined;
 const ENV_REGION = (import.meta.env.VITE_TMDB_REGION as string) || "US";
 
+// Optional server-side proxy (e.g. a Cloudflare Worker) that holds the TMDB key
+// so it never ships in the client bundle. When set, requests go here and no key
+// is sent from the browser — users need no configuration at all.
+const ENV_PROXY = (import.meta.env.VITE_TMDB_PROXY as string | undefined)?.replace(/\/+$/, "") || undefined;
+
 // Runtime overrides (set from Settings, persisted in the store) take precedence
 // over the build-time env vars, so an end-user on the web / PWA build can supply
 // their own TMDB key without editing .env.local.
@@ -31,7 +36,12 @@ function activeKey() {
   return runtimeKey || ENV_KEY;
 }
 export function hasTmdbKey(): boolean {
-  return Boolean(activeKey() || TOKEN);
+  return Boolean(ENV_PROXY || activeKey() || TOKEN);
+}
+
+// True when data works without the user supplying anything (baked-in key or proxy).
+export function usingBuiltInKey(): boolean {
+  return Boolean(ENV_PROXY || ENV_KEY || TOKEN);
 }
 export function currentRegion(): string {
   return runtimeRegion || ENV_REGION;
@@ -42,14 +52,17 @@ export function img(path: string | null, size: "w200" | "w342" | "w500" | "w780"
 }
 
 async function tmdb<T>(path: string, params: Record<string, string | number | undefined> = {}): Promise<T> {
-  const url = new URL(V3 + path);
+  const url = new URL((ENV_PROXY || V3) + path);
   for (const [k, v] of Object.entries(params)) {
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   }
   const headers: Record<string, string> = { accept: "application/json" };
-  const key = activeKey();
-  if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
-  else if (key) url.searchParams.set("api_key", key);
+  // With a proxy the key lives server-side, so nothing is sent from the browser.
+  if (!ENV_PROXY) {
+    const key = activeKey();
+    if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
+    else if (key) url.searchParams.set("api_key", key);
+  }
 
   const res = await fetch(url.toString(), { headers });
   if (!res.ok) throw new Error(`TMDB ${res.status}: ${path}`);

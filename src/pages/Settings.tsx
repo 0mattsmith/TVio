@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users } from "lucide-react";
 import { SERVICES, OTHER_SERVICE } from "../services/services";
-import { hasTmdbKey, currentRegion } from "../services/tmdb";
+import { hasTmdbKey, currentRegion, usingBuiltInKey } from "../services/tmdb";
 import { firebaseEnabled } from "../services/firebase";
 import { useAppStore, buildAiostreamsUrl } from "../store/useAppStore";
 import type { Addon, PlatformOverride } from "../store/useAppStore";
@@ -353,7 +353,9 @@ export function Settings() {
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
         <h2 className="text-lg font-bold">Data &amp; API</h2>
         <p className="mt-1 text-sm text-muted">
-          TVio uses TMDB for posters, cast, trailers and where-to-watch. Add your own free key to switch off demo mode — it's stored only on this device.
+          {usingBuiltInKey()
+            ? "TVio ships with a built-in TMDB connection — nothing to set up. You can add your own key below if you'd rather use your own quota."
+            : "TVio uses TMDB for posters, cast, trailers and where-to-watch. Add your own free key to switch off demo mode — it's stored only on this device."}
         </p>
 
         <div className="mt-4 space-y-3">
@@ -382,7 +384,11 @@ export function Settings() {
               Save
             </Button>
             <span className="text-xs">
-              {hasTmdbKey() ? <span className="text-accent">● Connected</span> : <span className="text-yellow-400">● Demo mode</span>}
+              {hasTmdbKey() ? (
+                <span className="text-accent">● Connected{usingBuiltInKey() && !tmdbKey ? " (built-in)" : ""}</span>
+              ) : (
+                <span className="text-yellow-400">● Demo mode</span>
+              )}
               {" · "}Region {currentRegion()}
               {saved && <span className="ml-2 text-accent">Saved ✓</span>}
             </span>

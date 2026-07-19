@@ -19,6 +19,7 @@ jobs:
       VITE_TMDB_KEY: ${{ secrets.VITE_TMDB_KEY }}
       VITE_TMDB_TOKEN: ${{ secrets.VITE_TMDB_TOKEN }}
       VITE_TMDB_REGION: ${{ secrets.VITE_TMDB_REGION }}
+      VITE_TMDB_PROXY: ${{ secrets.VITE_TMDB_PROXY }}
       VITE_OMDB_KEY: ${{ secrets.VITE_OMDB_KEY }}
       VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
       VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
@@ -63,6 +64,7 @@ jobs:
       VITE_TMDB_KEY: ${{ secrets.VITE_TMDB_KEY }}
       VITE_TMDB_TOKEN: ${{ secrets.VITE_TMDB_TOKEN }}
       VITE_TMDB_REGION: ${{ secrets.VITE_TMDB_REGION }}
+      VITE_TMDB_PROXY: ${{ secrets.VITE_TMDB_PROXY }}
       VITE_OMDB_KEY: ${{ secrets.VITE_OMDB_KEY }}
       VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
       VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
