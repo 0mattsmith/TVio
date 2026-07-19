@@ -89,14 +89,15 @@ function wordmark(x, y, size, anchor = "middle") {
 
 // Each takes the FINAL size plus the supersample factor, and scales everything.
 const art = {
-  // NSIS header strip (top-right of the wizard).
+  // NSIS header strip (top-right of the wizard). Only 150x57 and stretched by
+  // Windows at >100% scaling, so: big type, thick accent, no hairlines.
   header: (w, h, s) => {
     const W = w * s, H = h * s;
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
       <rect width="${W}" height="${H}" fill="${BG}"/>
       ${glow("g", W, 0, W)}<rect width="${W}" height="${H}" fill="url(#g)"/>
-      ${wordmark(W / 2, H / 2, 24 * s)}
-      <rect x="0" y="${H - 2 * s}" width="${W}" height="${2 * s}" fill="${ACCENT}"/>
+      ${wordmark(W / 2, H / 2 - 2 * s, 32 * s)}
+      <rect x="0" y="${H - 4 * s}" width="${W}" height="${4 * s}" fill="${ACCENT}"/>
     </svg>`;
   },
 
@@ -106,11 +107,11 @@ const art = {
     return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
       <rect width="${W}" height="${H}" fill="${BG}"/>
       ${glow("g", W / 2, H * 0.28, W * 1.1)}<rect width="${W}" height="${H}" fill="url(#g)"/>
-      ${wordmark(W / 2, H * 0.3, 36 * s)}
-      <rect x="${W / 2 - 24 * s}" y="${H * 0.3 + 32 * s}" width="${48 * s}" height="${3 * s}" rx="${1.5 * s}" fill="${ACCENT}"/>
-      <text x="${W / 2}" y="${H * 0.3 + 58 * s}" text-anchor="middle" font-family="${FONT}"
-        font-size="${11 * s}" fill="#9ca3af">Your films, series &amp; live TV</text>
-      <rect x="0" y="${H - 3 * s}" width="${W}" height="${3 * s}" fill="${ACCENT}"/>
+      ${wordmark(W / 2, H * 0.3, 44 * s)}
+      <rect x="${W / 2 - 28 * s}" y="${H * 0.3 + 38 * s}" width="${56 * s}" height="${5 * s}" rx="${2.5 * s}" fill="${ACCENT}"/>
+      <text x="${W / 2}" y="${H * 0.3 + 66 * s}" text-anchor="middle" font-family="${FONT}"
+        font-weight="600" font-size="${13 * s}" fill="#cbd5d5">Films, series &amp; live TV</text>
+      <rect x="0" y="${H - 5 * s}" width="${W}" height="${5 * s}" fill="${ACCENT}"/>
     </svg>`;
   },
 
