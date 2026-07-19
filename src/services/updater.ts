@@ -1,17 +1,17 @@
 // Automatic updates.
 //
-// Windows (Tauri): fully silent — the updater plugin checks a signed latest.json
-// published with each GitHub Release, downloads in the background, installs, and
-// relaunches. No user interaction.
+// Windows (Tauri): checked at LAUNCH, before the app renders. If an update
+// exists it downloads on a small branded splash and relaunches straight into
+// the new version — the user never sees a prompt, and never gets interrupted
+// mid-session. Fails open: any error or a slow network just launches the app.
 //
-// Android / Android TV (Capacitor): Android does NOT permit a sideloaded app to
-// install an APK silently — the OS always shows its own install confirmation.
-// So the best possible is: check GitHub Releases in the background, and offer a
-// one-tap update. (See BUILD.md for the fully-hands-off alternative: Obtainium.)
+// Android / Android TV (Capacitor): Android forbids silent installs for
+// sideloaded apps, so we download in the background and offer a one-tap install.
 //
-// Web / PWA: handled by the service worker; nothing to do here.
+// Web / PWA: handled by the service worker.
 
-const RELEASES_API = "https://api.github.com/repos/0mattsmith/TVio/releases/latest";
+const REPO = "0mattsmith/TVio";
+const RELEASES_API = `https://api.github.com/repos/${REPO}/releases`;
 
 export interface UpdateInfo {
   version: string;
@@ -20,7 +20,7 @@ export interface UpdateInfo {
   apkUrl?: string;
 }
 
-function isTauri(): boolean {
+export function isTauri(): boolean {
   const w = window as unknown as { __TAURI__?: unknown; __TAURI_INTERNALS__?: unknown };
   return Boolean(w.__TAURI__ || w.__TAURI_INTERNALS__);
 }
@@ -30,7 +30,7 @@ function isCapacitor(): boolean {
   return Boolean(cap && (cap.isNativePlatform ? cap.isNativePlatform() : true));
 }
 
-/** Semver-ish compare: returns true when `remote` is newer than `local`. */
+/** Semver-ish compare: true when `remote` is newer than `local`. */
 function isNewer(remote: string, local: string): boolean {
   const norm = (v: string) => v.replace(/^v/, "").split(/[.-]/).map((n) => parseInt(n, 10) || 0);
   const a = norm(remote);
@@ -42,34 +42,63 @@ function isNewer(remote: string, local: string): boolean {
   return false;
 }
 
-/**
- * Windows: download + install + relaunch, silently. Resolves false if there was
- * nothing to do. Safe to call on every launch.
- */
-async function runTauriUpdate(): Promise<boolean> {
+// --- Desktop (Tauri) ---------------------------------------------------------
+
+export interface DesktopUpdate {
+  version: string;
+  notes?: string;
+  /** The plugin's Update handle. */
+  handle: unknown;
+}
+
+/** Looks for a desktop update. Resolves null if there isn't one (or on error). */
+export async function checkDesktopUpdate(): Promise<DesktopUpdate | null> {
+  if (!isTauri()) return null;
   try {
     const { check } = await import("@tauri-apps/plugin-updater");
     const update = await check();
-    if (!update) return false;
-    await update.downloadAndInstall();
-    const { relaunch } = await import("@tauri-apps/plugin-process");
-    await relaunch();
-    return true;
+    if (!update) return null;
+    return { version: update.version, notes: update.body, handle: update };
   } catch {
-    return false; // offline, unsigned build, or no endpoint — never block startup
+    return null; // offline, unsigned build, no endpoint — never block startup
   }
 }
 
-/** Android: look for a newer release and return its APK (install needs a tap). */
-async function checkAndroidUpdate(currentVersion: string): Promise<UpdateInfo | null> {
+/** Downloads + installs the update, reporting progress, then relaunches. */
+export async function runDesktopUpdate(update: DesktopUpdate, onProgress?: (pct: number) => void): Promise<void> {
+  const handle = update.handle as {
+    downloadAndInstall: (cb: (e: { event: string; data?: { contentLength?: number; chunkLength?: number } }) => void) => Promise<void>;
+  };
+  let total = 0;
+  let received = 0;
+
+  await handle.downloadAndInstall((e) => {
+    if (e.event === "Started") {
+      total = e.data?.contentLength ?? 0;
+    } else if (e.event === "Progress") {
+      received += e.data?.chunkLength ?? 0;
+      if (total > 0) onProgress?.(Math.min(99, Math.round((received * 100) / total)));
+    } else if (e.event === "Finished") {
+      onProgress?.(100);
+    }
+  });
+
+  const { relaunch } = await import("@tauri-apps/plugin-process");
+  await relaunch();
+}
+
+// --- Android (Capacitor) -----------------------------------------------------
+
+/** Looks for a newer release and returns its APK (install still needs a tap). */
+export async function checkAndroidUpdate(currentVersion: string): Promise<UpdateInfo | null> {
+  if (!isCapacitor()) return null;
   try {
-    const res = await fetch(RELEASES_API, { headers: { accept: "application/vnd.github+json" } });
+    const res = await fetch(`${RELEASES_API}/latest`, { headers: { accept: "application/vnd.github+json" } });
     if (!res.ok) return null;
     const rel = await res.json();
     const tag: string = rel.tag_name || "";
     if (!tag || !isNewer(tag, currentVersion)) return null;
 
-    // Prefer the TV build on a TV, otherwise the mobile APK.
     const assets: { name: string; browser_download_url: string }[] = rel.assets || [];
     const wantTv = /tv/i.test(navigator.userAgent);
     const pick =
@@ -83,21 +112,6 @@ async function checkAndroidUpdate(currentVersion: string): Promise<UpdateInfo | 
   }
 }
 
-/**
- * Call once at startup. On Windows this may silently update and relaunch; on
- * Android it resolves with an UpdateInfo the UI can offer as a one-tap update.
- */
-export async function autoUpdate(currentVersion: string): Promise<UpdateInfo | null> {
-  if (isTauri()) {
-    await runTauriUpdate();
-    return null; // either it relaunched, or there was nothing to do
-  }
-  if (isCapacitor()) return checkAndroidUpdate(currentVersion);
-  return null; // web/PWA updates via the service worker
-}
-
-// --- Android install path ----------------------------------------------------
-
 interface ApkUpdaterPlugin {
   canInstall: () => Promise<{ allowed: boolean }>;
   openInstallSettings: () => Promise<void>;
@@ -110,31 +124,37 @@ function apkUpdater(): ApkUpdaterPlugin | null {
   return (cap?.Plugins?.ApkUpdater as ApkUpdaterPlugin) ?? null;
 }
 
-/**
- * Downloads the APK in the background, then hands it to Android's installer.
- * Android shows its one-time "install unknown apps" toggle (if not yet granted)
- * followed by its install confirmation — silent installs aren't permitted for
- * sideloaded apps. Falls back to opening the download in a browser.
- */
+/** Downloads the APK, then hands it to Android's installer (which prompts). */
 export async function installApk(url: string, onProgress?: (pct: number) => void): Promise<void> {
   const plugin = apkUpdater();
   if (!plugin) {
     window.open(url, "_blank");
     return;
   }
-
   let sub: { remove: () => void } | undefined;
   try {
-    if (onProgress) {
-      sub = await plugin.addListener("downloadProgress", (d) => onProgress(d.progress));
-    }
-    // Ask for the install permission up front so the download isn't wasted.
+    if (onProgress) sub = await plugin.addListener("downloadProgress", (d) => onProgress(d.progress));
     const { allowed } = await plugin.canInstall();
     if (!allowed) await plugin.openInstallSettings();
     await plugin.downloadAndInstall({ url });
   } catch {
-    window.open(url, "_blank"); // last resort
+    window.open(url, "_blank");
   } finally {
     sub?.remove();
+  }
+}
+
+// --- Release notes ("What's New") --------------------------------------------
+
+/** Fetches the release notes for a version tag. Empty string if unavailable. */
+export async function fetchReleaseNotes(version: string): Promise<string> {
+  try {
+    const tag = version.startsWith("v") ? version : `v${version}`;
+    const res = await fetch(`${RELEASES_API}/tags/${tag}`, { headers: { accept: "application/vnd.github+json" } });
+    if (!res.ok) return "";
+    const rel = await res.json();
+    return (rel.body as string) || "";
+  } catch {
+    return "";
   }
 }

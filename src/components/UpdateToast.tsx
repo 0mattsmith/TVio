@@ -1,12 +1,13 @@
 import { useEffect, useState } from "react";
 import { Download, X, Loader2 } from "lucide-react";
-import { autoUpdate, installApk, type UpdateInfo } from "../services/updater";
+import { checkAndroidUpdate, installApk, type UpdateInfo } from "../services/updater";
 
-// Runs the auto-updater once at startup.
-//  - Windows (Tauri): updates silently and relaunches — this renders nothing.
-//  - Android / Android TV: downloads the APK in the background, then hands it to
-//    Android's installer (which always shows its own confirmation for sideloaded
-//    apps — plus a one-time "install unknown apps" toggle).
+// Android / Android TV only: downloads the APK in the background, then hands it
+// to Android's installer (which always shows its own confirmation for sideloaded
+// apps — plus a one-time "install unknown apps" toggle).
+//
+// Desktop is handled by UpdateGate at launch instead, so an update never
+// interrupts a session that's already running.
 export function UpdateToast() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
@@ -16,7 +17,7 @@ export function UpdateToast() {
     let active = true;
     // Small delay so updating never competes with first paint.
     const t = setTimeout(() => {
-      autoUpdate(__APP_VERSION__)
+      checkAndroidUpdate(__APP_VERSION__)
         .then((info) => {
           if (!active || !info?.apkUrl) return;
           setUpdate(info);

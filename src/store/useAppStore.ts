@@ -127,6 +127,9 @@ interface AppState {
   // First-run onboarding (sign-in → TMDB key) completed / skipped
   onboardingDone: boolean;
   setOnboardingDone: (v: boolean) => void;
+  // Last app version the user has seen release notes for ("What's New")
+  lastSeenVersion: string;
+  setLastSeenVersion: (v: string) => void;
 
   // Live TV / IPTV (opt-in)
   iptvEnabled: boolean;
@@ -264,6 +267,8 @@ export const useAppStore = create<AppState>()(
       setTmdbRegion: (v) => set({ tmdbRegion: v.trim() }),
       onboardingDone: false,
       setOnboardingDone: (v) => set({ onboardingDone: v }),
+      lastSeenVersion: "",
+      setLastSeenVersion: (v) => set({ lastSeenVersion: v }),
 
       iptvEnabled: false,
       setIptvEnabled: (v) => set({ iptvEnabled: v }),
@@ -300,6 +305,7 @@ export const useAppStore = create<AppState>()(
         tmdbKey: s.tmdbKey,
         tmdbRegion: s.tmdbRegion,
         onboardingDone: s.onboardingDone,
+        lastSeenVersion: s.lastSeenVersion,
         iptvEnabled: s.iptvEnabled,
         iptvPlaylists: s.iptvPlaylists,
         iptvEpgUrls: s.iptvEpgUrls,

@@ -3,6 +3,7 @@ import { Navbar } from "./Navbar";
 import { QuickWatch } from "./QuickWatch";
 import { WatchlistToast } from "./WatchlistToast";
 import { UpdateToast } from "./UpdateToast";
+import { WhatsNew } from "./WhatsNew";
 import { useAppStore } from "../store/useAppStore";
 import { hasTmdbKey } from "../services/tmdb";
 
@@ -30,6 +31,7 @@ export function AppLayout() {
       <QuickWatch />
       <WatchlistToast />
       <UpdateToast />
+      <WhatsNew />
     </div>
   );
 }
