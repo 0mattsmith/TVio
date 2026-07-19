@@ -1,6 +1,6 @@
 import { useParams, useNavigate, Link } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Play, Plus, Check, ArrowLeft, Star, ExternalLink, EyeOff } from "lucide-react";
+import { Play, Plus, Check, ArrowLeft, Star, ExternalLink, EyeOff, Layers, Heart } from "lucide-react";
 import { getDetail, getCollection } from "../services/catalog";
 import { resolveProviderUrl } from "../services/services";
 import type { MediaType, WatchProvider } from "../services/types";
@@ -26,6 +26,8 @@ export function Detail() {
   const toggle = useAppStore((s) => s.toggleWatchlist);
   const showOfficial = useAppStore((s) => s.showOfficialSources);
   const compact = useAppStore((s) => s.compactProviders);
+  const toggleCollection = useAppStore((s) => s.toggleCollection);
+  const followingCollection = useAppStore((s) => (data?.collectionId ? s.inCollections(data.collectionId) : false));
 
   const collectionQ = useQuery({
     queryKey: ["collection", data?.collectionId],
@@ -138,7 +140,33 @@ export function Detail() {
         {/* Part of a collection (Film) */}
         {mediaType === "movie" && data.collectionId && (collectionQ.data?.length ?? 0) > 0 && (
           <section className="mt-10">
-            <h2 className="mb-3 text-xl font-bold">{data.collectionName || "Collection"}</h2>
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+              <button
+                onClick={() => navigate(`/collection/${data.collectionId}`)}
+                className="focusable flex items-center gap-2 rounded text-xl font-bold hover:text-accent"
+              >
+                <Layers size={18} className="text-accent" />
+                {data.collectionName || "Collection"}
+                <span className="text-sm font-normal text-muted">
+                  · {collectionQ.data!.length} films in release order
+                </span>
+              </button>
+              <button
+                onClick={() =>
+                  toggleCollection({
+                    id: data.collectionId!,
+                    name: data.collectionName || "Collection",
+                    poster: collectionQ.data?.[0]?.poster ?? null,
+                  })
+                }
+                className={`focusable flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm font-bold ${
+                  followingCollection ? "bg-surface-2 text-accent" : "bg-accent text-black"
+                }`}
+              >
+                <Heart size={15} fill={followingCollection ? "currentColor" : "none"} />
+                {followingCollection ? "In Favourites" : "Add series"}
+              </button>
+            </div>
             <div className="no-scrollbar flex gap-2.5 overflow-x-auto pb-2">
               {collectionQ.data!.map((m) => (
                 <PosterCard key={m.id} item={m} />

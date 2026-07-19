@@ -33,6 +33,17 @@ export interface WatchProvider {
   type: "flatrate" | "rent" | "buy" | "ads" | "free";
 }
 
+/** A film series/franchise (TMDB "collection") — e.g. Star Wars, Halloween. */
+export interface CollectionDetail {
+  id: number;
+  name: string;
+  overview: string;
+  poster: string | null;
+  backdrop: string | null;
+  /** Films in release order. */
+  parts: MediaItem[];
+}
+
 export interface SeasonSummary {
   seasonNumber: number;
   name: string;

@@ -13,7 +13,8 @@
     "cap:add": "cap add android",
     "cap:sync": "cap sync android",
     "gen:icon": "node scripts/gen-icon.mjs",
-    "gen:installer": "node scripts/gen-installer-assets.mjs"
+    "gen:installer": "node scripts/gen-installer-assets.mjs",
+    "gen:android": "node scripts/gen-android-assets.mjs"
   },
   "dependencies": {
     "@capacitor-mlkit/barcode-scanning": "^6.2.0",

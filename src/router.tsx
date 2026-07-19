@@ -8,6 +8,7 @@ import { Home } from "./pages/Home";
 import { Movies } from "./pages/Movies";
 import { Series } from "./pages/Series";
 import { Detail } from "./pages/Detail";
+import { CollectionPage } from "./pages/CollectionPage";
 import { Person } from "./pages/Person";
 import { Player } from "./pages/Player";
 import { SearchPage } from "./pages/SearchPage";
@@ -35,6 +36,7 @@ export const router = createHashRouter([
       { path: "/remote", element: <RemotePage /> },
       { path: "/settings", element: <Settings /> },
       { path: "/title/:type/:id", element: <Detail /> },
+      { path: "/collection/:id", element: <CollectionPage /> },
       { path: "/person/:id", element: <Person /> },
     ],
   },

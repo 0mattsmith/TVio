@@ -1,8 +1,8 @@
 // Unified catalog layer: uses live TMDB when a key is present, otherwise
 // deterministic demo data so the whole app is browsable out of the box.
-import { hasTmdbKey, discover, trending, popular, detail, person, search, genres, tvSeason, collection } from "./tmdb";
+import { hasTmdbKey, discover, trending, popular, detail, person, search, genres, tvSeason, collection, collectionDetail } from "./tmdb";
 import { demoRow, demoDetail, demoSeason } from "./demo";
-import type { MediaItem, MediaType } from "./types";
+import type { MediaItem, MediaType, CollectionDetail } from "./types";
 
 export type RowKind = "popular" | "trending" | "new";
 
@@ -67,6 +67,21 @@ export async function getSeason(seriesId: number, seasonNumber: number) {
 export async function getCollection(collectionId: number): Promise<MediaItem[]> {
   if (!hasTmdbKey()) return demoRow("movie", collectionId % 20, 6);
   return collection(collectionId);
+}
+
+export async function getCollectionDetail(collectionId: number): Promise<CollectionDetail> {
+  if (!hasTmdbKey()) {
+    const parts = demoRow("movie", collectionId % 20, 6);
+    return {
+      id: collectionId,
+      name: "Demo Collection",
+      overview: "Add a TMDB key to load real film series.",
+      poster: parts[0]?.poster ?? null,
+      backdrop: parts[0]?.backdrop ?? null,
+      parts,
+    };
+  }
+  return collectionDetail(collectionId);
 }
 
 export async function getPerson(id: number) {

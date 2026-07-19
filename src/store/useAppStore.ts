@@ -23,9 +23,17 @@ export interface Profile {
 
 export const PROFILE_AVATARS = ["🍿", "🎬", "🎮", "🐱", "🚀", "🌊", "🔥", "⭐", "🦊", "🐼", "🎧", "🌙"];
 
+/** A followed film series (TMDB collection) — e.g. Star Wars, Halloween. */
+export interface FavCollection {
+  id: number;
+  name: string;
+  poster: string | null;
+}
+
 interface ProfileBucket {
   watchlist: MediaItem[];
   progress: ProgressEntry[];
+  collections?: FavCollection[];
 }
 
 export type SourceKind = "builtin" | "aiostreams" | "addon" | "plex" | "jellyfin" | "emby" | "nas";
@@ -98,6 +106,11 @@ interface AppState {
   // another same-account device) so the big-screen app can surface a toast.
   lastWatchlistAdd: { item: MediaItem; at: number } | null;
   clearWatchlistAdd: () => void;
+
+  // Followed film series (of the ACTIVE profile)
+  collections: FavCollection[];
+  inCollections: (id: number) => boolean;
+  toggleCollection: (c: FavCollection) => void;
 
   // Continue watching
   progress: ProgressEntry[];
@@ -177,8 +190,8 @@ export const useAppStore = create<AppState>()(
           const profile: Profile = { id, name: name.trim() || "Profile", avatar, isMaster };
           // The first (Master) profile inherits any data already on the device.
           const bucket: ProfileBucket = isMaster
-            ? { watchlist: s.watchlist, progress: s.progress }
-            : { watchlist: [], progress: [] };
+            ? { watchlist: s.watchlist, progress: s.progress, collections: s.collections }
+            : { watchlist: [], progress: [], collections: [] };
           return {
             profiles: [...s.profiles, profile],
             profileData: { ...s.profileData, [id]: bucket },
@@ -204,14 +217,18 @@ export const useAppStore = create<AppState>()(
         set((s) => {
           // Park the current profile's data, then load the target's.
           const saved: Record<string, ProfileBucket> = s.activeProfileId
-            ? { ...s.profileData, [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress } }
+            ? {
+                ...s.profileData,
+                [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress, collections: s.collections },
+              }
             : { ...s.profileData };
-          const target = saved[id] || { watchlist: [], progress: [] };
+          const target = saved[id] || { watchlist: [], progress: [], collections: [] };
           return {
             profileData: saved,
             activeProfileId: id,
             watchlist: target.watchlist,
             progress: target.progress,
+            collections: target.collections ?? [],
             lastWatchlistAdd: null,
           };
         }),
@@ -228,6 +245,15 @@ export const useAppStore = create<AppState>()(
         }),
       lastWatchlistAdd: null,
       clearWatchlistAdd: () => set({ lastWatchlistAdd: null }),
+
+      collections: [],
+      inCollections: (id) => get().collections.some((c) => c.id === id),
+      toggleCollection: (c) =>
+        set((s) => ({
+          collections: s.collections.some((x) => x.id === c.id)
+            ? s.collections.filter((x) => x.id !== c.id)
+            : [{ ...c }, ...s.collections],
+        })),
 
       progress: [],
       setProgress: (item, positionSec, durationSec) =>
@@ -297,6 +323,7 @@ export const useAppStore = create<AppState>()(
         profileData: s.profileData,
         watchlist: s.watchlist,
         progress: s.progress,
+        collections: s.collections,
         addons: s.addons,
         showOfficialSources: s.showOfficialSources,
         onPlayBehavior: s.onPlayBehavior,

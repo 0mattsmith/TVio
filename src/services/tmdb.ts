@@ -7,6 +7,7 @@ import type {
   WatchProvider,
   SeasonSummary,
   Episode,
+  CollectionDetail,
 } from "./types";
 
 const V3 = "https://api.themoviedb.org/3";
@@ -217,12 +218,27 @@ export async function tvSeason(id: number, seasonNumber: number): Promise<Episod
   }));
 }
 
-export async function collection(collectionId: number): Promise<MediaItem[]> {
+export async function collectionDetail(collectionId: number): Promise<CollectionDetail> {
   const raw = await tmdb<any>(`/collection/${collectionId}`);
-  return (raw.parts || [])
+  // Sort on the raw release_date (not just year) so same-year entries stay in
+  // true release order.
+  const parts: MediaItem[] = (raw.parts || [])
     .filter((p: any) => p.poster_path)
-    .map((p: any) => mapItem(p, "movie"))
-    .sort((a: MediaItem, b: MediaItem) => (a.year || "0").localeCompare(b.year || "0"));
+    .sort((a: any, b: any) => String(a.release_date || "9999").localeCompare(String(b.release_date || "9999")))
+    .map((p: any) => mapItem(p, "movie"));
+
+  return {
+    id: raw.id,
+    name: raw.name || "Collection",
+    overview: raw.overview || "",
+    poster: img(raw.poster_path, "w342"),
+    backdrop: img(raw.backdrop_path, "w780"),
+    parts,
+  };
+}
+
+export async function collection(collectionId: number): Promise<MediaItem[]> {
+  return (await collectionDetail(collectionId)).parts;
 }
 
 export async function person(id: number) {
