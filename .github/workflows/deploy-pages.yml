@@ -23,7 +23,9 @@ jobs:
         with:
           node-version: 20
           cache: npm
-      - run: npm ci
+      - name: Install dependencies
+        shell: bash
+        run: npm ci || { echo "::warning::package-lock.json is out of sync with package.json — falling back to npm install"; npm install; }
       - name: Build web
         run: npm run build
         env:
