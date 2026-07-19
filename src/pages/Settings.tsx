@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock } from "lucide-react";
 import { SERVICES, OTHER_SERVICE } from "../services/services";
-import { hasTmdbKey, REGION } from "../services/tmdb";
+import { hasTmdbKey, currentRegion } from "../services/tmdb";
 import { useAppStore } from "../store/useAppStore";
 import type { Addon, PlatformOverride } from "../store/useAppStore";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
@@ -39,8 +39,17 @@ export function Settings() {
     platformOverride, setPlatformOverride,
     iptvEnabled, setIptvEnabled,
     iptvPlaylists, iptvEpgUrls, addIptvPlaylist, removeIptvPlaylist, addIptvEpg, removeIptvEpg,
+    tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
   } = useAppStore();
   const isTV = useDeviceProfile() === "tv";
+  const [keyInput, setKeyInput] = useState(tmdbKey);
+  const [regionInput, setRegionInput] = useState(tmdbRegion);
+  const saveTmdb = () => {
+    setTmdbKey(keyInput);
+    setTmdbRegion(regionInput);
+    // Reload so the whole app + cached queries pick up the new key/region.
+    setTimeout(() => window.location.reload(), 60);
+  };
 
   const [url, setUrl] = useState("");
   const [installing, setInstalling] = useState(false);
@@ -298,12 +307,49 @@ export function Settings() {
         )}
       </section>
 
-      {/* Status */}
-      <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6 text-sm text-muted">
-        <h2 className="mb-2 text-lg font-bold text-white">Data</h2>
-        <p>TMDB key: {hasTmdbKey ? <span className="text-accent">connected</span> : <span className="text-yellow-400">not set (demo mode)</span>}</p>
-        <p>Region: {REGION}</p>
-        <p className="mt-2 text-xs">IPTV / EPG live-TV support is planned for a later phase.</p>
+      {/* Data & API */}
+      <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
+        <h2 className="text-lg font-bold">Data &amp; API</h2>
+        <p className="mt-1 text-sm text-muted">
+          TVio uses TMDB for posters, cast, trailers and where-to-watch. Add your own free key to switch off demo mode — it's stored only on this device.
+        </p>
+
+        <div className="mt-4 space-y-3">
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted">TMDB API key</span>
+            <input
+              type="password"
+              value={keyInput}
+              onChange={(e) => setKeyInput(e.target.value)}
+              placeholder="Paste your TMDB API key (v3)"
+              className="focusable w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted">Region (optional)</span>
+            <input
+              value={regionInput}
+              onChange={(e) => setRegionInput(e.target.value.toUpperCase().slice(0, 2))}
+              placeholder="US"
+              className="focusable w-28 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+          </label>
+
+          <div className="flex flex-wrap items-center gap-3">
+            <Button onClick={saveTmdb} disabled={keyInput === tmdbKey && regionInput === tmdbRegion}>
+              Save &amp; reload
+            </Button>
+            <span className="text-xs">
+              {hasTmdbKey() ? <span className="text-accent">● Connected</span> : <span className="text-yellow-400">● Demo mode</span>}
+              {" · "}Region {currentRegion()}
+            </span>
+          </div>
+
+          <p className="text-xs text-muted">
+            Get a free key at{" "}
+            <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" className="text-accent underline">themoviedb.org</a>.
+          </p>
+        </div>
       </section>
     </div>
   );

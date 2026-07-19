@@ -12,11 +12,30 @@ import type {
 const V3 = "https://api.themoviedb.org/3";
 export const IMG = "https://image.tmdb.org/t/p";
 
-const KEY = import.meta.env.VITE_TMDB_KEY as string | undefined;
+const ENV_KEY = import.meta.env.VITE_TMDB_KEY as string | undefined;
 const TOKEN = import.meta.env.VITE_TMDB_TOKEN as string | undefined;
-export const REGION = (import.meta.env.VITE_TMDB_REGION as string) || "US";
+const ENV_REGION = (import.meta.env.VITE_TMDB_REGION as string) || "US";
 
-export const hasTmdbKey = Boolean(KEY || TOKEN);
+// Runtime overrides (set from Settings, persisted in the store) take precedence
+// over the build-time env vars, so an end-user on the web / PWA build can supply
+// their own TMDB key without editing .env.local.
+let runtimeKey: string | undefined;
+let runtimeRegion: string | undefined;
+
+export function configureTmdb(opts: { key?: string; region?: string }) {
+  runtimeKey = opts.key && opts.key.trim() ? opts.key.trim() : undefined;
+  runtimeRegion = opts.region && opts.region.trim() ? opts.region.trim() : undefined;
+}
+
+function activeKey() {
+  return runtimeKey || ENV_KEY;
+}
+export function hasTmdbKey(): boolean {
+  return Boolean(activeKey() || TOKEN);
+}
+export function currentRegion(): string {
+  return runtimeRegion || ENV_REGION;
+}
 
 export function img(path: string | null, size: "w200" | "w342" | "w500" | "w780" | "original" = "w342") {
   return path ? `${IMG}/${size}${path}` : null;
@@ -28,8 +47,9 @@ async function tmdb<T>(path: string, params: Record<string, string | number | un
     if (v !== undefined && v !== "") url.searchParams.set(k, String(v));
   }
   const headers: Record<string, string> = { accept: "application/json" };
+  const key = activeKey();
   if (TOKEN) headers.Authorization = `Bearer ${TOKEN}`;
-  else if (KEY) url.searchParams.set("api_key", KEY);
+  else if (key) url.searchParams.set("api_key", key);
 
   const res = await fetch(url.toString(), { headers });
   if (!res.ok) throw new Error(`TMDB ${res.status}: ${path}`);
@@ -89,7 +109,7 @@ export function discover(type: MediaType, opts: {
   const params: Record<string, string | number | undefined> = {
     include_adult: "false",
     sort_by: opts.sort || "popularity.desc",
-    watch_region: opts.region || REGION,
+    watch_region: opts.region || currentRegion(),
     with_watch_providers: opts.providerId && opts.providerId > 0 ? opts.providerId : undefined,
     with_genres: opts.genre,
     page: opts.page || 1,
@@ -130,7 +150,7 @@ export async function detail(type: MediaType, id: number): Promise<MediaDetail> 
   const videos: Video[] = (raw.videos?.results || [])
     .filter((v: any) => v.site === "YouTube")
     .map((v: any) => ({ key: v.key, name: v.name, type: v.type, site: v.site }));
-  const region = (raw["watch/providers"]?.results || {})[REGION] || {};
+  const region = (raw["watch/providers"]?.results || {})[currentRegion()] || {};
   const providers: WatchProvider[] = [];
   const push = (arr: any[] | undefined, kind: WatchProvider["type"]) =>
     (arr || []).forEach((p: any) =>

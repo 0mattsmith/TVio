@@ -12,7 +12,7 @@ export async function serviceRow(
   kind: RowKind,
   genre?: number
 ): Promise<MediaItem[]> {
-  if (!hasTmdbKey) return demoRow(type, providerId + kind.length, 18);
+  if (!hasTmdbKey()) return demoRow(type, providerId + kind.length, 18);
   const sort =
     kind === "trending"
       ? "vote_count.desc"
@@ -30,22 +30,22 @@ export async function serviceRow(
 }
 
 export async function trendingRow(type: MediaType): Promise<MediaItem[]> {
-  if (!hasTmdbKey) return demoRow(type, 3, 18);
+  if (!hasTmdbKey()) return demoRow(type, 3, 18);
   return trending(type, "week");
 }
 
 export async function popularRow(type: MediaType): Promise<MediaItem[]> {
-  if (!hasTmdbKey) return demoRow(type, 7, 18);
+  if (!hasTmdbKey()) return demoRow(type, 7, 18);
   return popular(type);
 }
 
 export async function genreRow(type: MediaType, genreId: number): Promise<MediaItem[]> {
-  if (!hasTmdbKey) return demoRow(type, genreId, 18);
+  if (!hasTmdbKey()) return demoRow(type, genreId, 18);
   return discover(type, { genre: genreId, sort: "popularity.desc" });
 }
 
 export async function getGenres(type: MediaType) {
-  if (!hasTmdbKey)
+  if (!hasTmdbKey())
     return [
       { id: 28, name: "Action" }, { id: 35, name: "Comedy" }, { id: 18, name: "Drama" },
       { id: 27, name: "Horror" }, { id: 878, name: "Sci-Fi" }, { id: 53, name: "Thriller" },
@@ -55,22 +55,22 @@ export async function getGenres(type: MediaType) {
 }
 
 export async function getDetail(type: MediaType, id: number) {
-  if (!hasTmdbKey) return demoDetail(type, id);
+  if (!hasTmdbKey()) return demoDetail(type, id);
   return detail(type, id);
 }
 
 export async function getSeason(seriesId: number, seasonNumber: number) {
-  if (!hasTmdbKey) return demoSeason(seasonNumber);
+  if (!hasTmdbKey()) return demoSeason(seasonNumber);
   return tvSeason(seriesId, seasonNumber);
 }
 
 export async function getCollection(collectionId: number): Promise<MediaItem[]> {
-  if (!hasTmdbKey) return demoRow("movie", collectionId % 20, 6);
+  if (!hasTmdbKey()) return demoRow("movie", collectionId % 20, 6);
   return collection(collectionId);
 }
 
 export async function getPerson(id: number) {
-  if (!hasTmdbKey)
+  if (!hasTmdbKey())
     return {
       id, name: "Demo Actor", biography: "Add a TMDB key to load real filmographies.",
       profile: `https://picsum.photos/seed/cast${id}/342/513`, knownFor: "Acting",
@@ -81,7 +81,7 @@ export async function getPerson(id: number) {
 
 export async function searchAll(q: string): Promise<MediaItem[]> {
   if (!q.trim()) return [];
-  if (!hasTmdbKey)
+  if (!hasTmdbKey())
     return demoRow("movie", 2, 10)
       .concat(demoRow("tv", 4, 8))
       .filter((m) => m.title.toLowerCase().includes(q.toLowerCase()) || true);

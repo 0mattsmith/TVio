@@ -3,6 +3,7 @@ import { persist } from "zustand/middleware";
 import { signOut as fbSignOut } from "firebase/auth";
 import { ALL_SERVICE_KEYS } from "../services/services";
 import { auth, firebaseEnabled } from "../services/firebase";
+import { configureTmdb } from "../services/tmdb";
 import type { MediaItem } from "../services/types";
 
 interface ProgressEntry extends MediaItem {
@@ -75,6 +76,12 @@ interface AppState {
   setCompactProviders: (v: boolean) => void;
   platformOverride: PlatformOverride; // force a device layout (default auto-detect)
   setPlatformOverride: (v: PlatformOverride) => void;
+
+  // User-supplied TMDB key/region (so web/PWA users can add their own in-app)
+  tmdbKey: string;
+  setTmdbKey: (v: string) => void;
+  tmdbRegion: string;
+  setTmdbRegion: (v: string) => void;
 
   // Live TV / IPTV (opt-in)
   iptvEnabled: boolean;
@@ -156,6 +163,11 @@ export const useAppStore = create<AppState>()(
       platformOverride: "auto",
       setPlatformOverride: (v) => set({ platformOverride: v }),
 
+      tmdbKey: "",
+      setTmdbKey: (v) => set({ tmdbKey: v.trim() }),
+      tmdbRegion: "",
+      setTmdbRegion: (v) => set({ tmdbRegion: v.trim() }),
+
       iptvEnabled: false,
       setIptvEnabled: (v) => set({ iptvEnabled: v }),
       iptvPlaylists: [],
@@ -185,6 +197,8 @@ export const useAppStore = create<AppState>()(
         onPlayBehavior: s.onPlayBehavior,
         compactProviders: s.compactProviders,
         platformOverride: s.platformOverride,
+        tmdbKey: s.tmdbKey,
+        tmdbRegion: s.tmdbRegion,
         iptvEnabled: s.iptvEnabled,
         iptvPlaylists: s.iptvPlaylists,
         iptvEpgUrls: s.iptvEpgUrls,
@@ -195,3 +209,12 @@ export const useAppStore = create<AppState>()(
 
 // Personal, in-app-playable sources (everything except the built-in providers pseudo-addon).
 export const selectPersonalSources = (s: AppState) => s.addons.filter((a) => a.kind !== "builtin" && a.enabled);
+
+// Apply the persisted TMDB key/region to the API client at startup, and whenever
+// the user changes them in Settings.
+configureTmdb({ key: useAppStore.getState().tmdbKey, region: useAppStore.getState().tmdbRegion });
+useAppStore.subscribe((s, p) => {
+  if (s.tmdbKey !== p.tmdbKey || s.tmdbRegion !== p.tmdbRegion) {
+    configureTmdb({ key: s.tmdbKey, region: s.tmdbRegion });
+  }
+});
