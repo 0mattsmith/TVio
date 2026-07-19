@@ -147,7 +147,19 @@ jobs:
         with:
           distribution: temurin
           java-version: 17
-          cache: gradle
+      # NB: setup-java's built-in `cache: gradle` can't be used here — it looks
+      # for Gradle files at this point, but the Android project isn't scaffolded
+      # until later in the job. Cache the Gradle home explicitly instead, keyed
+      # on our lockfile (which determines the Capacitor/Gradle dependency set).
+      - name: Cache Gradle dependencies
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-
       - uses: android-actions/setup-android@v3
       - name: Sync version from the release tag
         if: startsWith(github.ref, 'refs/tags/v')
