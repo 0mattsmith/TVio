@@ -9,6 +9,7 @@ import { pullAccountSources } from "../services/firebaseSync";
 import { useAppStore, buildAiostreamsUrl, PROFILE_AVATARS } from "../store/useAppStore";
 import type { Addon, PlatformOverride } from "../store/useAppStore";
 import { AvatarPicker } from "../components/AvatarPicker";
+import { PairQr } from "../components/PairQr";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
 import { fetchManifest } from "../addons/manager";
 import { Button } from "../components/Button";
@@ -49,7 +50,9 @@ export function Settings() {
   } = useAppStore();
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
   const isMasterProfile = activeProfile?.isMaster ?? false;
-  const isTV = useDeviceProfile() === "tv";
+  const deviceProfile = useDeviceProfile();
+  const isTV = deviceProfile === "tv";
+  const isMobile = deviceProfile === "mobile";
   const queryClient = useQueryClient();
   const [keyInput, setKeyInput] = useState(tmdbKey);
   const [regionInput, setRegionInput] = useState(tmdbRegion);
@@ -136,6 +139,18 @@ export function Settings() {
           )}
         </div>
       </section>
+
+      {/* Sign in on your phone (not shown on a phone — nothing to scan with) */}
+      {user && !isMobile && (
+        <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
+          <h2 className="flex items-center gap-2 text-lg font-bold"><Smartphone size={18} /> Sign in on your phone</h2>
+          <p className="mt-1 text-sm text-muted">
+            Scan this with the TVio mobile app (Sign In → <span className="font-semibold text-white">Sign In using QR Code</span>)
+            to sign that phone into this account — no typing.
+          </p>
+          <PairQr />
+        </section>
+      )}
 
       {/* Playback */}
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">

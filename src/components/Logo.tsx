@@ -1,9 +1,10 @@
-import { hasNativePlayback } from "../platform/capabilities";
+import { isNativeShell } from "../platform/capabilities";
 
 export function Logo({ lite, className = "" }: { lite?: boolean; className?: string }) {
   // The limited web / PWA / GitHub Pages build brands as "TVio Lite"; the native
-  // Windows / Android / Android TV builds are just "TVio".
-  const showLite = lite ?? !hasNativePlayback();
+  // Windows / Android / Android TV builds are just "TVio". (Branding follows the
+  // shell, not playback capability — those are separate concerns.)
+  const showLite = lite ?? !isNativeShell();
   return (
     <span className={`inline-flex items-center gap-2 select-none ${className}`}>
       <span className="text-2xl font-black tracking-tight">

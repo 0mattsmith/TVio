@@ -16,6 +16,12 @@ src-tauri/gen
 /ios
 .gradle
 
+# Secrets — never commit service account keys or signing keys
+*firebase-adminsdk*.json
+*serviceAccount*.json
+*.pem
+*.key
+
 # Misc
 *.apk
 *.msi

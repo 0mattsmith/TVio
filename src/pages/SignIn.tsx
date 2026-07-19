@@ -6,7 +6,9 @@ import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
 import { auth, firebaseEnabled } from "../services/firebase";
 import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
-import { useIsTV } from "../hooks/useDeviceProfile";
+import { QrCode } from "lucide-react";
+import { useDeviceProfile } from "../hooks/useDeviceProfile";
+import { pairingAvailable } from "../services/pairing";
 
 function usePairingCode() {
   // 4-digit device-pair code (TV). Maps to a Firestore pairings/{code} doc a
@@ -22,7 +24,9 @@ const labelCls = "mb-2 block text-xs font-bold uppercase tracking-wider text-mut
 export function SignIn() {
   const navigate = useNavigate();
   const signIn = useAppStore((s) => s.signIn);
-  const isTV = useIsTV();
+  const deviceProfile = useDeviceProfile();
+  const isTV = deviceProfile === "tv";
+  const isMobile = deviceProfile === "mobile";
 
   const [siEmail, setSiEmail] = useState("");
   const [siPass, setSiPass] = useState("");
@@ -110,6 +114,16 @@ export function SignIn() {
             {errorFor === "signin" && error && <p className="text-sm text-red-400">{error}</p>}
             <Button type="submit" disabled={busy} className="w-full py-4 text-base">{busy ? "Please wait…" : "Sign In"}</Button>
           </form>
+
+          {/* Phones can sign in by scanning the QR shown on a TV/desktop. */}
+          {isMobile && pairingAvailable() && (
+            <button
+              onClick={() => navigate("/signin/qr")}
+              className="focusable mt-4 flex w-full items-center justify-center gap-2 rounded-lg border border-accent/40 bg-accent-soft py-3 text-sm font-bold text-accent"
+            >
+              <QrCode size={16} /> Sign In using QR Code
+            </button>
+          )}
           <div className="mt-6 border-t border-white/10 pt-5 text-center text-xs text-muted">
             {firebaseEnabled
               ? "Your watchlist & sources sync across your devices."

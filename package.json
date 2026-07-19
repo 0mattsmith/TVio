@@ -16,6 +16,7 @@
     "gen:installer": "node scripts/gen-installer-assets.mjs"
   },
   "dependencies": {
+    "@capacitor-mlkit/barcode-scanning": "^6.2.0",
     "@tanstack/react-query": "^5.51.0",
     "@tauri-apps/plugin-process": "^2.0.0",
     "@tauri-apps/plugin-updater": "^2.0.0",

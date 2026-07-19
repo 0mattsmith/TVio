@@ -3,13 +3,13 @@ import ReactDOM from "react-dom/client";
 import { RouterProvider } from "react-router-dom";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router } from "./router";
-import { hasNativePlayback } from "./platform/capabilities";
+import { isNativeShell } from "./platform/capabilities";
 import { FirebaseSync } from "./services/firebaseSync";
 import { UpdateGate } from "./components/UpdateGate";
 import "./index.css";
 
 // Brand as "TVio Lite" on the limited web/PWA build; "TVio" on native builds.
-document.title = hasNativePlayback() ? "TVio" : "TVio Lite";
+document.title = isNativeShell() ? "TVio" : "TVio Lite";
 
 const queryClient = new QueryClient({
   defaultOptions: {
