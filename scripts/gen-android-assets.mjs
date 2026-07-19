@@ -15,7 +15,7 @@
  * tucked into it, which stays legible right down to 48px.
  */
 import sharp from "sharp";
-import { writeFileSync, mkdirSync, existsSync } from "node:fs";
+import { writeFileSync, mkdirSync, existsSync, statSync } from "node:fs";
 
 const RES = "android/app/src/main/res";
 const BG = "#0a0a0a";
@@ -125,7 +125,41 @@ async function main() {
   console.log("  ✓ Android TV banner (320x180)");
 }
 
-main().catch((e) => {
-  console.error("Android asset generation failed:", e);
-  process.exit(1);
-});
+/**
+ * Every file the APK needs for branded icons. Verified explicitly because a
+ * skipped or half-finished run doesn't look like an error — it just ships the
+ * stock green Android robot, which is easy to miss until the APK is installed.
+ */
+const EXPECTED = [
+  ...DENSITIES.flatMap(([d]) => [
+    `${RES}/mipmap-${d}/ic_launcher.png`,
+    `${RES}/mipmap-${d}/ic_launcher_round.png`,
+  ]),
+  `${RES}/drawable/ic_launcher_foreground.png`,
+  `${RES}/mipmap-anydpi-v26/ic_launcher.xml`,
+  `${RES}/mipmap-anydpi-v26/ic_launcher_round.xml`,
+  `${RES}/values/ic_launcher_background.xml`,
+  `${RES}/drawable-xhdpi/banner.png`,
+];
+
+function verify() {
+  console.log("\nVerifying:");
+  const missing = [];
+  for (const f of EXPECTED) {
+    const size = existsSync(f) ? statSync(f).size : 0;
+    if (size < 100) missing.push(f);
+    console.log(`  ${size >= 100 ? "✓" : "✗"} ${f}${size ? ` (${size} bytes)` : " — MISSING"}`);
+  }
+  if (missing.length) {
+    console.error(`\n${missing.length} icon asset(s) missing or empty — the APK would ship stock icons.`);
+    process.exit(1);
+  }
+  console.log(`\nAll ${EXPECTED.length} icon assets written.`);
+}
+
+main()
+  .then(verify)
+  .catch((e) => {
+    console.error("Android asset generation failed:", e);
+    process.exit(1);
+  });

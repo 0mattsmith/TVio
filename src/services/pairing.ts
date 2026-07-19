@@ -101,13 +101,34 @@ export async function redeemPairing(rawCode: string): Promise<void> {
   const code = normalizeCode(rawCode);
   if (code.length !== CODE_LENGTH) throw new Error("That code doesn't look right.");
 
-  const res = await fetch(`${base}/pair/redeem`, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ code }),
-  });
-  const data = await res.json().catch(() => ({}));
-  if (!res.ok || !data.token) throw new Error(data.error || "Couldn't sign in with that code.");
+  let res: Response;
+  try {
+    res = await fetch(`${base}/pair/redeem`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ code }),
+    });
+  } catch {
+    // A blocked CORS preflight looks identical to being offline from here.
+    throw new Error("Couldn't reach the TVio server. [NET_UNREACHABLE]");
+  }
+
+  const raw = await res.text();
+  let data: { token?: string; error?: string; code?: string } = {};
+  try {
+    data = JSON.parse(raw);
+  } catch {
+    // Not JSON at all — usually an out-of-date Worker with no /pair/redeem
+    // route, so the request fell through to the TMDB proxy.
+    throw new Error(
+      `The server didn't understand the sign-in request — the TVio Worker may be out of date. [HTTP_${res.status}_NOT_JSON]`
+    );
+  }
+
+  if (!res.ok || !data.token) {
+    const tag = data.code || `HTTP_${res.status}`;
+    throw new Error(`${data.error || "Couldn't sign in with that code."} [${tag}]`);
+  }
 
   await signInWithCustomToken(auth, data.token);
 }

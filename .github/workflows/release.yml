@@ -114,6 +114,29 @@ jobs:
           releaseName: TVio ${{ github.ref_name }}
           releaseDraft: false
           prerelease: false
+      # continue-on-error above means a double bundle failure would otherwise
+      # leave this job GREEN with nothing built — the release gets no installer
+      # and no latest.json, so every desktop app silently stays on its old
+      # version with no error anywhere to explain why. Fail loudly instead.
+      - name: Verify installer + updater artifacts exist
+        shell: bash
+        run: |
+          shopt -s nullglob
+          nsis=(src-tauri/target/release/bundle/nsis/*-setup.exe)
+          msi=(src-tauri/target/release/bundle/msi/*.msi)
+          sigs=(src-tauri/target/release/bundle/nsis/*.sig src-tauri/target/release/bundle/msi/*.sig)
+          echo "NSIS: ${nsis[*]:-NONE}"
+          echo "MSI:  ${msi[*]:-NONE}"
+          echo "SIGs: ${sigs[*]:-NONE}"
+          if [ ${#nsis[@]} -eq 0 ] && [ ${#msi[@]} -eq 0 ]; then
+            echo "::error::No installer produced — the bundle step failed both times."
+            exit 1
+          fi
+          if [ ${#sigs[@]} -eq 0 ]; then
+            echo "::error::No .sig files. Without signed updater artifacts there is no latest.json, so the in-app updater can never see this release. Check the TAURI_SIGNING_PRIVATE_KEY secret."
+            exit 1
+          fi
+
       - uses: actions/upload-artifact@v4
         with:
           name: tvio-windows
@@ -173,10 +196,9 @@ jobs:
       - run: npx cap sync android
       - name: Inject APK self-updater (plugin + permission + FileProvider)
         run: node scripts/android-updater-patch.mjs
-      # Cosmetic — never block a release on it. Worst case the APK ships with
-      # Capacitor's default icon and we fix it next run.
+      # NOT continue-on-error: a skipped run ships the stock Android robot icon,
+      # which looks like a product bug rather than a build warning.
       - name: Generate branded launcher icons + TV banner
-        continue-on-error: true
         run: node scripts/gen-android-assets.mjs
       - name: Build phone APK
         run: |

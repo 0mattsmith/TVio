@@ -26,17 +26,30 @@ mkdirSync(PKG_DIR, { recursive: true });
 copyFileSync("android-src/ApkUpdater.java", `${PKG_DIR}/ApkUpdater.java`);
 console.log("✓ ApkUpdater.java copied into the app package");
 
-// 2) Install permission -------------------------------------------------------
+// 2) Permissions --------------------------------------------------------------
+// CAMERA is for QR sign-in. The barcode plugin merges its own declaration, but
+// stating it here removes a variable when the camera fails to open, and lets the
+// TV build declare the hardware as optional (Android TVs have no camera, and a
+// required camera feature would hide the app from the Play Store on TV).
 let manifest = readFileSync(MANIFEST, "utf8");
-if (!manifest.includes("REQUEST_INSTALL_PACKAGES")) {
-  manifest = manifest.replace(
-    /(<manifest[^>]*>)/,
-    `$1\n    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />`
-  );
+const PERMISSIONS = [
+  `<uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />`,
+  `<uses-permission android:name="android.permission.CAMERA" />`,
+  `<uses-feature android:name="android.hardware.camera" android:required="false" />`,
+];
+
+let added = 0;
+for (const line of PERMISSIONS) {
+  const marker = line.match(/android:name="([^"]+)"/)[1];
+  if (manifest.includes(marker)) continue;
+  manifest = manifest.replace(/(<manifest[^>]*>)/, `$1\n    ${line}`);
+  added++;
+}
+if (added) {
   writeFileSync(MANIFEST, manifest);
-  console.log("✓ REQUEST_INSTALL_PACKAGES added");
+  console.log(`✓ ${added} permission/feature declaration(s) added`);
 } else {
-  console.log("• REQUEST_INSTALL_PACKAGES already present");
+  console.log("• permissions already present");
 }
 
 // 3) FileProvider path for the downloaded APK ---------------------------------
@@ -82,3 +95,24 @@ public class MainActivity extends BridgeActivity {
 `
 );
 console.log("✓ ApkUpdater registered in MainActivity");
+
+// 5) Version ------------------------------------------------------------------
+// Capacitor hardcodes versionName "1.0" and versionCode 1, so every APK we've
+// ever built looks identical — to Android, to the updater's version check, and
+// to anyone trying to work out which build is actually installed. Derive both
+// from package.json, which sync-version.mjs has already aligned to the tag.
+const GRADLE = "android/app/build.gradle";
+if (existsSync(GRADLE)) {
+  const { version } = JSON.parse(readFileSync("package.json", "utf8"));
+  const [maj = 0, min = 0, pat = 0] = version.split(".").map((n) => parseInt(n, 10) || 0);
+  const code = maj * 10000 + min * 100 + pat;
+
+  let gradle = readFileSync(GRADLE, "utf8");
+  gradle = gradle
+    .replace(/versionCode\s+\d+/, `versionCode ${code}`)
+    .replace(/versionName\s+"[^"]*"/, `versionName "${version}"`);
+  writeFileSync(GRADLE, gradle);
+  console.log(`✓ Android versionName ${version} / versionCode ${code}`);
+} else {
+  console.log("• build.gradle not found — version left unchanged");
+}

@@ -3,7 +3,7 @@ import { Download, RefreshCw, Check, Loader2, AlertCircle, RotateCw } from "luci
 import { Button } from "./Button";
 import {
   updateChannel,
-  checkDesktopUpdate,
+  checkDesktopUpdateStrict,
   downloadDesktopUpdate,
   installDesktopUpdate,
   checkAndroidUpdate,
@@ -28,6 +28,7 @@ export function UpdateSection() {
   const [status, setStatus] = useState<Status>("idle");
   const [pct, setPct] = useState(0);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [desktop, setDesktop] = useState<DesktopUpdate | null>(null);
   const [android, setAndroid] = useState<UpdateInfo | null>(null);
   const [webReady, setWebReady] = useState(false);
@@ -43,7 +44,7 @@ export function UpdateSection() {
     setPct(0);
     try {
       if (channel === "desktop") {
-        const update = await checkDesktopUpdate();
+        const update = await checkDesktopUpdateStrict();
         if (!update) return setStatus("current");
         setDesktop(update);
         // Fetch it now so "install" is instant when they're ready for it.
@@ -80,7 +81,11 @@ export function UpdateSection() {
     setStatus("installing");
     try {
       if (channel === "desktop" && desktop) {
-        await installDesktopUpdate(desktop); // restarts on its own
+        await installDesktopUpdate(desktop);
+        // Windows normally terminates us inside that call and the installer
+        // restarts the app. Reaching this line means it didn't, so say so
+        // rather than spinning on "Installing…" forever.
+        setNotice("Update installed. Close TVio and reopen it to finish.");
       } else if (channel === "android" && android?.apkUrl) {
         setStatus("downloading");
         await installApk(android.apkUrl, setPct);
@@ -170,6 +175,8 @@ export function UpdateSection() {
           <p className="mt-1.5 text-xs text-muted">{pct}% — you can carry on using TVio while this downloads.</p>
         </div>
       )}
+
+      {notice && <p className="mt-3 text-sm text-muted">{notice}</p>}
 
       {status === "error" && (
         <p className="mt-3 flex items-start gap-2 text-sm text-red-400">

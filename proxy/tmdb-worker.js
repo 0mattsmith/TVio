@@ -22,6 +22,9 @@
 
 const TMDB = "https://api.themoviedb.org/3";
 
+/** Bump when you change this file, so /pair/health shows what's live. */
+const WORKER_VERSION = "2026-07-19.1";
+
 /**
  * Browser origins allowed to use this Worker.
  * ⬇️  ADD YOUR CUSTOM DOMAIN HERE when you buy one, e.g. "https://tvio.app".
@@ -120,10 +123,24 @@ async function redeemPairing(request, env, cors) {
   try {
     code = String((await request.json()).code || "").trim().toUpperCase();
   } catch {
-    return json({ error: "Bad request" }, 400, cors);
+    return json({ error: "Bad request", code: "PAIR_BAD_JSON" }, 400, cors);
   }
   // Codes are 8 chars from an unambiguous alphabet; reject anything else early.
-  if (!/^[A-Z2-9]{8}$/.test(code)) return json({ error: "That code doesn't look right." }, 400, cors);
+  if (!/^[A-Z2-9]{8}$/.test(code)) {
+    return json({ error: "That code doesn't look right.", code: "PAIR_MALFORMED" }, 400, cors);
+  }
+
+  // Distinguish "your code is wrong" from "this server was never finished being
+  // set up" — they look identical to the user otherwise.
+  for (const name of ["FB_PROJECT_ID", "FB_CLIENT_EMAIL", "FB_PRIVATE_KEY"]) {
+    if (!env[name]) {
+      return json(
+        { error: `QR sign-in isn't configured on the server (${name} is missing).`, code: "PAIR_NO_SECRETS" },
+        503,
+        cors
+      );
+    }
+  }
 
   const key = await importKey(env.FB_PRIVATE_KEY);
   const token = await firestoreToken(env, key);
@@ -131,7 +148,9 @@ async function redeemPairing(request, env, cors) {
   const auth = { authorization: `Bearer ${token}` };
 
   const docRes = await fetch(base, { headers: auth });
-  if (!docRes.ok) return json({ error: "That code has expired or doesn't exist." }, 404, cors);
+  if (!docRes.ok) {
+    return json({ error: "That code has expired or doesn't exist.", code: "PAIR_NOT_FOUND" }, 404, cors);
+  }
 
   const doc = await docRes.json();
   const f = doc.fields || {};
@@ -139,9 +158,11 @@ async function redeemPairing(request, env, cors) {
   const expiresAt = Number(f.expiresAt?.integerValue ?? f.expiresAt?.doubleValue ?? 0);
   const redeemed = f.redeemed?.booleanValue === true;
 
-  if (!ownerUid) return json({ error: "That code is invalid." }, 400, cors);
-  if (redeemed) return json({ error: "That code has already been used." }, 409, cors);
-  if (!expiresAt || Date.now() > expiresAt) return json({ error: "That code has expired." }, 410, cors);
+  if (!ownerUid) return json({ error: "That code is invalid.", code: "PAIR_INVALID" }, 400, cors);
+  if (redeemed) return json({ error: "That code has already been used.", code: "PAIR_USED" }, 409, cors);
+  if (!expiresAt || Date.now() > expiresAt) {
+    return json({ error: "That code has expired.", code: "PAIR_EXPIRED" }, 410, cors);
+  }
 
   // Single-use: mark it before handing out a token.
   await fetch(`${base}?updateMask.fieldPaths=redeemed&updateMask.fieldPaths=redeemedAt`, {
@@ -197,12 +218,40 @@ export default {
       return json({ error: "Origin not allowed" }, 403, cors);
     }
 
+    // Diagnostics: confirms which build of this Worker is deployed and whether
+    // the pairing secrets exist. Booleans only — never the values themselves.
+    // Open it in a browser when QR sign-in misbehaves.
+    if (url.pathname === "/pair/health") {
+      return json(
+        {
+          ok: true,
+          worker: WORKER_VERSION,
+          pairing: {
+            projectId: Boolean(env.FB_PROJECT_ID),
+            clientEmail: Boolean(env.FB_CLIENT_EMAIL),
+            privateKey: Boolean(env.FB_PRIVATE_KEY),
+          },
+          tmdbKey: Boolean(env.TMDB_KEY),
+        },
+        200,
+        cors
+      );
+    }
+
     if (url.pathname === "/pair/redeem") {
-      if (request.method !== "POST") return json({ error: "Method not allowed" }, 405, cors);
+      if (request.method !== "POST") {
+        return json({ error: "Method not allowed", code: "PAIR_METHOD" }, 405, cors);
+      }
       try {
         return await redeemPairing(request, env, cors);
-      } catch {
-        return json({ error: "Sign-in failed. Please try again." }, 500, cors);
+      } catch (e) {
+        // Never swallow the reason. The message is ours, not user input, and
+        // "something went wrong" has cost real debugging time.
+        return json(
+          { error: `Sign-in failed: ${e?.message || e}`, code: "PAIR_EXCEPTION" },
+          500,
+          cors
+        );
       }
     }
 

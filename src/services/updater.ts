@@ -60,16 +60,28 @@ export interface DesktopUpdate {
   handle: unknown;
 }
 
-/** Looks for a desktop update. Resolves null if there isn't one (or on error). */
-export async function checkDesktopUpdate(): Promise<DesktopUpdate | null> {
+/**
+ * Looks for a desktop update, throwing if the check itself fails.
+ *
+ * Use this behind a button, where the user is waiting for an answer and
+ * "couldn't reach the update server" is a useful one. A silently swallowed
+ * failure here is indistinguishable from "you're up to date", which is how an
+ * app can sit on an old version for weeks without a single clue why.
+ */
+export async function checkDesktopUpdateStrict(): Promise<DesktopUpdate | null> {
   if (!isTauri()) return null;
+  const { check } = await import("@tauri-apps/plugin-updater");
+  const update = await check();
+  if (!update) return null;
+  return { version: update.version, notes: update.body, handle: update };
+}
+
+/** Same, but never throws — for the launch gate, which must not block startup. */
+export async function checkDesktopUpdate(): Promise<DesktopUpdate | null> {
   try {
-    const { check } = await import("@tauri-apps/plugin-updater");
-    const update = await check();
-    if (!update) return null;
-    return { version: update.version, notes: update.body, handle: update };
+    return await checkDesktopUpdateStrict();
   } catch {
-    return null; // offline, unsigned build, no endpoint — never block startup
+    return null; // offline, signature mismatch, no endpoint — just launch
   }
 }
 
@@ -113,16 +125,18 @@ export async function downloadDesktopUpdate(update: DesktopUpdate, onProgress?: 
 }
 
 /**
- * Installs an already-downloaded update and restarts into it. Silent, because
- * the updater is configured with installMode "quiet".
+ * Installs an already-downloaded update. Silent, because the updater is
+ * configured with installMode "quiet".
+ *
+ * Deliberately does NOT relaunch. Windows force-exits the app during install,
+ * and the installer restarts it itself; calling relaunch() here races that and
+ * can restart a half-written binary, which starts up to an empty black window.
+ * At launch time the process is already gone before relaunch() could run, which
+ * is why the same pairing is safe there and not here.
  */
 export async function installDesktopUpdate(update: DesktopUpdate): Promise<void> {
   const handle = update.handle as { install: () => Promise<void> };
   await handle.install();
-  // Windows usually exits during install and NSIS restarts us, so this is a
-  // belt-and-braces relaunch for the platforms that don't.
-  const { relaunch } = await import("@tauri-apps/plugin-process");
-  await relaunch();
 }
 
 // --- Android (Capacitor) -----------------------------------------------------

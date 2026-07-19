@@ -3,10 +3,15 @@ import { Download, X, Loader2 } from "lucide-react";
 import { Logo } from "./Logo";
 import { isTauri, checkDesktopUpdate, runDesktopUpdate, type DesktopUpdate } from "../services/updater";
 
-// How long the splash waits for the update check before launching anyway.
-// Generous enough for a cold DNS lookup plus GitHub's redirect chain, short
-// enough that an unreachable network doesn't feel like a hang.
+// Hard ceiling on waiting for the check. Generous enough for a cold DNS lookup
+// plus GitHub's redirect chain, short enough that an unreachable network doesn't
+// feel like a hang.
 const CHECK_TIMEOUT_MS = 6000;
+
+// A deliberate minimum on the splash, so the decision to install is always made
+// while the splash is still up rather than after the UI is usable. It also stops
+// the splash flashing past on a fast connection.
+const MIN_SPLASH_MS = 2000;
 
 type Phase = "checking" | "updating" | "ready";
 
@@ -34,29 +39,36 @@ export function UpdateGate({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isTauri()) return;
+
+    const startedAt = Date.now();
+    const timers: number[] = [];
     let launched = false; // once true, the app is on screen and stays there
 
-    const timer = setTimeout(() => {
-      if (!launched) {
-        launched = true;
-        setPhase("ready"); // fail open; the update lands at the next launch
-      }
-    }, CHECK_TIMEOUT_MS);
+    /** Releases the UI — but never before the splash has had its full moment. */
+    const launch = () => {
+      if (launched) return;
+      launched = true;
+      const wait = Math.max(0, MIN_SPLASH_MS - (Date.now() - startedAt));
+      if (wait === 0) setPhase("ready");
+      else timers.push(window.setTimeout(() => setPhase("ready"), wait));
+    };
+
+    const timeout = window.setTimeout(launch, CHECK_TIMEOUT_MS);
+    timers.push(timeout);
 
     checkDesktopUpdate()
       .then(async (update) => {
-        clearTimeout(timer);
+        clearTimeout(timeout);
 
-        if (!update) {
-          launched = true;
-          setPhase("ready");
-          return;
-        }
+        if (!update) return launch();
         if (launched) {
           setLate(update); // too late to be silent — ask instead of ambushing
           return;
         }
 
+        // Claim the session BEFORE the download starts. Getting this wrong is
+        // what let the old build hand over the UI mid-download and then close
+        // the app from under the user when the installer ran.
         launched = true;
         setVersion(update.version);
         setPhase("updating");
@@ -67,12 +79,11 @@ export function UpdateGate({ children }: { children: ReactNode }) {
         }
       })
       .catch(() => {
-        clearTimeout(timer);
-        launched = true;
-        setPhase("ready");
+        clearTimeout(timeout);
+        launch();
       });
 
-    return () => clearTimeout(timer);
+    return () => timers.forEach(clearTimeout);
   }, []);
 
   const installLate = async () => {
