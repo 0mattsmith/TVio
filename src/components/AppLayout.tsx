@@ -4,6 +4,7 @@ import { QuickWatch } from "./QuickWatch";
 import { WatchlistToast } from "./WatchlistToast";
 import { UpdateToast } from "./UpdateToast";
 import { WhatsNew } from "./WhatsNew";
+import { PrefetchToast } from "./PrefetchToast";
 import { useAppStore } from "../store/useAppStore";
 import { hasTmdbKey } from "../services/tmdb";
 
@@ -32,6 +33,7 @@ export function AppLayout() {
       <WatchlistToast />
       <UpdateToast />
       <WhatsNew />
+      <PrefetchToast />
     </div>
   );
 }

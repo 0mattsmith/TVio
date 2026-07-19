@@ -61,6 +61,16 @@ export async function waitForPlaylist(url: string, timeoutMs = 45_000): Promise<
   return false;
 }
 
+/** Already downloaded? Cheap check — never triggers a download. */
+export async function ffmpegReady(): Promise<boolean> {
+  if (!hasNativePlayback()) return true; // nothing to fetch on web/mobile
+  try {
+    return await invoke<boolean>("ffmpeg_ready");
+  } catch {
+    return false;
+  }
+}
+
 /** Pre-fetches ffmpeg so the first difficult stream doesn't wait on a download. */
 export async function ensureFfmpeg(): Promise<boolean> {
   if (!hasNativePlayback()) return false;
@@ -68,5 +78,15 @@ export async function ensureFfmpeg(): Promise<boolean> {
     return await invoke<boolean>("ensure_ffmpeg");
   } catch {
     return false;
+  }
+}
+
+/** Subscribe to download progress (0-100). Returns an unsubscribe function. */
+export async function onFfmpegProgress(cb: (pct: number) => void): Promise<() => void> {
+  try {
+    const { listen } = await import("@tauri-apps/api/event");
+    return await listen<number>("ffmpeg-progress", (e) => cb(e.payload));
+  } catch {
+    return () => {};
   }
 }

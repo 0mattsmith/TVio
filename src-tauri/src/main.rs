@@ -36,6 +36,7 @@ fn main() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            playback::ffmpeg_ready,
             playback::ensure_ffmpeg,
             playback::start_stream,
             playback::stop_stream

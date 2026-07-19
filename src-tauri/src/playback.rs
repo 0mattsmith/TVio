@@ -19,7 +19,7 @@ use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 use serde::Serialize;
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 
 /// LGPL Windows build — no x264/GPL components. Encoding uses hardware
 /// encoders or OpenH264, which keeps our licensing obligations light.
@@ -62,7 +62,15 @@ fn exe(dir: &PathBuf, name: &str) -> PathBuf {
     dir.join(format!("{name}.exe"))
 }
 
-/// Downloads + extracts ffmpeg/ffprobe if they aren't present yet.
+/// Is ffmpeg already downloaded? (Cheap check — never downloads.)
+#[tauri::command]
+pub fn ffmpeg_ready(app: AppHandle) -> Result<bool, String> {
+    let dir = bin_dir(&app)?;
+    Ok(exe(&dir, "ffmpeg").exists() && exe(&dir, "ffprobe").exists())
+}
+
+/// Downloads + extracts ffmpeg/ffprobe if they aren't present yet, emitting
+/// `ffmpeg-progress` (0-100) so the UI can show a quiet prefetch toast.
 #[tauri::command]
 pub async fn ensure_ffmpeg(app: AppHandle) -> Result<bool, String> {
     let dir = bin_dir(&app)?;
@@ -70,15 +78,39 @@ pub async fn ensure_ffmpeg(app: AppHandle) -> Result<bool, String> {
         return Ok(true);
     }
 
+    let progress_app = app.clone();
     // Blocking download + unzip on a worker thread.
     tauri::async_runtime::spawn_blocking(move || -> Result<bool, String> {
         let res = ureq::get(FFMPEG_ZIP)
             .call()
             .map_err(|e| format!("Couldn't download ffmpeg: {e}"))?;
-        let mut buf = Vec::new();
-        res.into_reader()
-            .read_to_end(&mut buf)
-            .map_err(|e| e.to_string())?;
+
+        let total: u64 = res
+            .header("Content-Length")
+            .and_then(|v| v.parse().ok())
+            .unwrap_or(0);
+
+        let mut reader = res.into_reader();
+        let mut buf: Vec<u8> = Vec::with_capacity(total as usize);
+        let mut chunk = [0u8; 64 * 1024];
+        let mut got: u64 = 0;
+        let mut last_pct: u8 = 0;
+
+        loop {
+            let n = reader.read(&mut chunk).map_err(|e| e.to_string())?;
+            if n == 0 {
+                break;
+            }
+            buf.extend_from_slice(&chunk[..n]);
+            got += n as u64;
+            if total > 0 {
+                let pct = ((got * 100 / total) as u8).min(99);
+                if pct != last_pct {
+                    last_pct = pct;
+                    let _ = progress_app.emit("ffmpeg-progress", pct);
+                }
+            }
+        }
 
         let mut zip = zip::ZipArchive::new(std::io::Cursor::new(buf))
             .map_err(|e| format!("Bad ffmpeg archive: {e}"))?;
@@ -91,6 +123,8 @@ pub async fn ensure_ffmpeg(app: AppHandle) -> Result<bool, String> {
                 std::io::copy(&mut entry, &mut out).map_err(|e| e.to_string())?;
             }
         }
+
+        let _ = progress_app.emit("ffmpeg-progress", 100u8);
         Ok(true)
     })
     .await
