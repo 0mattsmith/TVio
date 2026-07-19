@@ -202,6 +202,7 @@ jobs:
         run: node scripts/gen-android-assets.mjs
       - name: Build phone APK
         run: |
+          node scripts/inject-platform.mjs mobile
           cd android
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
@@ -210,6 +211,7 @@ jobs:
         run: node scripts/android-tv-manifest.mjs
       - name: Build Android TV APK
         run: |
+          node scripts/inject-platform.mjs tv
           cd android
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../tvio-androidtv.apk
