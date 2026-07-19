@@ -85,11 +85,27 @@ export function SignIn() {
           <form onSubmit={(e) => { e.preventDefault(); authAction("signin", siEmail, siPass); }} className="mt-8 space-y-5">
             <label className="block">
               <span className={labelCls}>Email Address</span>
-              <input type="email" value={siEmail} onChange={(e) => setSiEmail(e.target.value)} placeholder="name@domain.com" className={inputCls} />
+              <input
+                type="email"
+                name="email"
+                autoComplete="username"
+                value={siEmail}
+                onChange={(e) => setSiEmail(e.target.value)}
+                placeholder="name@domain.com"
+                className={inputCls}
+              />
             </label>
             <label className="block">
               <span className={labelCls}>Password</span>
-              <input type="password" value={siPass} onChange={(e) => setSiPass(e.target.value)} placeholder="••••••••" className={inputCls} />
+              <input
+                type="password"
+                name="password"
+                autoComplete="current-password"
+                value={siPass}
+                onChange={(e) => setSiPass(e.target.value)}
+                placeholder="••••••••"
+                className={inputCls}
+              />
             </label>
             {errorFor === "signin" && error && <p className="text-sm text-red-400">{error}</p>}
             <Button type="submit" disabled={busy} className="w-full py-4 text-base">{busy ? "Please wait…" : "Sign In"}</Button>
@@ -129,11 +145,27 @@ export function SignIn() {
             <form onSubmit={(e) => { e.preventDefault(); authAction("register", suEmail, suPass); }} className="mt-8 space-y-5">
               <label className="block">
                 <span className={labelCls}>Email Address</span>
-                <input type="email" value={suEmail} onChange={(e) => setSuEmail(e.target.value)} placeholder="name@domain.com" className={inputCls} />
+                <input
+                  type="email"
+                  name="email"
+                  autoComplete="username"
+                  value={suEmail}
+                  onChange={(e) => setSuEmail(e.target.value)}
+                  placeholder="name@domain.com"
+                  className={inputCls}
+                />
               </label>
               <label className="block">
                 <span className={labelCls}>Password</span>
-                <input type="password" value={suPass} onChange={(e) => setSuPass(e.target.value)} placeholder="At least 6 characters" className={inputCls} />
+                <input
+                  type="password"
+                  name="password"
+                  autoComplete="new-password"
+                  value={suPass}
+                  onChange={(e) => setSuPass(e.target.value)}
+                  placeholder="At least 6 characters"
+                  className={inputCls}
+                />
               </label>
               {errorFor === "register" && error && <p className="text-sm text-red-400">{error}</p>}
               <Button type="submit" variant="secondary" disabled={busy} className="w-full py-4 text-base">

@@ -20,6 +20,15 @@ const BG = "#0a0a0a";
 const ACCENT = "#14b8a6";
 const FONT = "Segoe UI, Inter, Arial, Helvetica, sans-serif";
 
+/**
+ * Supersampling factor. NSIS/WiX fix these bitmaps at exact pixel sizes, so we
+ * can't ship larger art — instead every asset is DRAWN at SS× (all coordinates
+ * scaled, not just the canvas) and downsampled with Lanczos. Note that sharp's
+ * `density` option can't do this for us: these SVGs carry absolute width/height,
+ * so the renderer honours them and density is ignored.
+ */
+const SS = 4;
+
 // --- 24-bit BMP encoder (bottom-up, BGR, rows padded to 4 bytes) -------------
 function encodeBmp24(rgb, width, height) {
   const rowSize = Math.ceil((width * 3) / 4) * 4;
@@ -52,27 +61,20 @@ function encodeBmp24(rgb, width, height) {
   return buf;
 }
 
-// NSIS/WiX fix these bitmaps at exact pixel sizes, so we can't ship larger art.
-// Instead we supersample: rasterise the SVG at 4x, then downsample with Lanczos.
-// That gives far cleaner edges and text than rendering straight to final size
-// (and survives Windows' DPI upscaling of the installer much better).
-const SUPERSAMPLE = 4;
-
+/** Renders an already-supersampled SVG down to the exact BMP size. */
 async function svgToBmp(svg, width, height, out) {
-  const { data } = await sharp(Buffer.from(svg), { density: 72 * SUPERSAMPLE })
+  const { data } = await sharp(Buffer.from(svg))
     .resize(width, height, { kernel: sharp.kernel.lanczos3, fit: "fill" })
     .flatten({ background: BG })
     .removeAlpha()
     .raw()
     .toBuffer({ resolveWithObject: true });
   writeFileSync(out, encodeBmp24(data, width, height));
-  console.log(`  ✓ ${out}`);
+  console.log(`  ✓ ${out}  (drawn at ${width * SS}x${height * SS}, downsampled)`);
 }
 
 // --- Artwork ----------------------------------------------------------------
-// A dark panel with a soft teal glow and the TVio wordmark. Shapes carry the
-// branding even if the runner lacks the font, so it degrades gracefully.
-function glowDefs(id, cx, cy, r) {
+function glow(id, cx, cy, r) {
   return `<defs><radialGradient id="${id}" cx="${cx}" cy="${cy}" r="${r}" gradientUnits="userSpaceOnUse">
       <stop offset="0" stop-color="${ACCENT}" stop-opacity="0.28"/>
       <stop offset="1" stop-color="${ACCENT}" stop-opacity="0"/>
@@ -81,54 +83,67 @@ function glowDefs(id, cx, cy, r) {
 
 function wordmark(x, y, size, anchor = "middle") {
   return `<text x="${x}" y="${y}" text-anchor="${anchor}" dominant-baseline="middle"
-      font-family="${FONT}" font-weight="900" font-size="${size}" letter-spacing="${-size * 0.04}">
+      font-family="${FONT}" font-weight="900" font-size="${size}" letter-spacing="${-size * 0.03}">
       <tspan fill="#ffffff">TV</tspan><tspan fill="${ACCENT}">io</tspan></text>`;
 }
 
+// Each takes the FINAL size plus the supersample factor, and scales everything.
 const art = {
-  // NSIS header: small strip, top-right of the wizard.
-  header: (w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-      <rect width="${w}" height="${h}" fill="${BG}"/>
-      ${glowDefs("g", w, 0, w)}<rect width="${w}" height="${h}" fill="url(#g)"/>
-      ${wordmark(w / 2, h / 2 + 1, 22)}
-      <rect x="0" y="${h - 2}" width="${w}" height="2" fill="${ACCENT}"/>
-    </svg>`,
+  // NSIS header strip (top-right of the wizard).
+  header: (w, h, s) => {
+    const W = w * s, H = h * s;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+      <rect width="${W}" height="${H}" fill="${BG}"/>
+      ${glow("g", W, 0, W)}<rect width="${W}" height="${H}" fill="url(#g)"/>
+      ${wordmark(W / 2, H / 2, 24 * s)}
+      <rect x="0" y="${H - 2 * s}" width="${W}" height="${2 * s}" fill="${ACCENT}"/>
+    </svg>`;
+  },
 
-  // NSIS sidebar: tall panel on the welcome + finish pages.
-  sidebar: (w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-      <rect width="${w}" height="${h}" fill="${BG}"/>
-      ${glowDefs("g", w / 2, h * 0.28, w * 1.1)}<rect width="${w}" height="${h}" fill="url(#g)"/>
-      ${wordmark(w / 2, h * 0.3, 34)}
-      <rect x="${w / 2 - 22}" y="${h * 0.3 + 30}" width="44" height="3" rx="1.5" fill="${ACCENT}"/>
-      <text x="${w / 2}" y="${h * 0.3 + 56}" text-anchor="middle" font-family="${FONT}"
-        font-size="11" fill="#9ca3af">Your films, series &amp; live TV</text>
-      <rect x="0" y="${h - 3}" width="${w}" height="3" fill="${ACCENT}"/>
-    </svg>`,
+  // NSIS sidebar (welcome + finish pages).
+  sidebar: (w, h, s) => {
+    const W = w * s, H = h * s;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+      <rect width="${W}" height="${H}" fill="${BG}"/>
+      ${glow("g", W / 2, H * 0.28, W * 1.1)}<rect width="${W}" height="${H}" fill="url(#g)"/>
+      ${wordmark(W / 2, H * 0.3, 36 * s)}
+      <rect x="${W / 2 - 24 * s}" y="${H * 0.3 + 32 * s}" width="${48 * s}" height="${3 * s}" rx="${1.5 * s}" fill="${ACCENT}"/>
+      <text x="${W / 2}" y="${H * 0.3 + 58 * s}" text-anchor="middle" font-family="${FONT}"
+        font-size="${11 * s}" fill="#9ca3af">Your films, series &amp; live TV</text>
+      <rect x="0" y="${H - 3 * s}" width="${W}" height="${3 * s}" fill="${ACCENT}"/>
+    </svg>`;
+  },
 
   // WiX (MSI) top banner.
-  banner: (w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-      <rect width="${w}" height="${h}" fill="${BG}"/>
-      ${glowDefs("g", w * 0.12, h / 2, w * 0.5)}<rect width="${w}" height="${h}" fill="url(#g)"/>
-      ${wordmark(24, h / 2 + 1, 26, "start")}
-      <rect x="0" y="${h - 2}" width="${w}" height="2" fill="${ACCENT}"/>
-    </svg>`,
+  banner: (w, h, s) => {
+    const W = w * s, H = h * s;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+      <rect width="${W}" height="${H}" fill="${BG}"/>
+      ${glow("g", W * 0.12, H / 2, W * 0.5)}<rect width="${W}" height="${H}" fill="url(#g)"/>
+      ${wordmark(24 * s, H / 2, 28 * s, "start")}
+      <rect x="0" y="${H - 2 * s}" width="${W}" height="${2 * s}" fill="${ACCENT}"/>
+    </svg>`;
+  },
 
   // WiX (MSI) welcome background.
-  dialog: (w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-      <rect width="${w}" height="${h}" fill="${BG}"/>
-      ${glowDefs("g", w * 0.28, h * 0.35, w * 0.7)}<rect width="${w}" height="${h}" fill="url(#g)"/>
-      ${wordmark(w * 0.28, h * 0.4, 54)}
-      <rect x="${w * 0.28 - 34}" y="${h * 0.4 + 44}" width="68" height="4" rx="2" fill="${ACCENT}"/>
-      <text x="${w * 0.28}" y="${h * 0.4 + 74}" text-anchor="middle" font-family="${FONT}"
-        font-size="14" fill="#9ca3af">Films, series &amp; live TV — your way</text>
-    </svg>`,
+  dialog: (w, h, s) => {
+    const W = w * s, H = h * s;
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${W}" height="${H}">
+      <rect width="${W}" height="${H}" fill="${BG}"/>
+      ${glow("g", W * 0.28, H * 0.35, W * 0.7)}<rect width="${W}" height="${H}" fill="url(#g)"/>
+      ${wordmark(W * 0.28, H * 0.4, 56 * s)}
+      <rect x="${W * 0.28 - 36 * s}" y="${H * 0.4 + 46 * s}" width="${72 * s}" height="${4 * s}" rx="${2 * s}" fill="${ACCENT}"/>
+      <text x="${W * 0.28}" y="${H * 0.4 + 76 * s}" text-anchor="middle" font-family="${FONT}"
+        font-size="${14 * s}" fill="#9ca3af">Films, series &amp; live TV — your way</text>
+    </svg>`;
+  },
 };
 
-// Square app icon (also the source for `tauri icon`).
-const iconSvg = (s) => `<svg xmlns="http://www.w3.org/2000/svg" width="${s}" height="${s}">
-    <rect width="${s}" height="${s}" rx="${s * 0.19}" fill="${BG}"/>
-    ${glowDefs("g", s / 2, s * 0.35, s * 0.75)}<rect width="${s}" height="${s}" rx="${s * 0.19}" fill="url(#g)"/>
-    ${wordmark(s / 2, s / 2, s * 0.29)}
+// Square app icon (also the source for `tauri icon`) — drawn natively at 1024.
+const iconSvg = (n) => `<svg xmlns="http://www.w3.org/2000/svg" width="${n}" height="${n}">
+    <rect width="${n}" height="${n}" rx="${n * 0.19}" fill="${BG}"/>
+    ${glow("g", n / 2, n * 0.35, n * 0.75)}<rect width="${n}" height="${n}" rx="${n * 0.19}" fill="url(#g)"/>
+    ${wordmark(n / 2, n / 2, n * 0.29)}
   </svg>`;
 
 async function main() {
@@ -136,15 +151,14 @@ async function main() {
   mkdirSync("src-tauri/installer", { recursive: true });
 
   console.log("Generating app icon…");
-  const png = await sharp(Buffer.from(iconSvg(1024))).png().toBuffer();
-  writeFileSync("build/icon-1024.png", png);
+  writeFileSync("build/icon-1024.png", await sharp(Buffer.from(iconSvg(1024))).png().toBuffer());
   console.log("  ✓ build/icon-1024.png");
 
-  console.log("Generating installer artwork…");
-  await svgToBmp(art.header(150, 57), 150, 57, "src-tauri/installer/header.bmp");
-  await svgToBmp(art.sidebar(164, 314), 164, 314, "src-tauri/installer/sidebar.bmp");
-  await svgToBmp(art.banner(493, 58), 493, 58, "src-tauri/installer/banner.bmp");
-  await svgToBmp(art.dialog(493, 312), 493, 312, "src-tauri/installer/dialog.bmp");
+  console.log(`Generating installer artwork (supersampled ${SS}x)…`);
+  await svgToBmp(art.header(150, 57, SS), 150, 57, "src-tauri/installer/header.bmp");
+  await svgToBmp(art.sidebar(164, 314, SS), 164, 314, "src-tauri/installer/sidebar.bmp");
+  await svgToBmp(art.banner(493, 58, SS), 493, 58, "src-tauri/installer/banner.bmp");
+  await svgToBmp(art.dialog(493, 312, SS), 493, 312, "src-tauri/installer/dialog.bmp");
 }
 
 main().catch((e) => {
