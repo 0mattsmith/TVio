@@ -1,12 +1,13 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users } from "lucide-react";
+import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil } from "lucide-react";
 import { SERVICES, OTHER_SERVICE } from "../services/services";
 import { hasTmdbKey, currentRegion, usingBuiltInKey } from "../services/tmdb";
 import { firebaseEnabled } from "../services/firebase";
-import { useAppStore, buildAiostreamsUrl } from "../store/useAppStore";
+import { useAppStore, buildAiostreamsUrl, PROFILE_AVATARS } from "../store/useAppStore";
 import type { Addon, PlatformOverride } from "../store/useAppStore";
+import { AvatarPicker } from "../components/AvatarPicker";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
 import { fetchManifest } from "../addons/manager";
 import { Button } from "../components/Button";
@@ -43,7 +44,7 @@ export function Settings() {
     iptvEnabled, setIptvEnabled,
     iptvPlaylists, iptvEpgUrls, addIptvPlaylist, removeIptvPlaylist, addIptvEpg, removeIptvEpg,
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
-    profiles, activeProfileId,
+    profiles, activeProfileId, addProfile, updateProfile, removeProfile, profileData, watchlist,
   } = useAppStore();
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
   const isMasterProfile = activeProfile?.isMaster ?? false;
@@ -60,6 +61,23 @@ export function Settings() {
     queryClient.invalidateQueries();
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
+  };
+
+  // Profile management (Master only)
+  const [newProfileName, setNewProfileName] = useState("");
+  const [newProfileAvatar, setNewProfileAvatar] = useState(PROFILE_AVATARS[0]);
+  const [editingProfile, setEditingProfile] = useState<string | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAvatar, setEditAvatar] = useState(PROFILE_AVATARS[0]);
+  const createProfile = () => {
+    if (!newProfileName.trim()) return;
+    addProfile(newProfileName, newProfileAvatar);
+    setNewProfileName("");
+    setNewProfileAvatar(PROFILE_AVATARS[Math.floor(Math.random() * PROFILE_AVATARS.length)]);
+  };
+  const saveProfileEdit = () => {
+    if (editingProfile && editName.trim()) updateProfile(editingProfile, { name: editName, avatar: editAvatar });
+    setEditingProfile(null);
   };
 
   const [aioKey, setAioKey] = useState("");
@@ -200,6 +218,90 @@ export function Settings() {
 
       {isMasterProfile ? (
       <>
+      {/* Profiles (Master only) */}
+      <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
+        <h2 className="flex items-center gap-2 text-lg font-bold"><Users size={18} /> Profiles</h2>
+        <p className="mt-1 text-sm text-muted">
+          Each profile keeps its own watchlist and continue-watching. Only the Master profile can add or remove them.
+        </p>
+
+        <ul className="mt-4 space-y-2">
+          {profiles.map((p) => (
+            <li key={p.id} className="rounded-lg bg-surface-2 px-4 py-3">
+              {editingProfile === p.id ? (
+                <div className="space-y-3">
+                  <input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    onKeyDown={(e) => e.key === "Enter" && saveProfileEdit()}
+                    className="focusable w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
+                  />
+                  <AvatarPicker value={editAvatar} onChange={setEditAvatar} size="sm" />
+                  <div className="flex gap-2">
+                    <Button onClick={saveProfileEdit} disabled={!editName.trim()}>Save</Button>
+                    <Button variant="ghost" onClick={() => setEditingProfile(null)}>Cancel</Button>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-surface text-xl">{p.avatar}</span>
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold">{p.name}</span>
+                        {p.isMaster && <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold text-accent">MASTER</span>}
+                        {p.id === activeProfileId && <span className="text-[10px] text-muted">· active</span>}
+                      </div>
+                      <div className="text-xs text-muted">
+                        {/* the active profile's list is live in the store, not yet parked */}
+                        {(p.id === activeProfileId ? watchlist.length : profileData[p.id]?.watchlist?.length ?? 0)} in watchlist
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      onClick={() => { setEditingProfile(p.id); setEditName(p.name); setEditAvatar(p.avatar); }}
+                      className="focusable text-muted hover:text-white"
+                      aria-label={`Edit ${p.name}`}
+                    >
+                      <Pencil size={16} />
+                    </button>
+                    {!p.isMaster && (
+                      <button
+                        onClick={() => removeProfile(p.id)}
+                        className="focusable text-muted hover:text-red-400"
+                        aria-label={`Remove ${p.name}`}
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        {profiles.length < 5 ? (
+          <div className="mt-4 rounded-lg border border-dashed border-white/15 p-4">
+            <div className="mb-2 text-sm font-semibold">Add a profile</div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+              <input
+                value={newProfileName}
+                onChange={(e) => setNewProfileName(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && createProfile()}
+                placeholder="Name"
+                className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent sm:w-48"
+              />
+              <div className="flex-1"><AvatarPicker value={newProfileAvatar} onChange={setNewProfileAvatar} size="sm" /></div>
+              <Button onClick={createProfile} disabled={!newProfileName.trim()}><Plus size={16} /> Add</Button>
+            </div>
+          </div>
+        ) : (
+          <p className="mt-3 text-xs text-muted">Maximum of 5 profiles reached.</p>
+        )}
+      </section>
+
       {/* Sources */}
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
         <h2 className="flex items-center gap-2 text-lg font-bold"><Puzzle size={18} /> Your sources</h2>

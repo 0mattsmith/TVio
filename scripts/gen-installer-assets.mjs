@@ -52,9 +52,15 @@ function encodeBmp24(rgb, width, height) {
   return buf;
 }
 
+// NSIS/WiX fix these bitmaps at exact pixel sizes, so we can't ship larger art.
+// Instead we supersample: rasterise the SVG at 4x, then downsample with Lanczos.
+// That gives far cleaner edges and text than rendering straight to final size
+// (and survives Windows' DPI upscaling of the installer much better).
+const SUPERSAMPLE = 4;
+
 async function svgToBmp(svg, width, height, out) {
-  const { data } = await sharp(Buffer.from(svg))
-    .resize(width, height)
+  const { data } = await sharp(Buffer.from(svg), { density: 72 * SUPERSAMPLE })
+    .resize(width, height, { kernel: sharp.kernel.lanczos3, fit: "fill" })
     .flatten({ background: BG })
     .removeAlpha()
     .raw()
