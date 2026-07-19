@@ -9,6 +9,8 @@ import { PosterCard } from "../components/PosterCard";
 import { SeasonBrowser } from "../components/SeasonBrowser";
 import { useAppStore } from "../store/useAppStore";
 import { usePlay } from "../hooks/usePlay";
+import { useTrailer } from "../hooks/useTrailer";
+import { embedUrl } from "../services/trailers";
 
 export function Detail() {
   const { type, id } = useParams<{ type: MediaType; id: string }>();
@@ -35,9 +37,13 @@ export function Detail() {
     enabled: mediaType === "movie" && !!data?.collectionId,
   });
 
+  // Picks a video that's been confirmed to actually play, or reports "none" so
+  // the section can be hidden. Sits above the early return — hooks can't be
+  // called conditionally.
+  const trailer = useTrailer(data?.videos);
+
   if (isLoading || !data) return <div className="skeleton h-screen w-full" />;
 
-  const trailer = data.videos.find((v) => v.type === "Trailer") || data.videos[0];
   const flatrate = data.providers.filter((p) => p.type === "flatrate" || p.type === "free" || p.type === "ads");
   const buyRent = data.providers.filter((p) => p.type === "rent" || p.type === "buy");
 
@@ -175,15 +181,19 @@ export function Detail() {
           </section>
         )}
 
-        {/* Trailer */}
-        {trailer && (
+        {/* Trailer — only once we've confirmed one genuinely plays. While the
+            check runs we show nothing rather than a placeholder that might
+            vanish, and if every candidate is dead the section never appears. */}
+        {trailer.status === "ready" && (
           <section className="mt-10">
-            <h2 className="mb-3 text-xl font-bold">Trailer</h2>
+            <h2 className="mb-3 text-xl font-bold">
+              {trailer.video.type === "Trailer" ? "Trailer" : trailer.video.type}
+            </h2>
             <div className="aspect-video w-full max-w-3xl overflow-hidden rounded-xl bg-black">
               <iframe
                 className="h-full w-full"
-                src={`https://www.youtube.com/embed/${trailer.key}`}
-                title={trailer.name}
+                src={embedUrl(trailer.video)}
+                title={trailer.video.name}
                 allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                 allowFullScreen
               />

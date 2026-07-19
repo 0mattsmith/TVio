@@ -142,14 +142,14 @@ export function Settings() {
       </section>
 
       {/* Sign in on your phone (not shown on a phone — nothing to scan with) */}
-      {user && !isMobile && (
+      {!isMobile && (
         <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
           <h2 className="flex items-center gap-2 text-lg font-bold"><Smartphone size={18} /> Sign in on your phone</h2>
           <p className="mt-1 text-sm text-muted">
             Scan this with the TVio mobile app (Sign In → <span className="font-semibold text-white">Sign In using QR Code</span>)
             to sign that phone into this account — no typing.
           </p>
-          <PairQr />
+          <PairQr signedIn={Boolean(user)} />
         </section>
       )}
 

@@ -33,6 +33,23 @@ export function pairingAvailable(): boolean {
   return firebaseEnabled && Boolean(workerBase());
 }
 
+/**
+ * Which build-time prerequisites are missing, in plain English.
+ *
+ * Worth the extra code: without it the QR panel simply isn't there, and there's
+ * no way to tell from the app whether it's a missing secret or a missing sign-in.
+ */
+export function pairingRequirements(): string[] {
+  const missing: string[] = [];
+  if (!firebaseEnabled) {
+    missing.push("Accounts aren't configured — this build was made without the VITE_FIREBASE_* keys.");
+  }
+  if (!workerBase()) {
+    missing.push("The TVio Worker URL is missing — set the VITE_TMDB_PROXY secret and rebuild.");
+  }
+  return missing;
+}
+
 export interface Pairing {
   code: string;
   qr: string;

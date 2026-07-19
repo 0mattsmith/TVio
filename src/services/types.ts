@@ -20,10 +20,14 @@ export interface CastMember {
 }
 
 export interface Video {
-  key: string; // youtube key
+  key: string; // YouTube or Vimeo id
   name: string;
   type: string; // Trailer, Teaser…
-  site: string;
+  site: string; // "YouTube" | "Vimeo"
+  official?: boolean;
+  language?: string; // ISO 639-1
+  size?: number; // 1080, 720…
+  publishedAt?: string;
 }
 
 export interface WatchProvider {

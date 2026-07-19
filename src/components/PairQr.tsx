@@ -1,15 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
-import { Smartphone, RefreshCw, Check, Loader2 } from "lucide-react";
+import { Smartphone, RefreshCw, Check, Loader2, AlertCircle } from "lucide-react";
 import { Button } from "./Button";
-import { createPairing, watchPairing, cancelPairing, pairingAvailable, type Pairing } from "../services/pairing";
+import { createPairing, watchPairing, cancelPairing, pairingRequirements, type Pairing } from "../services/pairing";
 
 /**
  * Desktop: shows a short-lived QR + code for signing a phone into this account.
  * The code IS the secret, so it's 8 unambiguous characters and expires in 3
  * minutes; redemption is single-use and verified server-side.
  */
-export function PairQr() {
+export function PairQr({ signedIn }: { signedIn: boolean }) {
   const [pairing, setPairing] = useState<Pairing | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -54,11 +54,27 @@ export function PairQr() {
     return () => clearInterval(id);
   }, [pairing, done]);
 
-  if (!pairingAvailable()) {
+  // Say exactly what's missing. This panel used to disappear silently whenever
+  // any prerequisite was absent, which made it impossible to tell from inside
+  // the app whether it was a missing secret or simply a missing sign-in.
+  const missing = pairingRequirements();
+  if (missing.length === 0 && !signedIn) {
+    missing.push("Sign in to your TVio account on this device first — the code shares that account.");
+  }
+
+  if (missing.length > 0) {
     return (
-      <p className="mt-2 text-sm text-muted">
-        QR sign-in needs Firebase and the TVio Worker configured on this build.
-      </p>
+      <div className="mt-4 rounded-lg border border-white/10 bg-surface-2 p-4">
+        <p className="text-sm font-semibold">QR sign-in isn't ready on this build</p>
+        <ul className="mt-2 space-y-1.5">
+          {missing.map((m) => (
+            <li key={m} className="flex items-start gap-2 text-sm text-muted">
+              <AlertCircle size={14} className="mt-0.5 shrink-0 text-amber-400" />
+              <span>{m}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
     );
   }
 

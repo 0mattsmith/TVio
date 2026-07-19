@@ -153,6 +153,9 @@ export const genres = async (type: MediaType) => {
 export async function detail(type: MediaType, id: number): Promise<MediaDetail> {
   const raw = await tmdb<any>(`/${type}/${id}`, {
     append_to_response: "credits,videos,watch/providers,external_ids",
+    // Widens the video list beyond the request language so there are fallbacks
+    // to fall back TO when the first-choice trailer turns out to be dead.
+    include_video_language: "en,null",
   });
   const base = mapItem(raw, type);
   const cast: CastMember[] = (raw.credits?.cast || []).slice(0, 20).map((c: any) => ({
@@ -161,9 +164,19 @@ export async function detail(type: MediaType, id: number): Promise<MediaDetail> 
     character: c.character,
     profile: img(c.profile_path, "w200"),
   }));
+  // Vimeo is kept as a genuine fallback — a handful of titles have nothing else.
   const videos: Video[] = (raw.videos?.results || [])
-    .filter((v: any) => v.site === "YouTube")
-    .map((v: any) => ({ key: v.key, name: v.name, type: v.type, site: v.site }));
+    .filter((v: any) => v.key && (v.site === "YouTube" || v.site === "Vimeo"))
+    .map((v: any) => ({
+      key: v.key,
+      name: v.name,
+      type: v.type,
+      site: v.site,
+      official: v.official,
+      language: v.iso_639_1,
+      size: v.size,
+      publishedAt: v.published_at,
+    }));
   const region = (raw["watch/providers"]?.results || {})[currentRegion()] || {};
   const providers: WatchProvider[] = [];
   const push = (arr: any[] | undefined, kind: WatchProvider["type"]) =>
