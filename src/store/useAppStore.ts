@@ -12,12 +12,28 @@ interface ProgressEntry extends MediaItem {
   updatedAt: number;
 }
 
+export type SourceKind = "builtin" | "aiostreams" | "addon" | "plex" | "jellyfin" | "emby" | "nas";
+
 export interface Addon {
   id: string;
   name: string;
   url: string;
-  kind: "builtin" | "addon" | "plex" | "nas";
+  kind: SourceKind;
   enabled: boolean;
+  sync: boolean; // true = save to the TVio account (Firestore); false = device-only
+}
+
+// AIOStreams: the user pastes just their config "key" (everything between
+// /stremio/ and /manifest.json). We rebuild the full manifest URL. A full URL
+// paste (self-hosters) is accepted too.
+export const AIOSTREAMS_BASE = "https://aiostreams.elfhosted.com/stremio/";
+export function buildAiostreamsUrl(input: string): string {
+  const s = input.trim();
+  if (/^https?:\/\//i.test(s)) {
+    return /manifest\.json/i.test(s) ? s : `${s.replace(/\/+$/, "")}/manifest.json`;
+  }
+  const key = s.replace(/^\/+|\/+$/g, "").replace(/\/manifest\.json$/i, "");
+  return `${AIOSTREAMS_BASE}${key}/manifest.json`;
 }
 
 const BUILTIN_ADDON: Addon = {
@@ -26,6 +42,7 @@ const BUILTIN_ADDON: Addon = {
   url: "internal://providers",
   kind: "builtin",
   enabled: true,
+  sync: false,
 };
 
 export type OnPlayBehavior = "menu" | "best";
@@ -63,7 +80,7 @@ interface AppState {
 
   // Sources / addons (Plex, NAS, Stremio addons)
   addons: Addon[];
-  addAddon: (url: string, kind?: Addon["kind"], name?: string) => void;
+  addAddon: (url: string, kind?: Addon["kind"], name?: string, sync?: boolean) => void;
   removeAddon: (id: string) => void;
   toggleAddon: (id: string) => void;
 
@@ -82,6 +99,9 @@ interface AppState {
   setTmdbKey: (v: string) => void;
   tmdbRegion: string;
   setTmdbRegion: (v: string) => void;
+  // First-run onboarding (sign-in → TMDB key) completed / skipped
+  onboardingDone: boolean;
+  setOnboardingDone: (v: boolean) => void;
 
   // Live TV / IPTV (opt-in)
   iptvEnabled: boolean;
@@ -142,13 +162,14 @@ export const useAppStore = create<AppState>()(
         })),
 
       addons: [BUILTIN_ADDON],
-      addAddon: (url, kind = "addon", name) =>
+      addAddon: (url, kind = "addon", name, sync = true) =>
         set((s) => {
+          const defaults: Record<string, string> = {
+            aiostreams: "AIOStreams", plex: "Plex", jellyfin: "Jellyfin", emby: "Emby", nas: "NAS / Local",
+          };
           const resolved =
-            name?.trim() ||
-            (kind === "plex" ? "Plex" : kind === "nas" ? "NAS / Local" :
-              url.replace(/^https?:\/\//, "").split("/")[0] || "Addon");
-          return { addons: [...s.addons, { id: crypto.randomUUID(), name: resolved, url, kind, enabled: true }] };
+            name?.trim() || defaults[kind] || url.replace(/^https?:\/\//, "").split("/")[0] || "Addon";
+          return { addons: [...s.addons, { id: crypto.randomUUID(), name: resolved, url, kind, enabled: true, sync }] };
         }),
       removeAddon: (id) => set((s) => ({ addons: s.addons.filter((a) => a.id !== id) })),
       toggleAddon: (id) =>
@@ -167,6 +188,8 @@ export const useAppStore = create<AppState>()(
       setTmdbKey: (v) => set({ tmdbKey: v.trim() }),
       tmdbRegion: "",
       setTmdbRegion: (v) => set({ tmdbRegion: v.trim() }),
+      onboardingDone: false,
+      setOnboardingDone: (v) => set({ onboardingDone: v }),
 
       iptvEnabled: false,
       setIptvEnabled: (v) => set({ iptvEnabled: v }),
@@ -199,6 +222,7 @@ export const useAppStore = create<AppState>()(
         platformOverride: s.platformOverride,
         tmdbKey: s.tmdbKey,
         tmdbRegion: s.tmdbRegion,
+        onboardingDone: s.onboardingDone,
         iptvEnabled: s.iptvEnabled,
         iptvPlaylists: s.iptvPlaylists,
         iptvEpgUrls: s.iptvEpgUrls,

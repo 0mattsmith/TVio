@@ -4,7 +4,8 @@ import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock } from "lucide-react";
 import { SERVICES, OTHER_SERVICE } from "../services/services";
 import { hasTmdbKey, currentRegion } from "../services/tmdb";
-import { useAppStore } from "../store/useAppStore";
+import { firebaseEnabled } from "../services/firebase";
+import { useAppStore, buildAiostreamsUrl } from "../store/useAppStore";
 import type { Addon, PlatformOverride } from "../store/useAppStore";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
 import { fetchManifest } from "../addons/manager";
@@ -26,7 +27,8 @@ function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; labe
 }
 
 const SOURCE_ICON: Record<Addon["kind"], typeof Puzzle> = {
-  builtin: ListVideo, addon: Puzzle, plex: MonitorPlay, nas: Server,
+  builtin: ListVideo, addon: Puzzle, aiostreams: Puzzle,
+  plex: MonitorPlay, jellyfin: MonitorPlay, emby: MonitorPlay, nas: Server,
 };
 
 export function Settings() {
@@ -57,25 +59,27 @@ export function Settings() {
     setTimeout(() => setSaved(false), 2500);
   };
 
-  const [url, setUrl] = useState("");
+  const [aioKey, setAioKey] = useState("");
+  const [aioSave, setAioSave] = useState(true);
   const [installing, setInstalling] = useState(false);
   const [plName, setPlName] = useState("");
   const [plUrl, setPlUrl] = useState("");
   const [epgName, setEpgName] = useState("");
   const [epgUrl, setEpgUrl] = useState("");
-  const install = async () => {
-    const u = url.trim();
-    if (!u || installing) return;
+  const hasAiostreams = addons.some((a) => a.kind === "aiostreams");
+  const installAiostreams = async () => {
+    const k = aioKey.trim();
+    if (!k || installing) return;
     setInstalling(true);
+    const manifestUrl = buildAiostreamsUrl(k);
     try {
-      // Fetch the manifest to validate and pick up the addon's real name.
-      const manifest = await fetchManifest(u);
-      addAddon(u, "addon", manifest?.name);
+      await fetchManifest(manifestUrl); // best-effort validation
     } catch {
-      addAddon(u, "addon"); // unreachable manifest (offline/CORS) — still add by URL
+      /* unreachable (offline/CORS) — still add */
     } finally {
+      addAddon(manifestUrl, "aiostreams", "AIOStreams", firebaseEnabled ? aioSave : false);
       setInstalling(false);
-      setUrl("");
+      setAioKey("");
     }
   };
 
@@ -191,33 +195,55 @@ export function Settings() {
         </div>
       </section>
 
-      {/* Sources & Addons */}
+      {/* Sources */}
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
-        <h2 className="flex items-center gap-2 text-lg font-bold"><Puzzle size={18} /> Your sources & addons</h2>
+        <h2 className="flex items-center gap-2 text-lg font-bold"><Puzzle size={18} /> Your sources</h2>
         <p className="mt-1 text-sm text-muted">
-          Connect your own ways to watch. These appear in Quick Watch above the official options.
+          Add your own ways to watch — they appear in Quick Watch above the official options.
         </p>
 
-        {/* Quick connect */}
-        <div className="mt-4 flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => addAddon("plex://local", "plex")}>
-            <MonitorPlay size={16} /> Connect Plex
-          </Button>
-          <Button variant="secondary" onClick={() => addAddon("nas://local", "nas")}>
-            <Server size={16} /> Add NAS / Local
-          </Button>
+        {/* AIOStreams */}
+        <div className="mt-4">
+          <div className="mb-1.5 text-sm font-semibold">AIOStreams</div>
+          <div className="flex gap-2">
+            <input
+              value={aioKey}
+              onChange={(e) => setAioKey(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && installAiostreams()}
+              placeholder="Paste your AIOStreams key (the part between /stremio/ and /manifest.json)"
+              className="focusable min-w-0 flex-1 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+            />
+            <Button onClick={installAiostreams} disabled={installing || hasAiostreams}>
+              <Plus size={16} /> {installing ? "Adding…" : "Add"}
+            </Button>
+          </div>
+          {firebaseEnabled && !hasAiostreams && (
+            <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-muted">
+              <input
+                type="checkbox"
+                checked={aioSave}
+                onChange={(e) => setAioSave(e.target.checked)}
+                className="h-4 w-4 accent-accent"
+              />
+              Save this to my TVio account (sync across devices). Uncheck to keep it only on this device.
+            </label>
+          )}
+          <p className="mt-1.5 text-xs text-muted">
+            {hasAiostreams
+              ? "AIOStreams connected. Remove it below to change the key."
+              : "From your AIOStreams config URL, copy just the id/config segment — TVio builds the rest."}
+          </p>
         </div>
 
-        {/* Install by manifest URL */}
-        <div className="mt-4 flex gap-2">
-          <input
-            value={url}
-            onChange={(e) => setUrl(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && install()}
-            placeholder="https://addon.example.com/manifest.json  (e.g. AIOStreams)"
-            className="focusable min-w-0 flex-1 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
-          />
-          <Button onClick={install} disabled={installing}><Plus size={16} /> {installing ? "Installing…" : "Install"}</Button>
+        {/* Media servers / local */}
+        <div className="mt-5">
+          <div className="mb-1.5 text-sm font-semibold">Media servers &amp; local</div>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={() => addAddon("plex://local", "plex")}><MonitorPlay size={16} /> Plex</Button>
+            <Button variant="secondary" onClick={() => addAddon("jellyfin://local", "jellyfin")}><MonitorPlay size={16} /> Jellyfin</Button>
+            <Button variant="secondary" onClick={() => addAddon("emby://local", "emby")}><MonitorPlay size={16} /> Emby</Button>
+            <Button variant="secondary" onClick={() => addAddon("nas://local", "nas")}><Server size={16} /> NAS / Local</Button>
+          </div>
         </div>
 
         <ul className="mt-4 space-y-2">
@@ -228,7 +254,12 @@ export function Settings() {
                 <div className="flex min-w-0 items-center gap-3">
                   <Icon size={18} className="shrink-0 text-accent" />
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold">{a.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">{a.name}</span>
+                      {firebaseEnabled && a.kind !== "builtin" && !a.sync && (
+                        <span className="shrink-0 rounded bg-white/10 px-1.5 py-0.5 text-[10px] text-muted">Device only</span>
+                      )}
+                    </div>
                     <div className="break-all text-xs text-muted">{a.url}</div>
                   </div>
                 </div>

@@ -26,6 +26,7 @@ export function Player() {
   const location = useLocation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const setProgress = useAppStore((s) => s.setProgress);
+  const openQuickWatch = useAppStore((s) => s.openQuickWatch);
 
   // A resolved stream URL passed from Quick Watch (via router state).
   const streamUrl = (location.state as { url?: string } | null)?.url;
@@ -110,7 +111,12 @@ export function Player() {
         className="h-full w-full object-contain"
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
-        onError={() => setError(true)}
+        onError={(e) => {
+          // Ignore aborts that happen while swapping the source.
+          const err = e.currentTarget.error;
+          if (err && err.code === err.MEDIA_ERR_ABORTED) return;
+          if (streamUrl) setError(true);
+        }}
         onClick={toggle}
       >
         {subs && <track kind="subtitles" default label="English" srcLang="en" />}
@@ -128,14 +134,32 @@ export function Player() {
       {/* Playback error (unsupported format / torrent / dead link) */}
       {error && (
         <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-3 bg-black/85 p-6 text-center">
-          <p className="text-lg font-bold">This source couldn't be played here</p>
+          <p className="text-lg font-bold">This source can't play in the browser</p>
           <p className="max-w-md text-sm text-white/70">
-            The browser may not support this stream's format (e.g. MKV or a torrent link). Try another source, or use the
-            Android / desktop build which bundles a native player.
+            It likely uses a codec the browser can't decode (often HEVC/H.265 or AC3 audio), or the server blocks web
+            playback. Pick a different source — an <span className="font-semibold text-white">H.264 / 1080p</span> one usually
+            works — or use the TVio Windows / Android app, which plays anything.
           </p>
-          <button onClick={() => navigate(-1)} className="focusable rounded-lg bg-accent px-4 py-2 font-bold text-black">
-            Back to sources
-          </button>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button
+              onClick={() => {
+                if (data) {
+                  const s = params.get("s");
+                  const ep = params.get("e");
+                  openQuickWatch(data, s && ep ? { season: Number(s), episode: Number(ep) } : undefined);
+                  navigate(`/title/${data.type}/${data.id}`);
+                } else {
+                  navigate(-1);
+                }
+              }}
+              className="focusable rounded-lg bg-accent px-4 py-2 font-bold text-black"
+            >
+              Try another source
+            </button>
+            <button onClick={() => navigate(-1)} className="focusable rounded-lg bg-white/10 px-4 py-2 font-semibold">
+              Back
+            </button>
+          </div>
         </div>
       )}
 

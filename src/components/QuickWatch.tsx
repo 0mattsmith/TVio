@@ -15,15 +15,23 @@ import type { Stream } from "../addons/types";
 import { hasNativePlayback } from "../platform/capabilities";
 import { classifyStream } from "../lib/playback";
 
-// Playable in a browser: web-ready per the addon AND a container the browser
-// (with hls.js/mpegts.js) can actually decode.
-const webPlayable = (s: Stream) => isWebPlayable(s) && classifyStream(s.url || "") !== "unsupported";
+// Video codecs browsers generally can't decode (even inside an MP4). Addons
+// like AIOStreams usually tag these in the stream label, so we can filter them
+// out on the web build before the user hits a playback failure.
+const HARD_CODECS = /\b(hevc|h\.?\s?265|x265|dolby\s?vision|dovi|\bdv\b)\b/i;
+
+// Playable in a browser: web-ready per the addon, a container the browser can
+// demux, and not tagged with a codec it can't decode.
+const webPlayable = (s: Stream) =>
+  isWebPlayable(s) &&
+  classifyStream(s.url || "") !== "unsupported" &&
+  !HARD_CODECS.test(`${s.name || ""} ${s.description || ""} ${s.title || ""}`);
 
 interface EpisodeRef { season: number; episode: number }
 
 function SourceIcon({ kind }: { kind: Addon["kind"] }) {
   const cls = "text-accent";
-  if (kind === "plex") return <MonitorPlay size={18} className={cls} />;
+  if (kind === "plex" || kind === "jellyfin" || kind === "emby") return <MonitorPlay size={18} className={cls} />;
   if (kind === "nas") return <Server size={18} className={cls} />;
   return <Puzzle size={18} className={cls} />;
 }
@@ -83,8 +91,8 @@ export function QuickWatch() {
   const flatrate = (data?.providers || []).filter((p) => ["flatrate", "free", "ads"].includes(p.type));
   const buyRent = (data?.providers || []).filter((p) => ["rent", "buy"].includes(p.type));
 
-  const addonSources = personal.filter((s) => s.kind === "addon" && isHttpAddon(s.url));
-  const localSources = personal.filter((s) => s.kind === "plex" || s.kind === "nas");
+  const addonSources = personal.filter((s) => (s.kind === "aiostreams" || s.kind === "addon") && isHttpAddon(s.url));
+  const localSources = personal.filter((s) => ["plex", "jellyfin", "emby", "nas"].includes(s.kind));
   const imdbId = data?.imdbId ?? null;
   const native = hasNativePlayback(); // native builds play everything; web filters
 
