@@ -2,6 +2,7 @@ import { Navigate, Outlet } from "react-router-dom";
 import { Navbar } from "./Navbar";
 import { QuickWatch } from "./QuickWatch";
 import { WatchlistToast } from "./WatchlistToast";
+import { UpdateToast } from "./UpdateToast";
 import { useAppStore } from "../store/useAppStore";
 import { hasTmdbKey } from "../services/tmdb";
 
@@ -28,6 +29,7 @@ export function AppLayout() {
       </footer>
       <QuickWatch />
       <WatchlistToast />
+      <UpdateToast />
     </div>
   );
 }

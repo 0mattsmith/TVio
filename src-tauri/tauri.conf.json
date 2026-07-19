@@ -28,12 +28,42 @@
   "bundle": {
     "active": true,
     "targets": ["msi", "nsis"],
+    "publisher": "TVio",
+    "copyright": "© TVio",
+    "category": "Entertainment",
+    "shortDescription": "Films, series & live TV — your way",
+    "longDescription": "TVio brings your streaming services, your own sources and Live TV together in one clean, Netflix-style interface.",
+    "homepage": "https://github.com/0mattsmith/TVio",
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
       "icons/128x128@2x.png",
       "icons/icon.icns",
       "icons/icon.ico"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installerIcon": "icons/icon.ico",
+        "headerImage": "installer/header.bmp",
+        "sidebarImage": "installer/sidebar.bmp",
+        "installMode": "currentUser",
+        "languages": ["English"],
+        "displayLanguageSelector": false,
+        "compression": "lzma"
+      },
+      "wix": {
+        "bannerPath": "installer/banner.bmp",
+        "dialogImagePath": "installer/dialog.bmp"
+      }
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/0mattsmith/TVio/releases/latest/download/latest.json"
+      ],
+      "pubkey": "PASTE_YOUR_TAURI_UPDATER_PUBLIC_KEY_HERE"
+    }
   }
 }

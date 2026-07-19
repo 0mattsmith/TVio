@@ -32,17 +32,18 @@ jobs:
           node-version: 20
       - uses: dtolnay/rust-toolchain@stable
       - run: npm install
-      # Generate app icons from public/icon.svg (skip if src-tauri/icons committed)
+      # Branded app icon + installer artwork (skip if committed to the repo)
       - run: npm install --no-save sharp
-        continue-on-error: true
-      - run: node scripts/gen-icon.mjs
-        continue-on-error: true
+      - name: Generate icon + installer artwork
+        run: node scripts/gen-installer-assets.mjs
       - run: npx @tauri-apps/cli icon build/icon-1024.png
-        continue-on-error: true
       - name: Build desktop app (MSI + NSIS) and attach to release
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Signs the update artifacts so the silent updater will accept them.
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: TVio ${{ github.ref_name }}

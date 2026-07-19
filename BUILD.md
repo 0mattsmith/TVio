@@ -37,13 +37,43 @@ The app then sends no key from the browser at all, and the first-run "add your T
 ### 2. Enable GitHub Pages
 Settings → Pages → **Source: GitHub Actions**. The site publishes at `https://<user>.github.io/TVio/`.
 
-### 3. Desktop app icons (needed once for the Windows build)
-The workflow tries to auto-generate icons from `public/icon.svg` via `sharp`. If the Windows job fails on icons, generate them locally once and commit them:
+### 2b. Automatic updates
+
+**Windows — fully silent.** Tauri's updater checks a signed `latest.json` attached to each GitHub Release, downloads in the background, installs and relaunches, with no prompts. Set it up once:
 
 ```bash
-npx @tauri-apps/cli icon <a 1024x1024 png>   # writes src-tauri/icons/*
-git add src-tauri/icons && git commit -m "add app icons"
+npx @tauri-apps/cli signer generate -w ~/.tauri/tvio.key
 ```
+
+- Paste the **public** key into `src-tauri/tauri.conf.json` → `plugins.updater.pubkey`.
+- Add the **private** key + its password as GitHub secrets:
+  `TAURI_SIGNING_PRIVATE_KEY`, `TAURI_SIGNING_PRIVATE_KEY_PASSWORD`.
+
+Without these the app still builds — it just won't self-update.
+
+**Android / Android TV — one tap, not silent.** Android does *not* allow a sideloaded app to install an APK silently; the OS always shows its own install confirmation. TVio therefore checks GitHub Releases in the background and shows a small "Update available → Update now" prompt. For genuinely hands-off updates, install the APK via **[Obtainium](https://github.com/ImranR98/Obtainium)** pointed at this repo — it tracks Releases and updates automatically.
+
+### 3. Desktop app icons + installer artwork
+CI generates both the app icon and the branded installer graphics on every release. To make builds fully reproducible (or to hand-craft the art), generate once locally and commit the results:
+
+```bash
+npm install --no-save sharp
+npm run gen:installer                        # build/icon-1024.png + src-tauri/installer/*.bmp
+npx @tauri-apps/cli icon build/icon-1024.png # writes src-tauri/icons/*
+git add src-tauri/icons src-tauri/installer && git commit -m "add app icons + installer art"
+```
+
+The installer uses these (all branded dark + teal, matching the app):
+
+| Asset | Size | Where it shows |
+| --- | --- | --- |
+| `icons/icon.ico` | — | Installer exe, Start menu, taskbar, Add/Remove Programs |
+| `installer/header.bmp` | 150×57 | NSIS wizard header strip |
+| `installer/sidebar.bmp` | 164×314 | NSIS welcome + finish pages |
+| `installer/banner.bmp` | 493×58 | MSI top banner |
+| `installer/dialog.bmp` | 493×312 | MSI welcome background |
+
+Swap any BMP for your own artwork at the same dimensions — NSIS/WiX require BMP specifically.
 
 ---
 
