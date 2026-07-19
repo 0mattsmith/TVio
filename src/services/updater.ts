@@ -96,7 +96,45 @@ export async function autoUpdate(currentVersion: string): Promise<UpdateInfo | n
   return null; // web/PWA updates via the service worker
 }
 
-/** Android: hand the APK to the system installer (shows Android's own prompt). */
-export function installApk(url: string) {
-  window.open(url, "_blank");
+// --- Android install path ----------------------------------------------------
+
+interface ApkUpdaterPlugin {
+  canInstall: () => Promise<{ allowed: boolean }>;
+  openInstallSettings: () => Promise<void>;
+  downloadAndInstall: (opts: { url: string }) => Promise<void>;
+  addListener: (event: string, cb: (data: { progress: number }) => void) => Promise<{ remove: () => void }>;
+}
+
+function apkUpdater(): ApkUpdaterPlugin | null {
+  const cap = (window as unknown as { Capacitor?: { Plugins?: Record<string, unknown> } }).Capacitor;
+  return (cap?.Plugins?.ApkUpdater as ApkUpdaterPlugin) ?? null;
+}
+
+/**
+ * Downloads the APK in the background, then hands it to Android's installer.
+ * Android shows its one-time "install unknown apps" toggle (if not yet granted)
+ * followed by its install confirmation — silent installs aren't permitted for
+ * sideloaded apps. Falls back to opening the download in a browser.
+ */
+export async function installApk(url: string, onProgress?: (pct: number) => void): Promise<void> {
+  const plugin = apkUpdater();
+  if (!plugin) {
+    window.open(url, "_blank");
+    return;
+  }
+
+  let sub: { remove: () => void } | undefined;
+  try {
+    if (onProgress) {
+      sub = await plugin.addListener("downloadProgress", (d) => onProgress(d.progress));
+    }
+    // Ask for the install permission up front so the download isn't wasted.
+    const { allowed } = await plugin.canInstall();
+    if (!allowed) await plugin.openInstallSettings();
+    await plugin.downloadAndInstall({ url });
+  } catch {
+    window.open(url, "_blank"); // last resort
+  } finally {
+    sub?.remove();
+  }
 }

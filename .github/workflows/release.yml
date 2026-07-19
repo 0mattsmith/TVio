@@ -31,6 +31,9 @@ jobs:
         with:
           node-version: 20
       - uses: dtolnay/rust-toolchain@stable
+      - name: Sync version from the release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/sync-version.mjs "${{ github.ref_name }}"
       - run: npm install
       # Branded app icon + installer artwork (skip if committed to the repo)
       - run: npm install --no-save sharp
@@ -81,6 +84,9 @@ jobs:
           distribution: temurin
           java-version: 17
       - uses: android-actions/setup-android@v3
+      - name: Sync version from the release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: node scripts/sync-version.mjs "${{ github.ref_name }}"
       - run: npm install
       - run: npm install --no-save @capacitor/cli @capacitor/core @capacitor/android
       - name: Build web bundle
@@ -88,6 +94,8 @@ jobs:
       - name: Scaffold Android project
         run: npx cap add android
       - run: npx cap sync android
+      - name: Inject APK self-updater (plugin + permission + FileProvider)
+        run: node scripts/android-updater-patch.mjs
       - name: Build phone APK
         run: |
           cd android
