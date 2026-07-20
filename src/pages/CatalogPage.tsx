@@ -81,19 +81,20 @@ export function CatalogPage({ type }: { type: MediaType }) {
     [enabled]
   );
 
-  // Exactly one real service selected — "Other" is a bucket, not a brand, so it
-  // never triggers a tailored layout.
-  const soleService = useMemo(
-    () => (activeServices.length === 1 && enabled.length === 1 ? activeServices[0] : undefined),
-    [activeServices, enabled]
-  );
+  // Exactly one real service selected. "Other" is a catch-all bucket rather than
+  // a brand — it has no layout of its own and never renders rows here, so
+  // whether it's ticked has no bearing on this.
+  const soleService = activeServices.length === 1 ? activeServices[0] : undefined;
+
   const [brand, setBrand] = useState<BrandTile | undefined>(undefined);
   const brands = soleService ? serviceBrands(soleService) : [];
 
   const layoutRows = useMemo(
     () =>
-      soleService && genre === undefined && genresQ.data
-        ? serviceLayoutRows(soleService, type, genresQ.data)
+      // Genres may still be loading; drop the genre-based rows for now rather
+      // than withholding the whole layout and flashing the generic one.
+      soleService && genre === undefined
+        ? serviceLayoutRows(soleService, type, genresQ.data ?? [])
         : null,
     [soleService, genre, genresQ.data, type]
   );
