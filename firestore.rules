@@ -49,6 +49,14 @@ service cloud.firestore {
       allow list: if false;
     }
 
+    // TV sign-in codes. Written and read exclusively by the Worker's service
+    // account (which bypasses these rules), because the TV has no account yet
+    // and the phone proves itself with an ID token instead. No client should
+    // ever touch this collection directly.
+    match /devicePairings/{code} {
+      allow read, write: if false;
+    }
+
     // Anything not matched above is denied.
   }
 }

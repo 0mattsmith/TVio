@@ -23,7 +23,7 @@
 const TMDB = "https://api.themoviedb.org/3";
 
 /** Bump when you change this file, so /pair/health shows what's live. */
-const WORKER_VERSION = "2026-07-19.1";
+const WORKER_VERSION = "2026-07-19.2";
 
 /**
  * Browser origins allowed to use this Worker.
@@ -176,6 +176,174 @@ async function redeemPairing(request, env, cors) {
   return json({ token: await mintCustomToken(env, key, ownerUid) }, 200, cors);
 }
 
+// --- Device pairing: TV shows a code, a signed-in phone approves -------------
+//
+// The inverse of /pair/redeem. A freshly installed TV has no account at all, so
+// it can't create the pairing document itself — it asks us to, shows the code as
+// a QR, and polls. A phone that IS signed in scans it and approves, proving who
+// it is with a Firebase ID token. Only after that does a session token exist.
+
+const DEVICE_TTL_MS = 5 * 60_000; // longer than the desktop flow — remotes are slow
+const CODE_ALPHABET = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+
+function newCode() {
+  const bytes = crypto.getRandomValues(new Uint8Array(8));
+  return Array.from(bytes, (b) => CODE_ALPHABET[b % CODE_ALPHABET.length]).join("");
+}
+
+function deviceDocUrl(env, code) {
+  return `https://firestore.googleapis.com/v1/projects/${env.FB_PROJECT_ID}/databases/(default)/documents/devicePairings/${code}`;
+}
+
+function pairSecretsMissing(env) {
+  return ["FB_PROJECT_ID", "FB_CLIENT_EMAIL", "FB_PRIVATE_KEY"].find((n) => !env[n]);
+}
+
+function readCode(body) {
+  return String(body?.code || "").trim().toUpperCase();
+}
+
+async function readDeviceDoc(env, token, code) {
+  const res = await fetch(deviceDocUrl(env, code), { headers: { authorization: `Bearer ${token}` } });
+  if (!res.ok) return null;
+  const f = (await res.json()).fields || {};
+  return {
+    approved: f.approved?.booleanValue === true,
+    claimed: f.claimed?.booleanValue === true,
+    ownerUid: f.ownerUid?.stringValue || "",
+    expiresAt: Number(f.expiresAt?.integerValue ?? 0),
+  };
+}
+
+/** TV: ask for a fresh code to display. Unauthenticated — nothing to prove yet. */
+async function startDevicePairing(env, cors) {
+  const missing = pairSecretsMissing(env);
+  if (missing) {
+    return json({ error: `Server not configured (${missing} is missing).`, code: "PAIR_NO_SECRETS" }, 503, cors);
+  }
+
+  const key = await importKey(env.FB_PRIVATE_KEY);
+  const token = await firestoreToken(env, key);
+  const code = newCode();
+  const expiresAt = Date.now() + DEVICE_TTL_MS;
+
+  const res = await fetch(deviceDocUrl(env, code), {
+    method: "PATCH",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      fields: {
+        createdAt: { integerValue: String(Date.now()) },
+        expiresAt: { integerValue: String(expiresAt) },
+        approved: { booleanValue: false },
+        claimed: { booleanValue: false },
+      },
+    }),
+  });
+  if (!res.ok) return json({ error: "Couldn't create a sign-in code.", code: "PAIR_START_FAILED" }, 502, cors);
+
+  return json({ code, expiresAt }, 200, cors);
+}
+
+/** Phone (already signed in): approve a code shown on a TV. */
+async function approveDevicePairing(request, env, cors) {
+  const missing = pairSecretsMissing(env);
+  if (missing) {
+    return json({ error: `Server not configured (${missing} is missing).`, code: "PAIR_NO_SECRETS" }, 503, cors);
+  }
+  if (!env.FB_API_KEY) {
+    return json({ error: "Server not configured (FB_API_KEY is missing).", code: "PAIR_NO_API_KEY" }, 503, cors);
+  }
+
+  let body = {};
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Bad request", code: "PAIR_BAD_JSON" }, 400, cors);
+  }
+  const code = readCode(body);
+  if (!/^[A-Z2-9]{8}$/.test(code)) {
+    return json({ error: "That code doesn't look right.", code: "PAIR_MALFORMED" }, 400, cors);
+  }
+
+  // Prove the phone is who it says it is. The web API key is public by design,
+  // so keeping it here adds no new secret worth protecting.
+  const lookup = await fetch(`https://identitytoolkit.googleapis.com/v1/accounts:lookup?key=${env.FB_API_KEY}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ idToken: String(body.idToken || "") }),
+  });
+  const uid = (await lookup.json().catch(() => ({})))?.users?.[0]?.localId;
+  if (!lookup.ok || !uid) {
+    return json({ error: "Your phone's session has expired — sign in again.", code: "PAIR_BAD_TOKEN" }, 401, cors);
+  }
+
+  const key = await importKey(env.FB_PRIVATE_KEY);
+  const token = await firestoreToken(env, key);
+  const doc = await readDeviceDoc(env, token, code);
+  if (!doc) return json({ error: "That code has expired or doesn't exist.", code: "PAIR_NOT_FOUND" }, 404, cors);
+  if (doc.claimed) return json({ error: "That code has already been used.", code: "PAIR_USED" }, 409, cors);
+  if (!doc.expiresAt || Date.now() > doc.expiresAt) {
+    return json({ error: "That code has expired — get a new one on the TV.", code: "PAIR_EXPIRED" }, 410, cors);
+  }
+
+  const mask = "updateMask.fieldPaths=approved&updateMask.fieldPaths=ownerUid&updateMask.fieldPaths=approvedAt";
+  const res = await fetch(`${deviceDocUrl(env, code)}?${mask}`, {
+    method: "PATCH",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      fields: {
+        approved: { booleanValue: true },
+        ownerUid: { stringValue: uid },
+        approvedAt: { integerValue: String(Date.now()) },
+      },
+    }),
+  });
+  if (!res.ok) return json({ error: "Couldn't approve that code.", code: "PAIR_APPROVE_FAILED" }, 502, cors);
+
+  return json({ ok: true }, 200, cors);
+}
+
+/** TV: poll until approved, then take the session. Single use. */
+async function claimDevicePairing(request, env, cors) {
+  const missing = pairSecretsMissing(env);
+  if (missing) {
+    return json({ error: `Server not configured (${missing} is missing).`, code: "PAIR_NO_SECRETS" }, 503, cors);
+  }
+
+  let body = {};
+  try {
+    body = await request.json();
+  } catch {
+    return json({ error: "Bad request", code: "PAIR_BAD_JSON" }, 400, cors);
+  }
+  const code = readCode(body);
+  if (!/^[A-Z2-9]{8}$/.test(code)) {
+    return json({ error: "That code doesn't look right.", code: "PAIR_MALFORMED" }, 400, cors);
+  }
+
+  const key = await importKey(env.FB_PRIVATE_KEY);
+  const token = await firestoreToken(env, key);
+  const doc = await readDeviceDoc(env, token, code);
+  if (!doc) return json({ error: "That code has expired or doesn't exist.", code: "PAIR_NOT_FOUND" }, 404, cors);
+  if (doc.claimed) return json({ error: "That code has already been used.", code: "PAIR_USED" }, 409, cors);
+  if (!doc.expiresAt || Date.now() > doc.expiresAt) {
+    return json({ error: "That code has expired.", code: "PAIR_EXPIRED" }, 410, cors);
+  }
+
+  // Not an error: the TV sits here polling until somebody scans it.
+  if (!doc.approved || !doc.ownerUid) return json({ status: "pending" }, 200, cors);
+
+  await fetch(`${deviceDocUrl(env, code)}?updateMask.fieldPaths=claimed&updateMask.fieldPaths=claimedAt`, {
+    method: "PATCH",
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
+    body: JSON.stringify({
+      fields: { claimed: { booleanValue: true }, claimedAt: { integerValue: String(Date.now()) } },
+    }),
+  });
+
+  return json({ status: "approved", token: await mintCustomToken(env, key, doc.ownerUid) }, 200, cors);
+}
+
 // --- TMDB proxy --------------------------------------------------------------
 
 async function proxyTmdb(request, env, cors, url) {
@@ -230,12 +398,31 @@ export default {
             projectId: Boolean(env.FB_PROJECT_ID),
             clientEmail: Boolean(env.FB_CLIENT_EMAIL),
             privateKey: Boolean(env.FB_PRIVATE_KEY),
+            apiKey: Boolean(env.FB_API_KEY), // only needed for TV sign-in
           },
           tmdbKey: Boolean(env.TMDB_KEY),
         },
         200,
         cors
       );
+    }
+
+    // TV sign-in: the TV starts a code, a signed-in phone approves it, the TV
+    // claims the session. Each wrapped so an exception can't become a bare 500.
+    const devicePairRoutes = {
+      "/pair/start": () => startDevicePairing(env, cors),
+      "/pair/approve": () => approveDevicePairing(request, env, cors),
+      "/pair/claim": () => claimDevicePairing(request, env, cors),
+    };
+    if (devicePairRoutes[url.pathname]) {
+      if (request.method !== "POST") {
+        return json({ error: "Method not allowed", code: "PAIR_METHOD" }, 405, cors);
+      }
+      try {
+        return await devicePairRoutes[url.pathname]();
+      } catch (e) {
+        return json({ error: `Device pairing failed: ${e?.message || e}`, code: "PAIR_EXCEPTION" }, 500, cors);
+      }
     }
 
     if (url.pathname === "/pair/redeem") {

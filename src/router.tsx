@@ -1,8 +1,9 @@
 import { createHashRouter } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
-import { SignIn } from "./pages/SignIn";
+import { SignInGate } from "./pages/SignInGate";
 import { Onboarding } from "./pages/Onboarding";
 import { QrSignIn } from "./pages/QrSignIn";
+import { ApproveTv } from "./pages/ApproveTv";
 import { Profiles } from "./pages/Profiles";
 import { Home } from "./pages/Home";
 import { Movies } from "./pages/Movies";
@@ -19,8 +20,9 @@ import { RemotePage } from "./pages/RemotePage";
 
 // Hash router keeps deep links working on GitHub Pages (no server rewrites).
 export const router = createHashRouter([
-  { path: "/signin", element: <SignIn /> },
+  { path: "/signin", element: <SignInGate /> },
   { path: "/signin/qr", element: <QrSignIn /> },
+  { path: "/approve-tv", element: <ApproveTv /> },
   { path: "/onboarding", element: <Onboarding /> },
   { path: "/profiles", element: <Profiles /> },
   { path: "/watch/:type/:id", element: <Player /> },

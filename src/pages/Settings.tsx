@@ -153,6 +153,21 @@ export function Settings() {
         </section>
       )}
 
+      {/* Sign in a TV — phones only, since this is the device doing the scanning. */}
+      {user && isMobile && (
+        <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
+          <h2 className="flex items-center gap-2 text-lg font-bold">
+            <Tv size={18} /> Sign in a TV
+          </h2>
+          <p className="mt-1 text-sm text-muted">
+            Scan the QR code on your TV's sign-in screen to sign it into this account — no typing on the remote.
+          </p>
+          <Button variant="secondary" className="mt-4" onClick={() => navigate("/approve-tv")}>
+            <Tv size={16} /> Scan TV code
+          </Button>
+        </section>
+      )}
+
       {/* Playback */}
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
         <h2 className="text-lg font-bold">Playback</h2>

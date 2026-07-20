@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { SlidersHorizontal } from "lucide-react";
 import { Hero } from "../components/Hero";
@@ -8,7 +8,8 @@ import { ServiceFilter } from "../components/ServiceFilter";
 import { FilterPanel } from "../components/FilterPanel";
 import { DemoBanner } from "../components/DemoBanner";
 import { SERVICES, ALL_SERVICE_KEYS } from "../services/services";
-import { trendingRow, serviceRow, getGenres } from "../services/catalog";
+import { trendingRow, serviceRow, getGenres, companiesRow } from "../services/catalog";
+import { serviceLayoutRows, serviceBrands, type BrandTile, type ResolvedRow } from "../services/serviceLayouts";
 import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { useIsTV } from "../hooks/useDeviceProfile";
@@ -28,6 +29,44 @@ function ServiceRow({
   return <Row title={`${label} ${serviceName}`} items={q.data} loading={q.isLoading} />;
 }
 
+/** One row from a service's own layout (see services/serviceLayouts.ts). */
+function LayoutRow({ row }: { row: ResolvedRow }) {
+  const q = useQuery({ queryKey: ["layout-row", row.key], queryFn: row.load });
+  return <Row title={row.title} items={q.data} loading={q.isLoading} />;
+}
+
+/**
+ * Disney+'s brand tiles. Logos come from TMDB's company artwork — the same
+ * source already used for provider icons — so nothing is hotlinked or bundled.
+ */
+function BrandStrip({ brands, active, onPick }: {
+  brands: BrandTile[];
+  active?: string;
+  onPick: (brand?: BrandTile) => void;
+}) {
+  return (
+    <div className="no-scrollbar mb-6 flex gap-3 overflow-x-auto px-4 sm:px-8">
+      {brands.map((brand) => (
+        <button
+          key={brand.key}
+          onClick={() => onPick(active === brand.key ? undefined : brand)}
+          aria-label={brand.name}
+          className={`focusable flex h-24 w-40 shrink-0 items-center justify-center rounded-lg border bg-gradient-to-b from-surface-2 to-surface p-5 transition ${
+            active === brand.key ? "border-accent" : "border-white/15 hover:border-white/40"
+          }`}
+        >
+          <img
+            src={`https://image.tmdb.org/t/p/w300${brand.logoPath}`}
+            alt={brand.name}
+            loading="lazy"
+            className="max-h-full max-w-full object-contain brightness-0 invert"
+          />
+        </button>
+      ))}
+    </div>
+  );
+}
+
 export function CatalogPage({ type }: { type: MediaType }) {
   const enabled = useAppStore((s) => s.enabledServices);
   const [genre, setGenre] = useState<number | undefined>(undefined);
@@ -41,6 +80,26 @@ export function CatalogPage({ type }: { type: MediaType }) {
     () => SERVICES.filter((s) => enabled.includes(s.key)),
     [enabled]
   );
+
+  // Exactly one real service selected — "Other" is a bucket, not a brand, so it
+  // never triggers a tailored layout.
+  const soleService = useMemo(
+    () => (activeServices.length === 1 && enabled.length === 1 ? activeServices[0] : undefined),
+    [activeServices, enabled]
+  );
+  const [brand, setBrand] = useState<BrandTile | undefined>(undefined);
+  const brands = soleService ? serviceBrands(soleService) : [];
+
+  const layoutRows = useMemo(
+    () =>
+      soleService && genre === undefined && genresQ.data
+        ? serviceLayoutRows(soleService, type, genresQ.data)
+        : null,
+    [soleService, genre, genresQ.data, type]
+  );
+
+  // Selecting a different service shouldn't leave a stale brand filter behind.
+  useEffect(() => setBrand(undefined), [soleService?.key, type]);
 
   const allServicesOn = ALL_SERVICE_KEYS.every((k) => enabled.includes(k));
   const genreName = genre === undefined ? "All genres" : genresQ.data?.find((g) => g.id === genre)?.name ?? "Genre";
@@ -87,13 +146,40 @@ export function CatalogPage({ type }: { type: MediaType }) {
               No services selected. {isTV ? "Open Filters" : "Enable a service above"} to see rows.
             </p>
           )}
-          {activeServices.map((svc) => (
-            <div key={svc.key}>
-              <ServiceRow type={type} providerId={svc.providerId} serviceName={svc.name} kind="popular" genre={genre} />
-              <ServiceRow type={type} providerId={svc.providerId} serviceName={svc.name} kind="trending" genre={genre} />
-              <ServiceRow type={type} providerId={svc.providerId} serviceName={svc.name} kind="new" genre={genre} />
-            </div>
-          ))}
+
+          {/* One service on its own → borrow that service's own layout. With a
+              genre filter applied the tailored rows would fight it, so the
+              neutral rows take over again. */}
+          {layoutRows ? (
+            <>
+              {brands.length > 0 && (
+                <BrandStrip
+                  brands={brands}
+                  active={brand?.key}
+                  onPick={setBrand}
+                />
+              )}
+              {brand ? (
+                <LayoutRow
+                  row={{
+                    key: `brand:${type}:${brand.key}:${soleService!.key}`,
+                    title: brand.name,
+                    load: () => companiesRow(type, soleService!.providerId, brand.companies),
+                  }}
+                />
+              ) : (
+                layoutRows.map((row) => <LayoutRow key={row.key} row={row} />)
+              )}
+            </>
+          ) : (
+            activeServices.map((svc) => (
+              <div key={svc.key}>
+                <ServiceRow type={type} providerId={svc.providerId} serviceName={svc.name} kind="popular" genre={genre} />
+                <ServiceRow type={type} providerId={svc.providerId} serviceName={svc.name} kind="trending" genre={genre} />
+                <ServiceRow type={type} providerId={svc.providerId} serviceName={svc.name} kind="new" genre={genre} />
+              </div>
+            ))
+          )}
         </div>
       </div>
 

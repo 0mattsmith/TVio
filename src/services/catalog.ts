@@ -29,6 +29,28 @@ export async function serviceRow(
   });
 }
 
+/** Studio/brand row — "Pixar", "Marvel", "Star Wars" and friends. */
+export async function companiesRow(
+  type: MediaType,
+  providerId: number,
+  companies: number[]
+): Promise<MediaItem[]> {
+  if (!hasTmdbKey()) return demoRow(type, companies[0] ?? 1, 18);
+  return discover(type, { providerId, companies, sort: "popularity.desc", minVotes: 20 });
+}
+
+/** A service's own originals, via its TV network. Series only. */
+export async function networkRow(type: MediaType, networkId: number): Promise<MediaItem[]> {
+  if (!hasTmdbKey()) return demoRow(type, networkId, 18);
+  return discover(type, { networks: [networkId], sort: "popularity.desc", minVotes: 20 });
+}
+
+/** Highest-rated on a service, rather than merely the most popular. */
+export async function topRatedRow(type: MediaType, providerId: number): Promise<MediaItem[]> {
+  if (!hasTmdbKey()) return demoRow(type, providerId + 11, 18);
+  return discover(type, { providerId, sort: "vote_average.desc", minVotes: 300 });
+}
+
 export async function trendingRow(type: MediaType): Promise<MediaItem[]> {
   if (!hasTmdbKey()) return demoRow(type, 3, 18);
   return trending(type, "week");

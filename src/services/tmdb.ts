@@ -110,7 +110,12 @@ async function list(path: string, type: MediaType, params: Record<string, string
 }
 
 // --- Discover-based rows for a specific streaming service ---
-type Sort = "popularity.desc" | "vote_count.desc" | "primary_release_date.desc" | "first_air_date.desc";
+type Sort =
+  | "popularity.desc"
+  | "vote_count.desc"
+  | "vote_average.desc"
+  | "primary_release_date.desc"
+  | "first_air_date.desc";
 
 export function discover(type: MediaType, opts: {
   providerId?: number;
@@ -119,6 +124,11 @@ export function discover(type: MediaType, opts: {
   genre?: number;
   newerThanDays?: number;
   page?: number;
+  /** Studio/brand rows — Pixar, Marvel, Lucasfilm… "|" is OR in TMDB. */
+  companies?: number[];
+  /** TV originals for a given service's own network. */
+  networks?: number[];
+  minVotes?: number;
 }) {
   const params: Record<string, string | number | undefined> = {
     include_adult: "false",
@@ -126,8 +136,10 @@ export function discover(type: MediaType, opts: {
     watch_region: opts.region || currentRegion(),
     with_watch_providers: opts.providerId && opts.providerId > 0 ? opts.providerId : undefined,
     with_genres: opts.genre,
+    with_companies: opts.companies?.length ? opts.companies.join("|") : undefined,
+    with_networks: type === "tv" && opts.networks?.length ? opts.networks.join("|") : undefined,
     page: opts.page || 1,
-    "vote_count.gte": opts.sort === "popularity.desc" ? 50 : undefined,
+    "vote_count.gte": opts.minVotes ?? (opts.sort === "popularity.desc" ? 50 : undefined),
   };
   if (opts.newerThanDays) {
     const since = new Date(Date.now() - opts.newerThanDays * 86400000).toISOString().slice(0, 10);
