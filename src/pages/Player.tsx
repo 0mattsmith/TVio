@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { CastButton } from "../components/CastButton";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Play, Pause, Volume2, VolumeX, Subtitles, Maximize, SkipForward, Loader2 } from "lucide-react";
@@ -143,6 +144,10 @@ export function Player() {
         key={streamUrl || "sample"}
         autoPlay
         muted={muted}
+        playsInline
+        // Safari won't offer an AirPlay route without this, and iOS otherwise
+        // hijacks playback into its own fullscreen player.
+        x-webkit-airplay="allow"
         className="h-full w-full object-contain"
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
@@ -266,6 +271,8 @@ export function Player() {
             >
               <Subtitles size={22} />
             </button>
+            {/* Hidden on TV — it's already the big screen. */}
+            {!isTV && <CastButton videoRef={videoRef} />}
             <button
               onClick={() => videoRef.current?.requestFullscreen?.()}
               className="focusable"
