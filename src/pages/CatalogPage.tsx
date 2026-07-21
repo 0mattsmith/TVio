@@ -9,9 +9,10 @@ import { FilterPanel } from "../components/FilterPanel";
 import { DemoBanner } from "../components/DemoBanner";
 import { SERVICES, ALL_SERVICE_KEYS } from "../services/services";
 import { trendingRow, serviceRow, getGenres, companiesRow } from "../services/catalog";
-import { serviceLayoutRows, serviceBrands, type BrandTile } from "../services/serviceLayouts";
+import { serviceLayoutRows, serviceBrands, brandRowKey, type BrandTile } from "../services/serviceLayouts";
 import { BrandStrip } from "../components/BrandStrip";
 import { LayoutRow } from "../components/LayoutRow";
+import { PosterGrid } from "../components/PosterGrid";
 import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { useIsTV } from "../hooks/useDeviceProfile";
@@ -31,6 +32,23 @@ function ServiceRow({
   return <Row title={`${label} ${serviceName}`} items={q.data} loading={q.isLoading} />;
 }
 
+
+/** Everything under one brand, as a grid. Reuses the strip's cached query. */
+function BrandGrid({
+  brand,
+  type,
+  providerId,
+}: {
+  brand: BrandTile;
+  type: MediaType;
+  providerId: number;
+}) {
+  const q = useQuery({
+    queryKey: brandRowKey(type, providerId, brand),
+    queryFn: () => companiesRow(type, providerId, brand.companies),
+  });
+  return <PosterGrid title={brand.name} items={q.data} loading={q.isLoading} />;
+}
 
 export function CatalogPage({ type }: { type: MediaType }) {
   const enabled = useAppStore((s) => s.enabledServices);
@@ -142,18 +160,17 @@ export function CatalogPage({ type }: { type: MediaType }) {
               {brands.length > 0 && (
                 <BrandStrip
                   brands={brands}
+                  type={type}
+                  providerId={soleService!.providerId}
                   active={brand?.key}
                   onPick={setBrand}
                 />
               )}
               {brand ? (
-                <LayoutRow
-                  row={{
-                    key: `brand:${type}:${brand.key}:${soleService!.key}`,
-                    title: brand.name,
-                    load: () => companiesRow(type, soleService!.providerId, brand.companies),
-                  }}
-                />
+                // Once a brand is picked the user has narrowed to one
+                // collection and wants all of it, so show a grid rather than
+                // making them drag sideways through a single row.
+                <BrandGrid brand={brand} type={type} providerId={soleService!.providerId} />
               ) : (
                 layoutRows.map((row) => <LayoutRow key={row.key} row={row} />)
               )}

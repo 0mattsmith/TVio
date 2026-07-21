@@ -4,7 +4,19 @@ import type { MediaItem } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { usePlay } from "../hooks/usePlay";
 
-export function PosterCard({ item, progress }: { item: MediaItem; progress?: number }) {
+/**
+ * `fluid` drops the fixed width so the card fills a grid cell. Rows still want
+ * the fixed width, because a horizontal scroller has no column to fill.
+ */
+export function PosterCard({
+  item,
+  progress,
+  fluid,
+}: {
+  item: MediaItem;
+  progress?: number;
+  fluid?: boolean;
+}) {
   const navigate = useNavigate();
   const play = usePlay();
   const inList = useAppStore((s) => s.inWatchlist(item.id));
@@ -16,7 +28,9 @@ export function PosterCard({ item, progress }: { item: MediaItem; progress?: num
       tabIndex={0}
       onClick={() => navigate(`/title/${item.type}/${item.id}`)}
       onKeyDown={(e) => e.key === "Enter" && navigate(`/title/${item.type}/${item.id}`)}
-      className="focusable group relative w-[150px] shrink-0 cursor-pointer overflow-hidden rounded-lg bg-surface-2 transition-transform sm:w-[168px]"
+      className={`focusable group relative cursor-pointer overflow-hidden rounded-lg bg-surface-2 transition-transform ${
+        fluid ? "w-full" : "w-[150px] shrink-0 sm:w-[168px]"
+      }`}
     >
       <div className="aspect-[2/3] w-full">
         {item.poster ? (

@@ -47,7 +47,18 @@ export interface BrandTile {
 }
 
 const GREY = "#9aa2ad"; // resting fill for mono wordmarks
-const PLATE = "#d4d7dc"; // light plate behind coloured logos
+
+/**
+ * A note on Marvel, because the obvious request isn't quite reachable.
+ *
+ * The wanted look is a white block with BLACK "MARVEL" and WHITE "STUDIOS".
+ * In the source artwork the block is red and both words are white pixels, so
+ * any CSS filter moves them together — there's no way to send one word dark
+ * and hold the other light. Getting it exact would mean redrawing the mark as
+ * an SVG we control, which is both real work and someone else's trademark.
+ * The compromise: the block lightens towards white at rest and returns to red
+ * when selected, with the lettering white throughout.
+ */
 
 const BRAND_STYLES: Record<string, BrandStyle> = {
   disney: {
@@ -73,17 +84,14 @@ const BRAND_STYLES: Record<string, BrandStyle> = {
     tileActive: "linear-gradient(180deg,#123a66,#07203c)", // dark sky blue behind it
   },
   marvel: {
-    tileIdle: PLATE,
-    tileActive: PLATE,
-    // Darkens the block while contrast keeps the lettering bright against it.
-    filterIdle: "grayscale(1) brightness(0.78) contrast(1.35)",
+    // Lifts the block towards white while the lettering, already white, stays
+    // put. See the note below on why the block can't be white with black text.
+    filterIdle: "grayscale(1) brightness(1.7)",
   },
   natgeo: {
-    tileIdle: PLATE,
-    tileActive: PLATE,
-    // The mark is light-on-transparent, so inverting is what makes the frame
-    // and wordmark read as dark grey on the plate.
-    filterIdle: "grayscale(1) invert(1) contrast(1.1)",
+    // Square and wordmark are both light in the source, so one brightness pass
+    // takes them both to white; selected restores the yellow.
+    filterIdle: "grayscale(1) brightness(3)",
   },
 };
 
@@ -200,6 +208,14 @@ export interface ResolvedRow {
   key: string;
   title: string;
   load: () => Promise<MediaItem[]>;
+}
+
+/**
+ * Shared query key for a brand's titles, so the strip's emptiness check and the
+ * grid shown after selecting it are the same cached request rather than two.
+ */
+export function brandRowKey(type: MediaType, providerId: number, brand: BrandTile) {
+  return ["brand-row", type, providerId, brand.key];
 }
 
 export function serviceBrands(service: StreamService): BrandTile[] {
