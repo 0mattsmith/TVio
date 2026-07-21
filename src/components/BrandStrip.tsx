@@ -6,16 +6,27 @@ import type { MediaType } from "../services/types";
 const TMDB_IMG = "https://image.tmdb.org/t/p/w300";
 
 /**
+ * The tile treatment, modelled on Disney+'s own brand row.
+ *
+ * One deep blue plate for every tile, and each logo shown in its natural
+ * on-dark form — white wordmarks, Marvel's red block, Nat Geo's gold square.
+ * Nothing is muted or recoloured: earlier attempts to desaturate at rest and
+ * restore colour on selection were the source of every legibility problem,
+ * because the artwork is a mix of dark wordmarks and coloured blocks that no
+ * single filter suits. Selection is shown by the border, not the artwork.
+ */
+const PLATE = "linear-gradient(180deg,#1e457f,#0d2549)";
+/** Dark wordmarks are knocked out to white so they show on the blue. */
+const KNOCKOUT = "brightness(0) invert(1)";
+
+/**
  * A service's sub-brand tiles — Disney+'s Disney / Pixar / Marvel / Star Wars /
  * National Geographic row.
  *
  * Logos come from TMDB's company artwork, the same image API already used for
  * provider icons, so nothing is hotlinked from the services themselves.
  *
- * Selected brings a brand to life; deselected mutes it. The per-brand treatment
- * lives in serviceLayouts.BRAND_STYLES: logos carrying their own colour (Marvel,
- * Nat Geo) sit on the dark tile and are adjusted with filters, while flat dark
- * wordmarks sit on a plate that takes on the brand's colour when picked.
+ * See PLATE above for the treatment and why it's uniform.
  */
 export function BrandStrip({
   brands,
@@ -70,26 +81,24 @@ function BrandButton({
   // films and no series, so on the TV Series tab its tile led to an empty page.
   if (!q.isLoading && (q.data?.length ?? 0) === 0) return null;
 
-  const style = brand.style ?? {};
-  const url = `${TMDB_IMG}${brand.logoPath}`;
-  const tile = selected ? style.tileActive ?? style.tileIdle : style.tileIdle;
-
   return (
     <button
       onClick={() => onPick(selected ? undefined : brand)}
       aria-label={brand.name}
       aria-pressed={selected}
-      style={tile ? { background: tile } : undefined}
-      className={`focusable flex h-24 w-40 shrink-0 items-center justify-center rounded-lg border p-5 transition-colors duration-200 ${
-        tile ? "" : "bg-gradient-to-b from-surface-2 to-surface"
-      } ${selected ? "border-accent" : "border-white/15 hover:border-white/40"}`}
+      style={{ background: PLATE }}
+      className={`focusable flex h-24 w-40 shrink-0 items-center justify-center rounded-lg border p-6 transition duration-200 ${
+        selected
+          ? "border-accent ring-2 ring-accent/50"
+          : "border-white/20 hover:border-white/50 hover:brightness-110"
+      }`}
     >
       <img
-        src={url}
+        src={`${TMDB_IMG}${brand.logoPath}`}
         alt={brand.name}
         loading="lazy"
-        className="max-h-full max-w-full object-contain transition-[filter] duration-200"
-        style={{ filter: (selected ? style.filterActive : style.filterIdle) || undefined }}
+        className="max-h-full max-w-full object-contain"
+        style={{ filter: brand.darkArtwork ? KNOCKOUT : undefined }}
       />
     </button>
   );

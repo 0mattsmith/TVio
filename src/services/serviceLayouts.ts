@@ -14,36 +14,21 @@ import { serviceRow, companiesRow, networkRow, topRatedRow } from "./catalog";
 // differ ("Action" vs "Action & Adventure", "Sci-Fi & Fantasy" only on TV), so
 // hardcoding ids would silently produce empty or wrong rows on one of the tabs.
 
-/**
- * Per-brand art direction.
- *
- * Two kinds of artwork need opposite handling. Flat single-colour wordmarks
- * (Disney, Pixar, Lucasfilm, 20th Century) are drawn through a CSS mask, so the
- * shape can be filled with any colour we like — grey at rest, the brand's own
- * colour when picked. Logos that already carry colour (Marvel's red block, Nat
- * Geo's yellow) stay as images on a light plate and are adjusted with filters,
- * because recolouring them would destroy what makes them recognisable.
- */
-export interface BrandStyle {
-  /** Tile background, idle and selected. */
-  tileIdle?: string;
-  tileActive?: string;
-  /** CSS filter on the logo itself, idle and selected. */
-  filterIdle?: string;
-  filterActive?: string;
-}
-
 export interface BrandTile {
   key: string;
   name: string;
   /** TMDB company logo path — the official artwork, same source as provider icons. */
   logoPath: string;
   companies: number[];
-  style?: BrandStyle;
+  /**
+   * True when the artwork is a dark wordmark on transparency, so it has to be
+   * knocked out to white to show on the tile. This is a fact about the file,
+   * not a styling choice — logos that carry their own colour (Marvel's red
+   * block, Nat Geo's gold square) are left exactly as they are.
+   */
+  darkArtwork?: boolean;
 }
 
-const PLATE = "#d4d7dc"; // neutral plate behind dark wordmarks
-const MUTED = "grayscale(1) opacity(0.75)";
 
 /**
  * Two notes on what's reachable here.
@@ -61,39 +46,6 @@ const MUTED = "grayscale(1) opacity(0.75)";
  * is just a background and cannot fail.
  */
 
-const BRAND_STYLES: Record<string, BrandStyle> = {
-  disney: {
-    tileIdle: PLATE,
-    tileActive: "linear-gradient(180deg,#d8ecff,#a9cdf5)", // Disney blue wash
-    filterIdle: MUTED,
-  },
-  pixar: {
-    tileIdle: PLATE,
-    tileActive: "linear-gradient(180deg,#d6eefb,#a9d6ee)", // the pale blue of the title card
-    filterIdle: MUTED,
-  },
-  starwars: {
-    tileIdle: PLATE,
-    tileActive: "linear-gradient(180deg,#f7e7bd,#e0c377)", // Lucasfilm gold
-    filterIdle: MUTED,
-  },
-  "20th": {
-    tileIdle: PLATE,
-    tileActive: "linear-gradient(180deg,#f6e4b4,#d9b864)", // gold
-    filterIdle: MUTED,
-  },
-  marvel: {
-    // Lifts the block towards white while the lettering, already white, stays
-    // put. See the note below on why the block can't be white with black text.
-    filterIdle: "grayscale(1) brightness(1.7)",
-  },
-  natgeo: {
-    // Square and wordmark are both light in the source, so one brightness pass
-    // takes them both to white; selected restores the yellow.
-    filterIdle: "grayscale(1) brightness(3)",
-  },
-};
-
 type RowSpec =
   | { kind: "trending" | "popular" | "new"; title: string }
   | { kind: "toprated"; title: string }
@@ -108,13 +60,13 @@ interface Layout {
 
 // Company ids and logo paths verified against TMDB rather than recalled.
 const DISNEY_BRANDS: BrandTile[] = [
-  { key: "disney", name: "Disney", logoPath: "/wdrCwmRnLFJhEoH8GSfymY85KHT.png", companies: [2] },
-  { key: "pixar", name: "Pixar", logoPath: "/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", companies: [3] },
+  { key: "disney", name: "Disney", logoPath: "/wdrCwmRnLFJhEoH8GSfymY85KHT.png", companies: [2], darkArtwork: true },
+  { key: "pixar", name: "Pixar", logoPath: "/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", companies: [3], darkArtwork: true },
   { key: "marvel", name: "Marvel", logoPath: "/hUzeosd33nzE5MCNsZxCGEKTXaQ.png", companies: [420] },
-  { key: "starwars", name: "Star Wars", logoPath: "/tlVSws0RvvtPBwViUyOFAO0vcQS.png", companies: [1] },
+  { key: "starwars", name: "Star Wars", logoPath: "/tlVSws0RvvtPBwViUyOFAO0vcQS.png", companies: [1], darkArtwork: true },
   { key: "natgeo", name: "National Geographic", logoPath: "/fRqMjLjyAqThtEg9P9WKCXLmCpJ.png", companies: [7521] },
-  { key: "20th", name: "20th Century", logoPath: "/h0rjX5vjW5r8yEnUBStFarjcLT4.png", companies: [127928] },
-].map((brand) => ({ ...brand, style: BRAND_STYLES[brand.key] }));
+  { key: "20th", name: "20th Century", logoPath: "/h0rjX5vjW5r8yEnUBStFarjcLT4.png", companies: [127928], darkArtwork: true },
+];
 
 const LAYOUTS: Record<string, Layout> = {
   netflix: {

@@ -57,7 +57,6 @@ export function CatalogPage({ type }: { type: MediaType }) {
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const genresQ = useQuery({ queryKey: ["genres", type], queryFn: () => getGenres(type) });
-  const heroQ = useQuery({ queryKey: ["catalog-hero", type], queryFn: () => trendingRow(type) });
 
   const activeServices = useMemo(
     () => SERVICES.filter((s) => enabled.includes(s.key)),
@@ -68,6 +67,15 @@ export function CatalogPage({ type }: { type: MediaType }) {
   // a brand — it has no layout of its own and never renders rows here, so
   // whether it's ticked has no bearing on this.
   const soleService = activeServices.length === 1 ? activeServices[0] : undefined;
+
+  // Feature that service's own titles when it's the only one selected —
+  // otherwise the banner above a Disney+ page was whatever was trending
+  // generally, which rather undercuts the effect.
+  const heroQ = useQuery({
+    queryKey: ["catalog-hero", type, soleService?.key ?? "all"],
+    queryFn: () =>
+      soleService ? serviceRow(type, soleService.providerId, "trending") : trendingRow(type),
+  });
 
   const [brand, setBrand] = useState<BrandTile | undefined>(undefined);
   const brands = soleService ? serviceBrands(soleService) : [];

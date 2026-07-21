@@ -49,6 +49,13 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   } catch {
     throw new Error(`The TVio Worker may be out of date. [HTTP_${res.status}_NOT_JSON]`);
   }
+  // A 405 on these routes has exactly one cause: the deployed Worker predates
+  // them, so the request fell through to the TMDB proxy's GET-only guard.
+  if (res.status === 405) {
+    throw new Error(
+      "This TVio Worker doesn't have the TV sign-in endpoints yet. Redeploy proxy/tmdb-worker.js in Cloudflare and add the FB_API_KEY secret. [WORKER_OUTDATED]"
+    );
+  }
   if (!res.ok) {
     throw new Error(`${data.error || "Something went wrong."} [${data.code || `HTTP_${res.status}`}]`);
   }

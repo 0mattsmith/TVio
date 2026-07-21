@@ -64,7 +64,7 @@ export function TvSignIn() {
   useEffect(() => {
     if (!pairing || !canvasRef.current) return;
     QRCode.toCanvas(canvasRef.current, pairing.qr, {
-      width: 260,
+      width: 208,
       margin: 1,
       color: { dark: "#0a0a0a", light: "#ffffff" },
     }).catch(() => {});
@@ -105,30 +105,30 @@ export function TvSignIn() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-bg px-16 py-12">
+    <div className="relative flex min-h-screen items-center justify-center bg-bg px-12 py-10">
       <div
         className="pointer-events-none absolute inset-0"
         style={{ background: "radial-gradient(1400px 700px at 50% -10%, rgba(20,184,166,0.12), transparent 60%)" }}
       />
 
-      <div className="relative grid w-full max-w-5xl grid-cols-1 items-center gap-16 lg:grid-cols-[1fr_auto]">
+      <div className="relative grid w-full max-w-4xl grid-cols-1 items-center gap-12 lg:grid-cols-[1fr_auto]">
         {/* Instructions */}
         <div>
           <Logo />
-          <h1 className="mt-8 text-5xl font-black leading-tight tracking-tight">
+          <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight">
             Sign in with
             <br />
             your phone
           </h1>
 
-          <ol className="mt-8 space-y-5 text-2xl text-white/85">
+          <ol className="mt-6 space-y-3 text-lg text-white/85">
             {[
               "Open TVio on your phone",
               "Go to Settings → Sign in a TV",
               "Scan the code on the right",
             ].map((step, i) => (
-              <li key={step} className="flex items-start gap-4">
-                <span className="mt-1 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent text-lg font-black text-black">
+              <li key={step} className="flex items-start gap-3">
+                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-black text-black">
                   {i + 1}
                 </span>
                 <span>{step}</span>
@@ -136,10 +136,10 @@ export function TvSignIn() {
             ))}
           </ol>
 
-          <div className="mt-10 flex min-h-[2.5rem] items-center gap-3 text-lg">
+          <div className="mt-7 flex min-h-[2rem] items-center gap-3 text-base">
             {phase === "waiting" && (
               <>
-                <Loader2 size={20} className="animate-spin text-accent" />
+                <Loader2 size={17} className="animate-spin text-accent" />
                 <span className="text-muted">
                   Waiting for your phone — expires in {Math.floor(remaining / 60)}:
                   {String(remaining % 60).padStart(2, "0")}
@@ -167,18 +167,18 @@ export function TvSignIn() {
           </div>
 
           {(phase === "expired" || phase === "error") && (
-            <Button className="focusable mt-6 px-8 py-4 text-xl" onClick={retry} autoFocus>
-              <RefreshCw size={20} /> Get a new code
+            <Button className="focusable mt-5" onClick={retry} autoFocus>
+              <RefreshCw size={16} /> Get a new code
             </Button>
           )}
         </div>
 
         {/* QR */}
         <div className="justify-self-center">
-          <div className="relative rounded-3xl bg-white p-6">
-            <canvas ref={canvasRef} className="h-64 w-64" />
+          <div className="relative rounded-2xl bg-white p-5">
+            <canvas ref={canvasRef} className="h-52 w-52" />
             {(phase === "expired" || phase === "signed-in") && (
-              <div className="absolute inset-0 flex items-center justify-center rounded-3xl bg-black/85 text-center text-xl font-bold">
+              <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/85 text-center text-lg font-bold">
                 {phase === "signed-in" ? (
                   <span className="text-accent">Signed in ✓</span>
                 ) : (
@@ -189,9 +189,9 @@ export function TvSignIn() {
           </div>
 
           {pairing && phase === "waiting" && (
-            <div className="mt-5 text-center">
-              <div className="text-sm font-bold uppercase tracking-wider text-muted">Or enter this code</div>
-              <div className="mt-1 font-mono text-3xl font-black tracking-[0.2em] text-accent">{pairing.code}</div>
+            <div className="mt-4 text-center">
+              <div className="text-xs font-bold uppercase tracking-wider text-muted">Or enter this code</div>
+              <div className="mt-1 font-mono text-2xl font-black tracking-[0.2em] text-accent">{pairing.code}</div>
             </div>
           )}
         </div>
