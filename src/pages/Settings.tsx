@@ -198,7 +198,10 @@ export function Settings() {
           <Toggle on={compactProviders} onClick={() => setCompactProviders(!compactProviders)} label="Show service icons only" />
         </div>
 
-        {/* Device layout */}
+        {/* Device layout — not on TV. The override exists so you can preview
+            the TV layout from a PC; on an actual TV it's just a way to break
+            your own interface. */}
+        {!isTV && (
         <div className="mt-5">
           <div className="text-sm font-semibold">Device layout</div>
           <div className="mb-2 text-xs text-muted">
@@ -223,6 +226,8 @@ export function Settings() {
             ))}
           </div>
         </div>
+
+        )}
 
         <div className="mt-5">
           <div className="text-sm font-semibold">When I press Play</div>

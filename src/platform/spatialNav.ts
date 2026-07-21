@@ -31,9 +31,15 @@ function overlap(aStart: number, aEnd: number, bStart: number, bEnd: number): nu
  * lands on the poster below rather than one three columns over that happens to
  * be a few pixels closer.
  */
-export function score(from: Box, to: Box, dir: Dir): number | null {
+interface Measure {
+  travel: number;
+  /** Positive = a gap across the direction of travel; 0 = the bands overlap. */
+  gap: number;
+  aligned: boolean;
+}
+
+function measure(from: Box, to: Box, dir: Dir): Measure | null {
   const TOLERANCE = 4; // ignore hairline overlaps from borders and shadows
-  const CROSS_WEIGHT = 4;
 
   let travel: number;
   let cross: number;
@@ -54,22 +60,51 @@ export function score(from: Box, to: Box, dir: Dir): number | null {
 
   if (travel < -TOLERANCE) return null; // behind us, or the same element
 
-  // Overlapping on the cross axis is ideal, and any amount of it is equally
-  // good — clamp so a wider element isn't unfairly favoured over a narrow one.
-  const misalignment = Math.max(0, cross);
-  return Math.max(0, travel) + misalignment * CROSS_WEIGHT;
+  const gap = Math.max(0, cross);
+  return { travel: Math.max(0, travel), gap, aligned: gap === 0 };
 }
 
+/** Retained for tests: lower is better, null when not in that direction. */
+export function score(from: Box, to: Box, dir: Dir): number | null {
+  const m = measure(from, to, dir);
+  return m ? m.travel + m.gap * 4 : null;
+}
+
+/**
+ * Alignment is a gate, not a weighting.
+ *
+ * Anything sharing a column band (moving vertically) or a row band (moving
+ * horizontally) wins outright, and the nearest of those is chosen. Only when
+ * nothing overlaps do offset candidates get considered.
+ *
+ * Weighting misalignment instead — which is what this did first — meant a far
+ * away but perfectly aligned element could beat a near but offset one. On the
+ * settings page that sent Up from the Play buttons past every control on the
+ * screen and into the navbar, because the toggles are narrow switches pinned
+ * right while the buttons below them are half-width blocks.
+ */
 export function pickBest<T extends { box: Box }>(from: Box, candidates: T[], dir: Dir): T | null {
-  let best: T | null = null;
-  let bestScore = Infinity;
+  let aligned: T | null = null;
+  let alignedTravel = Infinity;
+  let offset: T | null = null;
+  let offsetScore = Infinity;
+
   for (const candidate of candidates) {
-    const s = score(from, candidate.box, dir);
-    if (s === null || s >= bestScore) continue;
-    bestScore = s;
-    best = candidate;
+    const m = measure(from, candidate.box, dir);
+    if (!m) continue;
+
+    if (m.aligned) {
+      if (m.travel < alignedTravel) {
+        alignedTravel = m.travel;
+        aligned = candidate;
+      }
+    } else if (m.travel + m.gap * 4 < offsetScore) {
+      offsetScore = m.travel + m.gap * 4;
+      offset = candidate;
+    }
   }
-  return best;
+
+  return aligned ?? offset;
 }
 
 // --- DOM plumbing -----------------------------------------------------------
