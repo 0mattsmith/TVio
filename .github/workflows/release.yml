@@ -14,7 +14,14 @@ permissions:
 
 jobs:
   # Create the release up front so both build jobs can upload to it without
-  # racing each other to create it.
+  # racing each other to create it — but as a PRERELEASE.
+  #
+  # GitHub excludes prereleases from /releases/latest, which is exactly where
+  # the in-app updater looks. Publishing immediately meant the newest release
+  # became "latest" while still empty, so every running app asked it for
+  # latest.json, got a 404, and concluded it was up to date — for the whole
+  # build, and forever if a build failed. It stays a prerelease until both
+  # binaries are attached (see publish-release at the bottom).
   create-release:
     name: Create GitHub Release
     if: startsWith(github.ref, 'refs/tags/v')
@@ -25,7 +32,7 @@ jobs:
           tag_name: ${{ github.ref_name }}
           name: TVio ${{ github.ref_name }}
           draft: false
-          prerelease: false
+          prerelease: true
           body: |
             Automated TVio build.
 
@@ -99,7 +106,9 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: TVio ${{ github.ref_name }}
           releaseDraft: false
-          prerelease: false
+          # Must stay true, or this would republish the release mid-build and
+          # re-expose an incomplete one to the updater.
+          prerelease: true
       # The bundler fetches NSIS/WiX over the network, which occasionally times
       # out ("failed to bundle project: timeout: global"). One retry clears it.
       - name: Retry bundle (transient download failures)
@@ -113,7 +122,9 @@ jobs:
           tagName: ${{ github.ref_type == 'tag' && github.ref_name || '' }}
           releaseName: TVio ${{ github.ref_name }}
           releaseDraft: false
-          prerelease: false
+          # Must stay true, or this would republish the release mid-build and
+          # re-expose an incomplete one to the updater.
+          prerelease: true
       # continue-on-error above means a double bundle failure would otherwise
       # leave this job GREEN with nothing built — the release gets no installer
       # and no latest.json, so every desktop app silently stays on its old
@@ -224,6 +235,26 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
+          prerelease: true
           files: |
             tvio-mobile.apk
             tvio-androidtv.apk
+
+  # The gate. Flipping prerelease off is what makes GitHub treat this as
+  # /releases/latest, so it only happens once BOTH binaries are attached. If
+  # either job fails the release stays a prerelease and the updater keeps
+  # pointing at the last complete one, rather than a broken newer one.
+  publish-release:
+    name: Publish release (both builds succeeded)
+    needs: [create-release, windows, android]
+    if: >-
+      ${{ startsWith(github.ref, 'refs/tags/v')
+      && needs.windows.result == 'success'
+      && needs.android.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: false
+          prerelease: false
