@@ -218,6 +218,25 @@ jobs:
           chmod +x gradlew
           ./gradlew assembleDebug --no-daemon
           cp app/build/outputs/apk/debug/app-debug.apk ../tvio-mobile.apk
+      # Files on disk are not the same thing as resources in the APK. Resource
+      # merging can quietly prefer a template's variant over ours, which is
+      # exactly how the stock icon kept shipping while generation "succeeded".
+      - name: Verify the icons actually reached the APK
+        run: |
+          echo "--- launcher resources inside tvio-mobile.apk ---"
+          unzip -l tvio-mobile.apk | grep -Ei "ic_launcher|banner" || echo "  none found"
+          echo
+          echo "--- does the packaged icon match the one we generated? ---"
+          src=$(md5sum android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png | cut -d' ' -f1)
+          pkg=$(unzip -p tvio-mobile.apk res/mipmap-xxxhdpi/ic_launcher.png 2>/dev/null | md5sum | cut -d' ' -f1)
+          echo "  generated: $src"
+          echo "  packaged:  $pkg"
+          if [ "$src" != "$pkg" ]; then
+            echo "::warning::The packaged launcher icon differs from the generated one — resource merging is overriding it."
+          else
+            echo "  match"
+          fi
+
       - name: Apply Android TV (leanback) manifest
         run: node scripts/android-tv-manifest.mjs
       - name: Build Android TV APK

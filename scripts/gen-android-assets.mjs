@@ -104,16 +104,23 @@ async function main() {
     `${RES}/values/ic_launcher_background.xml`,
     `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${BG}</color>\n</resources>\n`
   );
-  mkdirSync(`${RES}/mipmap-anydpi-v26`, { recursive: true });
+  // Written to BOTH v26 and v33. Android 13 introduced themed icons and reads
+  // mipmap-anydpi-v33 in preference to -v26 — Capacitor's template ships one,
+  // so overwriting only v26 leaves every modern device using the stock icon
+  // while the files we generated sit there unused.
   const adaptive = `<?xml version="1.0" encoding="utf-8"?>
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
     <background android:drawable="@color/ic_launcher_background"/>
     <foreground android:drawable="@drawable/ic_launcher_foreground"/>
+    <monochrome android:drawable="@drawable/ic_launcher_foreground"/>
 </adaptive-icon>
 `;
-  writeFileSync(`${RES}/mipmap-anydpi-v26/ic_launcher.xml`, adaptive);
-  writeFileSync(`${RES}/mipmap-anydpi-v26/ic_launcher_round.xml`, adaptive);
-  console.log("  ✓ adaptive icon (foreground + background)");
+  for (const dir of ["mipmap-anydpi-v26", "mipmap-anydpi-v33"]) {
+    mkdirSync(`${RES}/${dir}`, { recursive: true });
+    writeFileSync(`${RES}/${dir}/ic_launcher.xml`, adaptive);
+    writeFileSync(`${RES}/${dir}/ic_launcher_round.xml`, adaptive);
+  }
+  console.log("  ✓ adaptive icon (v26 + v33, foreground + background + monochrome)");
 
   // Android TV home-row banner
   mkdirSync(`${RES}/drawable-xhdpi`, { recursive: true });
@@ -138,6 +145,8 @@ const EXPECTED = [
   `${RES}/drawable/ic_launcher_foreground.png`,
   `${RES}/mipmap-anydpi-v26/ic_launcher.xml`,
   `${RES}/mipmap-anydpi-v26/ic_launcher_round.xml`,
+  `${RES}/mipmap-anydpi-v33/ic_launcher.xml`,
+  `${RES}/mipmap-anydpi-v33/ic_launcher_round.xml`,
   `${RES}/values/ic_launcher_background.xml`,
   `${RES}/drawable-xhdpi/banner.png`,
 ];
