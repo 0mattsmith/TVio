@@ -154,7 +154,9 @@ export function Settings() {
         </section>
       )}
 
-      {user && <ChangePassword />}
+      {/* Not on TV — typing a password with a remote is miserable, and the
+          account can be managed from a phone or desktop instead. */}
+      {user && !isTV && <ChangePassword />}
 
       {/* Sign in a TV — phones only, since this is the device doing the scanning. */}
       {user && isMobile && (

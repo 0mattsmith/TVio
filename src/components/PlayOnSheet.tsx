@@ -55,7 +55,7 @@ export function PlayOnSheet({
   };
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onClick={onClose}>
+    <div data-spatial-scope className="fixed inset-0 z-[60] flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center" onClick={onClose}>
       <div className="animate-row-in w-full max-w-md rounded-t-2xl border border-white/10 bg-surface p-5 shadow-card sm:rounded-2xl" onClick={(e) => e.stopPropagation()}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0">
