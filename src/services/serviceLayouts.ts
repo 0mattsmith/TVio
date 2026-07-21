@@ -20,6 +20,13 @@ export interface BrandTile {
   /** TMDB company logo path — the official artwork, same source as provider icons. */
   logoPath: string;
   companies: number[];
+  /**
+   * True when the artwork is a dark wordmark on transparency, which needs a
+   * light plate behind it to be legible. Logos that are themselves coloured
+   * blocks — Marvel's red, Nat Geo's yellow — read fine on the dark tile and
+   * are ruined by being knocked out to white.
+   */
+  darkArtwork?: boolean;
 }
 
 type RowSpec =
@@ -36,12 +43,12 @@ interface Layout {
 
 // Company ids and logo paths verified against TMDB rather than recalled.
 const DISNEY_BRANDS: BrandTile[] = [
-  { key: "disney", name: "Disney", logoPath: "/wdrCwmRnLFJhEoH8GSfymY85KHT.png", companies: [2] },
-  { key: "pixar", name: "Pixar", logoPath: "/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", companies: [3] },
+  { key: "disney", name: "Disney", logoPath: "/wdrCwmRnLFJhEoH8GSfymY85KHT.png", companies: [2], darkArtwork: true },
+  { key: "pixar", name: "Pixar", logoPath: "/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", companies: [3], darkArtwork: true },
   { key: "marvel", name: "Marvel", logoPath: "/hUzeosd33nzE5MCNsZxCGEKTXaQ.png", companies: [420] },
-  { key: "starwars", name: "Star Wars", logoPath: "/tlVSws0RvvtPBwViUyOFAO0vcQS.png", companies: [1] },
+  { key: "starwars", name: "Star Wars", logoPath: "/tlVSws0RvvtPBwViUyOFAO0vcQS.png", companies: [1], darkArtwork: true },
   { key: "natgeo", name: "National Geographic", logoPath: "/fRqMjLjyAqThtEg9P9WKCXLmCpJ.png", companies: [7521] },
-  { key: "20th", name: "20th Century", logoPath: "/h0rjX5vjW5r8yEnUBStFarjcLT4.png", companies: [127928] },
+  { key: "20th", name: "20th Century", logoPath: "/h0rjX5vjW5r8yEnUBStFarjcLT4.png", companies: [127928], darkArtwork: true },
 ];
 
 const LAYOUTS: Record<string, Layout> = {
