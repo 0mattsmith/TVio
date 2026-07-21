@@ -12,6 +12,7 @@ import { AvatarPicker } from "../components/AvatarPicker";
 import { PairQr } from "../components/PairQr";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
 import { UpdateSection } from "../components/UpdateSection";
+import { ChangePassword } from "../components/ChangePassword";
 import { fetchManifest } from "../addons/manager";
 import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
@@ -152,6 +153,8 @@ export function Settings() {
           <PairQr signedIn={Boolean(user)} />
         </section>
       )}
+
+      {user && <ChangePassword />}
 
       {/* Sign in a TV — phones only, since this is the device doing the scanning. */}
       {user && isMobile && (

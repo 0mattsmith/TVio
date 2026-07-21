@@ -9,6 +9,7 @@ import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "fire
 import { QrCode } from "lucide-react";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
 import { pairingAvailable } from "../services/pairing";
+import { sendReset } from "../services/account";
 
 function usePairingCode() {
   // 4-digit device-pair code (TV). Maps to a Firestore pairings/{code} doc a
@@ -35,6 +36,24 @@ export function SignIn() {
   const [error, setError] = useState("");
   const [errorFor, setErrorFor] = useState<"signin" | "register" | "">("");
   const [busy, setBusy] = useState(false);
+
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetSent, setResetSent] = useState(false);
+  const [resetBusy, setResetBusy] = useState(false);
+  const [resetError, setResetError] = useState("");
+
+  const sendResetLink = async () => {
+    setResetBusy(true);
+    setResetError("");
+    try {
+      await sendReset(siEmail);
+      setResetSent(true);
+    } catch (e) {
+      setResetError(e instanceof Error ? e.message : "Couldn't send the reset email.");
+    } finally {
+      setResetBusy(false);
+    }
+  };
 
   const authAction = async (mode: "signin" | "register", em: string, pw: string) => {
     setError("");
@@ -114,6 +133,38 @@ export function SignIn() {
             {errorFor === "signin" && error && <p className="text-sm text-red-400">{error}</p>}
             <Button type="submit" disabled={busy} className="w-full py-4 text-base">{busy ? "Please wait…" : "Sign In"}</Button>
           </form>
+
+          {/* Password recovery. Without this, a password-only account with no
+              second signed-in device is locked out permanently. */}
+          {firebaseEnabled &&
+            (resetSent ? (
+              <p className="mt-4 rounded-lg border border-white/10 bg-surface-2 px-4 py-3 text-sm text-muted">
+                If an account uses <span className="font-semibold text-white">{siEmail.trim()}</span>, a reset link is
+                on its way. It can take a minute — check your spam folder too.
+              </p>
+            ) : resetOpen ? (
+              <div className="mt-4 rounded-lg border border-white/10 bg-surface-2 p-4">
+                <p className="text-sm text-muted">
+                  We'll email a reset link to the address above. Change it first if it isn't the right one.
+                </p>
+                {resetError && <p className="mt-2 text-sm text-red-400">{resetError}</p>}
+                <div className="mt-3 flex flex-wrap gap-2">
+                  <Button variant="secondary" disabled={resetBusy || !siEmail.trim()} onClick={sendResetLink}>
+                    {resetBusy ? "Sending…" : "Send reset link"}
+                  </Button>
+                  <Button variant="ghost" onClick={() => setResetOpen(false)}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <button
+                onClick={() => setResetOpen(true)}
+                className="focusable mt-3 text-xs text-muted underline-offset-2 hover:text-white hover:underline"
+              >
+                Forgot your password?
+              </button>
+            ))}
 
           {/* Phones can sign in by scanning the QR shown on a TV/desktop. */}
           {isMobile && pairingAvailable() && (
