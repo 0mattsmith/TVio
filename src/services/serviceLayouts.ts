@@ -25,14 +25,10 @@ import { serviceRow, companiesRow, networkRow, topRatedRow } from "./catalog";
  * because recolouring them would destroy what makes them recognisable.
  */
 export interface BrandStyle {
-  /** Draw via CSS mask instead of <img>, so `fill*` applies. */
-  mono?: boolean;
+  /** Tile background, idle and selected. */
   tileIdle?: string;
   tileActive?: string;
-  /** Mask fill — any CSS background, so gradients work. */
-  fillIdle?: string;
-  fillActive?: string;
-  /** CSS filter for image-based logos. */
+  /** CSS filter on the logo itself, idle and selected. */
   filterIdle?: string;
   filterActive?: string;
 }
@@ -46,42 +42,45 @@ export interface BrandTile {
   style?: BrandStyle;
 }
 
-const GREY = "#9aa2ad"; // resting fill for mono wordmarks
+const PLATE = "#d4d7dc"; // neutral plate behind dark wordmarks
+const MUTED = "grayscale(1) opacity(0.75)";
 
 /**
- * A note on Marvel, because the obvious request isn't quite reachable.
+ * Two notes on what's reachable here.
  *
- * The wanted look is a white block with BLACK "MARVEL" and WHITE "STUDIOS".
- * In the source artwork the block is red and both words are white pixels, so
- * any CSS filter moves them together — there's no way to send one word dark
- * and hold the other light. Getting it exact would mean redrawing the mark as
- * an SVG we control, which is both real work and someone else's trademark.
- * The compromise: the block lightens towards white at rest and returns to red
- * when selected, with the lettering white throughout.
+ * Marvel: the wanted look is a white block with BLACK "MARVEL" and WHITE
+ * "STUDIOS". In the source artwork the block is red and both words are white
+ * pixels, so any CSS filter moves them together — there's no way to send one
+ * word dark and hold the other light. Exact would mean redrawing the mark as
+ * an SVG, which is real work and someone else's trademark.
+ *
+ * The four dark wordmarks: an earlier attempt painted them through a CSS mask
+ * so they could be tinted gold or blue. It rendered nothing on the real app —
+ * a mask that doesn't load masks everything out — so they're plain images
+ * again, and the colour on selection comes from the tile behind them, which
+ * is just a background and cannot fail.
  */
 
 const BRAND_STYLES: Record<string, BrandStyle> = {
   disney: {
-    mono: true,
-    fillIdle: GREY,
-    fillActive: "linear-gradient(180deg,#6fb5ff,#1a63d6)",
+    tileIdle: PLATE,
+    tileActive: "linear-gradient(180deg,#d8ecff,#a9cdf5)", // Disney blue wash
+    filterIdle: MUTED,
   },
   pixar: {
-    mono: true,
-    fillIdle: GREY,
-    fillActive: "#0b3d6b",
-    tileActive: "linear-gradient(180deg,#cfe9f7,#a9d6ee)", // the pale blue of the title card
+    tileIdle: PLATE,
+    tileActive: "linear-gradient(180deg,#d6eefb,#a9d6ee)", // the pale blue of the title card
+    filterIdle: MUTED,
   },
   starwars: {
-    mono: true,
-    fillIdle: GREY,
-    fillActive: "linear-gradient(180deg,#f6d982,#c69a35)", // Lucasfilm gold
+    tileIdle: PLATE,
+    tileActive: "linear-gradient(180deg,#f7e7bd,#e0c377)", // Lucasfilm gold
+    filterIdle: MUTED,
   },
   "20th": {
-    mono: true,
-    fillIdle: GREY,
-    fillActive: "linear-gradient(180deg,#f8e09b,#c9962c)", // gold lettering
-    tileActive: "linear-gradient(180deg,#123a66,#07203c)", // dark sky blue behind it
+    tileIdle: PLATE,
+    tileActive: "linear-gradient(180deg,#f6e4b4,#d9b864)", // gold
+    filterIdle: MUTED,
   },
   marvel: {
     // Lifts the block towards white while the lettering, already white, stays

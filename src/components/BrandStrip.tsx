@@ -12,11 +12,10 @@ const TMDB_IMG = "https://image.tmdb.org/t/p/w300";
  * Logos come from TMDB's company artwork, the same image API already used for
  * provider icons, so nothing is hotlinked from the services themselves.
  *
- * Selected shows a brand in its own colours; deselected drops to grey. How that
- * is achieved differs by artwork, which is why the treatment lives in
- * serviceLayouts.BRAND_STYLES rather than here: flat wordmarks are painted
- * through a CSS mask so they can be tinted freely, while logos that already
- * carry colour stay as images and are adjusted with filters.
+ * Selected brings a brand to life; deselected mutes it. The per-brand treatment
+ * lives in serviceLayouts.BRAND_STYLES: logos carrying their own colour (Marvel,
+ * Nat Geo) sit on the dark tile and are adjusted with filters, while flat dark
+ * wordmarks sit on a plate that takes on the brand's colour when picked.
  */
 export function BrandStrip({
   brands,
@@ -85,34 +84,13 @@ function BrandButton({
         tile ? "" : "bg-gradient-to-b from-surface-2 to-surface"
       } ${selected ? "border-accent" : "border-white/15 hover:border-white/40"}`}
     >
-      {style.mono ? (
-        // Painted through a mask: the PNG supplies the shape, the background
-        // supplies the colour. Lets a flat black wordmark be grey at rest and
-        // gold (or Disney blue) when picked.
-        <div
-          aria-hidden
-          className="h-full w-full transition-[background] duration-200"
-          style={{
-            background: (selected ? style.fillActive : style.fillIdle) ?? "#ffffff",
-            WebkitMaskImage: `url("${url}")`,
-            maskImage: `url("${url}")`,
-            WebkitMaskRepeat: "no-repeat",
-            maskRepeat: "no-repeat",
-            WebkitMaskPosition: "center",
-            maskPosition: "center",
-            WebkitMaskSize: "contain",
-            maskSize: "contain",
-          }}
-        />
-      ) : (
-        <img
-          src={url}
-          alt={brand.name}
-          loading="lazy"
-          className="max-h-full max-w-full object-contain transition-[filter] duration-200"
-          style={{ filter: (selected ? style.filterActive : style.filterIdle) || undefined }}
-        />
-      )}
+      <img
+        src={url}
+        alt={brand.name}
+        loading="lazy"
+        className="max-h-full max-w-full object-contain transition-[filter] duration-200"
+        style={{ filter: (selected ? style.filterActive : style.filterIdle) || undefined }}
+      />
     </button>
   );
 }
