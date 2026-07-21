@@ -46,6 +46,18 @@ body {
    made moving along a row unpredictable. Hold OK to bring them up instead. */
 [data-tv] .poster-actions { display: none; }
 
+/* A horizontal scroller clips the cross axis too: per CSS, once overflow-x is
+   not `visible`, overflow-y can't be either. That crops the focus ring and the
+   focus scale off the top and bottom of a poster while the sides survive.
+   The padding gives the ring room inside the scroll box; negative margin keeps
+   the surrounding spacing looking the same as before. */
+.focus-scroller {
+  padding-top: 0.75rem;
+  padding-bottom: 0.75rem;
+  margin-top: -0.25rem;
+  margin-bottom: -0.25rem;
+}
+
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 .skeleton {
   position: relative;

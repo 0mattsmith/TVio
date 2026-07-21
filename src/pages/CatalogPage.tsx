@@ -132,7 +132,7 @@ export function CatalogPage({ type }: { type: MediaType }) {
             <ServiceFilter />
 
             {/* Genre filter (Netflix-style) */}
-            <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-4 pb-3 sm:px-8">
+            <div className="no-scrollbar focus-scroller flex items-center gap-2 overflow-x-auto px-4 sm:px-8">
               <Chip label="All genres" active={genre === undefined} onClick={() => setGenre(undefined)} />
               {(genresQ.data || []).map((g) => (
                 <Chip key={g.id} label={g.name} active={genre === g.id} onClick={() => setGenre(g.id)} />

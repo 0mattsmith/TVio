@@ -42,7 +42,7 @@ export function BrandStrip({
   onPick: (brand?: BrandTile) => void;
 }) {
   return (
-    <div className="no-scrollbar mb-6 flex gap-3 overflow-x-auto px-4 sm:px-8">
+    <div className="no-scrollbar focus-scroller mb-6 flex gap-3 overflow-x-auto px-4 sm:px-8">
       {brands.map((brand) => (
         <BrandButton
           key={brand.key}

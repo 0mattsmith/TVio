@@ -182,7 +182,7 @@ export function Detail() {
                 {followingCollection ? "In Favourites" : "Add series"}
               </button>
             </div>
-            <div className="no-scrollbar flex gap-2.5 overflow-x-auto pb-2">
+            <div className="no-scrollbar focus-scroller flex gap-2.5 overflow-x-auto">
               {collectionQ.data!.map((m) => (
                 <PosterCard key={m.id} item={m} />
               ))}
@@ -220,7 +220,7 @@ export function Detail() {
         {data.cast.length > 0 && (
           <section className="order-3 mb-16 mt-10">
             <h2 className="mb-3 text-xl font-bold">Cast</h2>
-            <div className="no-scrollbar flex gap-4 overflow-x-auto pb-2">
+            <div className="no-scrollbar focus-scroller flex gap-4 overflow-x-auto">
               {data.cast.map((c) => (
                 <Link
                   key={c.id}

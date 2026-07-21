@@ -52,7 +52,7 @@ export function Home() {
             <h2 className="mb-3 flex items-center gap-2 px-4 text-lg font-bold tracking-tight sm:px-8">
               <Layers size={18} className="text-accent" /> My Film Series
             </h2>
-            <div className="no-scrollbar flex gap-2.5 overflow-x-auto px-4 pb-2 sm:px-8">
+            <div className="no-scrollbar focus-scroller flex gap-2.5 overflow-x-auto px-4 sm:px-8">
               {collections.map((c) => (
                 <button
                   key={c.id}

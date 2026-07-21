@@ -36,7 +36,7 @@ export function Row({
         </button>
         <div
           ref={scroller}
-          className="no-scrollbar flex gap-2.5 overflow-x-auto scroll-smooth px-4 pb-2 sm:px-8"
+          className="no-scrollbar focus-scroller flex gap-2.5 overflow-x-auto scroll-smooth px-4 sm:px-8"
         >
           {loading
             ? Array.from({ length: 8 }).map((_, i) => <PosterSkeleton key={i} />)

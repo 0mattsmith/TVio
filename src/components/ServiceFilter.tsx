@@ -12,7 +12,7 @@ export function ServiceFilter() {
   const allOn = all.every((s) => enabled.includes(s.key));
 
   return (
-    <div className="no-scrollbar flex items-center gap-2 overflow-x-auto px-4 py-2 sm:px-8">
+    <div className="no-scrollbar focus-scroller flex items-center gap-2 overflow-x-auto px-4 sm:px-8">
       <Chip label={allOn ? "All" : "Select all"} active={allOn} onClick={() => setAll(!allOn)} />
       <div className="mx-1 h-5 w-px shrink-0 bg-white/15" />
       {all.map((svc) => (
