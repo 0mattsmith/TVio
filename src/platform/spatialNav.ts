@@ -77,6 +77,13 @@ export function pickBest<T extends { box: Box }>(from: Box, candidates: T[], dir
 const FOCUSABLE =
   'a[href], button:not([disabled]), input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"]), .focusable';
 
+/**
+ * Elements that shouldn't be focus stops on a remote — the row chevrons (you
+ * scroll by moving between posters, so they'd be dead ends) and the logo (it
+ * only goes Home, which the navbar already offers).
+ */
+const SKIP = "[data-spatial-skip]";
+
 const KEYS: Record<string, Dir> = {
   ArrowUp: "up",
   ArrowDown: "down",
@@ -96,6 +103,7 @@ function boxesIn(root: ParentNode): { el: HTMLElement; box: Box }[] {
   const out: { el: HTMLElement; box: Box }[] = [];
   for (const el of Array.from(root.querySelectorAll<HTMLElement>(FOCUSABLE))) {
     if (el.getAttribute("aria-hidden") === "true") continue;
+    if (el.closest(SKIP)) continue;
     const r = el.getBoundingClientRect();
     if (r.width <= 0 || r.height <= 0) continue; // hidden or collapsed
     out.push({ el, box: { left: r.left, top: r.top, right: r.right, bottom: r.bottom } });
@@ -112,10 +120,26 @@ function boxesIn(root: ParentNode): { el: HTMLElement; box: Box }[] {
  */
 export function installSpatialNav(): () => void {
   const onKeyDown = (e: KeyboardEvent) => {
+    const active = document.activeElement as HTMLElement | null;
+
+    // Back jumps to the navbar and lands on the page you're already viewing,
+    // so getting out of a long grid is one press rather than many. Overlays
+    // own their own Escape handling, so leave them to it.
+    if ((e.key === "Escape" || e.key === "Backspace") && !document.querySelector("[data-spatial-scope]")) {
+      if (active && isTextEntry(active)) return;
+      const home =
+        document.querySelector<HTMLElement>("nav [aria-current='page']") ??
+        document.querySelector<HTMLElement>("nav a, nav button");
+      if (home) {
+        e.preventDefault();
+        home.focus();
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      }
+      return;
+    }
+
     const dir = KEYS[e.key];
     if (!dir || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey) return;
-
-    const active = document.activeElement as HTMLElement | null;
 
     // Leave the caret alone when someone is actually typing.
     if (active && isTextEntry(active) && (dir === "left" || dir === "right")) return;
@@ -136,11 +160,11 @@ export function installSpatialNav(): () => void {
     const from: Box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
     const next = pickBest(from, candidates, dir);
 
-    // At the edge of the content, fall through to the browser so the page can
-    // still scroll — better than the input appearing to do nothing.
-    if (!next) return;
-
+    // Swallow the key even at the edges. Letting it through would scroll the
+    // page out from under the highlight, which is the thing that makes a remote
+    // feel broken — the view should only ever move because the selection did.
     e.preventDefault();
+    if (!next) return;
     next.el.focus({ preventScroll: true });
     next.el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   };

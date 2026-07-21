@@ -40,7 +40,9 @@ export function Navbar() {
       <nav className="mx-auto flex h-16 items-center px-4 sm:px-8">
         {/* Left: wordmark */}
         <div className="flex flex-1 items-center">
-          <button onClick={() => navigate("/")} className="focusable rounded" aria-label="Home">
+          {/* Not a focus stop on a remote — it only goes Home, and the navbar
+              already has a Home link a press away. */}
+          <button data-spatial-skip onClick={() => navigate("/")} className="focusable rounded" aria-label="Home">
             <Logo />
           </button>
         </div>

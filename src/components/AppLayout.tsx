@@ -48,7 +48,7 @@ export function AppLayout() {
           content is scaled down on TV. `zoom` rather than `transform: scale`
           because zoom reflows the layout — coordinates stay honest, which the
           focus geometry above depends on. The navbar is left alone. */}
-      <div style={isTV ? ({ zoom: 0.65 } as React.CSSProperties) : undefined}>
+      <div data-tv={isTV || undefined} style={isTV ? ({ zoom: 0.65 } as React.CSSProperties) : undefined}>
         <main className="min-h-screen">
           <Outlet />
         </main>

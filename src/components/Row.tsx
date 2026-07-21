@@ -27,6 +27,7 @@ export function Row({
       <h2 className="mb-3 px-4 text-lg font-bold tracking-tight sm:px-8">{title}</h2>
       <div className="relative">
         <button
+          data-spatial-skip
           onClick={() => nudge(-1)}
           className="absolute left-0 top-0 z-10 hidden h-full w-10 items-center justify-center bg-gradient-to-r from-bg to-transparent opacity-0 transition-opacity group-hover/row:opacity-100 md:flex"
           aria-label="Scroll left"
@@ -44,6 +45,7 @@ export function Row({
               ))}
         </div>
         <button
+          data-spatial-skip
           onClick={() => nudge(1)}
           className="absolute right-0 top-0 z-10 hidden h-full w-10 items-center justify-center bg-gradient-to-l from-bg to-transparent opacity-0 transition-opacity group-hover/row:opacity-100 md:flex"
           aria-label="Scroll right"

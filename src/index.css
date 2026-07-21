@@ -37,6 +37,15 @@ body {
   z-index: 5;
 }
 
+/* Ten feet away, poster captions set for a desk are unreadable. Driven by an
+   attribute on the layout rather than a hook, so it costs nothing per card. */
+[data-tv] .poster-title { font-size: 1rem; line-height: 1.3; }
+[data-tv] .poster-meta { font-size: 0.8rem; }
+
+/* Per-poster actions are hidden on TV — extra focus stops inside every card
+   made moving along a row unpredictable. Hold OK to bring them up instead. */
+[data-tv] .poster-actions { display: none; }
+
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 .skeleton {
   position: relative;
