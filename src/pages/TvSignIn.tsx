@@ -111,7 +111,11 @@ export function TvSignIn() {
         style={{ background: "radial-gradient(1400px 700px at 50% -10%, rgba(20,184,166,0.12), transparent 60%)" }}
       />
 
-      <div className="relative grid w-full max-w-4xl grid-cols-1 items-center gap-12 lg:grid-cols-[1fr_auto]">
+      {/* Two columns unconditionally. This screen only renders on a TV, and a
+          responsive breakpoint here was unreliable — Android TV WebViews often
+          report a narrower CSS width than the panel, which dropped the layout
+          into its single-column fallback and stacked the QR underneath. */}
+      <div className="relative grid w-full max-w-4xl grid-cols-[1fr_auto] items-center gap-12">
         {/* Instructions */}
         <div>
           <Logo />
