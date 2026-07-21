@@ -9,6 +9,7 @@ import { PosterCard } from "../components/PosterCard";
 import { SeasonBrowser } from "../components/SeasonBrowser";
 import { useAppStore } from "../store/useAppStore";
 import { usePlay } from "../hooks/usePlay";
+import { useIsTV } from "../hooks/useDeviceProfile";
 import { useTrailer } from "../hooks/useTrailer";
 import { embedUrl } from "../services/trailers";
 
@@ -17,6 +18,7 @@ export function Detail() {
   const navigate = useNavigate();
   const play = usePlay();
   const mediaType = (type || "movie") as MediaType;
+  const isTV = useIsTV();
   const numId = Number(id);
 
   const { data, isLoading } = useQuery({
@@ -62,7 +64,12 @@ export function Detail() {
         </button>
       </div>
 
-      <div className="relative z-10 -mt-40 px-4 sm:px-8">
+      {/* On TV the sections are reordered with flex `order` rather than by
+          moving the JSX: Play/Watchlist, then episodes or the film series, then
+          a smaller trailer, then cast, with Ways to Watch last. Spatial
+          navigation reads geometry, so visual order is focus order — no
+          separate tab-index bookkeeping needed. */}
+      <div className={`relative z-10 -mt-40 px-4 sm:px-8 ${isTV ? "flex flex-col" : ""}`}>
         <div className="flex flex-col gap-6 md:flex-row">
           {data.poster && (
             <img src={data.poster} alt={data.title} className="hidden w-48 shrink-0 rounded-xl shadow-card md:block" />
@@ -98,8 +105,8 @@ export function Detail() {
           </div>
         </div>
 
-        {/* Where to watch */}
-        <section className="mt-10">
+        {/* Where to watch — last on TV, where the priority is Play then browse */}
+        <section className="order-5 mt-10">
           <div className="mb-3 flex items-center justify-between gap-3">
             <h2 className="text-xl font-bold">Ways to Watch</h2>
             <button onClick={() => play(data)} className="focusable flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-bold text-black">
@@ -140,12 +147,14 @@ export function Detail() {
 
         {/* Episodes (TV) */}
         {mediaType === "tv" && data.seasonsList && data.seasonsList.length > 0 && (
-          <SeasonBrowser series={data} seasons={data.seasonsList} />
+          <div className="order-1">
+            <SeasonBrowser series={data} seasons={data.seasonsList} />
+          </div>
         )}
 
         {/* Part of a collection (Film) */}
         {mediaType === "movie" && data.collectionId && (collectionQ.data?.length ?? 0) > 0 && (
-          <section className="mt-10">
+          <section className="order-1 mt-10">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
               <button
                 onClick={() => navigate(`/collection/${data.collectionId}`)}
@@ -185,11 +194,17 @@ export function Detail() {
             check runs we show nothing rather than a placeholder that might
             vanish, and if every candidate is dead the section never appears. */}
         {trailer.status === "ready" && (
-          <section className="mt-10">
+          <section className="order-2 mt-10">
             <h2 className="mb-3 text-xl font-bold">
               {trailer.video.type === "Trailer" ? "Trailer" : trailer.video.type}
             </h2>
-            <div className="aspect-video w-full max-w-3xl overflow-hidden rounded-xl bg-black">
+            {/* Smaller on TV — at ten feet a trailer is a preview, not the
+                main event, and a half-width panel keeps the rows below reachable. */}
+            <div
+              className={`aspect-video w-full overflow-hidden rounded-xl bg-black ${
+                isTV ? "max-w-md" : "max-w-3xl"
+              }`}
+            >
               <iframe
                 className="h-full w-full"
                 src={embedUrl(trailer.video)}
@@ -203,7 +218,7 @@ export function Detail() {
 
         {/* Cast */}
         {data.cast.length > 0 && (
-          <section className="mb-16 mt-10">
+          <section className="order-3 mb-16 mt-10">
             <h2 className="mb-3 text-xl font-bold">Cast</h2>
             <div className="no-scrollbar flex gap-4 overflow-x-auto pb-2">
               {data.cast.map((c) => (
