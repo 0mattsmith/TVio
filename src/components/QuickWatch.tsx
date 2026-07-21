@@ -10,6 +10,7 @@ import { useAppStore, selectPersonalSources } from "../store/useAppStore";
 import type { Addon } from "../store/useAppStore";
 import type { WatchProvider, MediaType } from "../services/types";
 import { useIsTV } from "../hooks/useDeviceProfile";
+import { useOverlayBack } from "../hooks/useOverlayBack";
 import { fetchStreams, isWebPlayable, isHttpAddon, streamTitle, streamSubtitle, humanSize } from "../addons/manager";
 import type { Stream } from "../addons/types";
 import { hasNativePlayback } from "../platform/capabilities";
@@ -41,6 +42,8 @@ export function QuickWatch() {
   const item = useAppStore((s) => s.quickWatchItem);
   const episode = useAppStore((s) => s.quickWatchEpisode);
   const close = useAppStore((s) => s.closeQuickWatch);
+  // Android's Back closes the sheet rather than quitting the app.
+  useOverlayBack(Boolean(item), close);
   const personal = useAppStore(selectPersonalSources);
   const showOfficial = useAppStore((s) => s.showOfficialSources);
   const compact = useAppStore((s) => s.compactProviders);

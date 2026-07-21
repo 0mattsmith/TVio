@@ -4,6 +4,7 @@ import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services"
 import { useAppStore } from "../store/useAppStore";
 import { Chip } from "./Chip";
 import { Button } from "./Button";
+import { useOverlayBack } from "../hooks/useOverlayBack";
 
 // Focused filter overlay used on TV (and available anywhere) so the browse
 // screen shows a single "Filters" entry instead of two chip strips — far fewer
@@ -21,6 +22,8 @@ export function FilterPanel({
   genre?: number;
   onGenre: (id?: number) => void;
 }) {
+  useOverlayBack(open, onClose);
+
   const enabled = useAppStore((s) => s.enabledServices);
   const toggle = useAppStore((s) => s.toggleService);
   const setAll = useAppStore((s) => s.setAllServices);

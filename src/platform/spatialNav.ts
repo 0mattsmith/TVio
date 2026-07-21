@@ -179,13 +179,18 @@ export function installSpatialNav(): () => void {
     // Leave the caret alone when someone is actually typing.
     if (active && isTextEntry(active) && (dir === "left" || dir === "right")) return;
 
-    const scope = active?.closest("[data-spatial-scope]") ?? document;
-    const candidates = boxesIn(scope).filter((c) => c.el !== active);
+    // Scope by whether an overlay is OPEN, not by where focus happens to be.
+    // Checking active.closest() meant an overlay only trapped focus once focus
+    // was already inside it — and nothing focuses into a sheet when it opens,
+    // so the first press navigated the page behind it instead.
+    const overlay = document.querySelector<HTMLElement>("[data-spatial-scope]");
+    const candidates = boxesIn(overlay ?? document).filter((c) => c.el !== active);
     if (candidates.length === 0) return;
 
-    // Nothing focused yet — the first press should grab something rather than
-    // scroll, which is what makes a remote feel responsive from cold.
-    if (!active || active === document.body) {
+    // Overlay open but focus still behind it: pull focus in rather than moving.
+    // Also covers nothing being focused yet, so the first press off a cold
+    // start grabs something instead of doing nothing.
+    if (!active || active === document.body || (overlay && !overlay.contains(active))) {
       e.preventDefault();
       candidates[0].el.focus();
       return;

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { Play, Plus, Check, X } from "lucide-react";
 import { Button } from "./Button";
 import { usePlay } from "../hooks/usePlay";
+import { useOverlayBack } from "../hooks/useOverlayBack";
 import { useAppStore } from "../store/useAppStore";
 import type { MediaItem } from "../services/types";
 
@@ -17,6 +18,10 @@ export function PosterActions({ item, onClose }: { item: MediaItem; onClose: () 
   const play = usePlay();
   const inList = useAppStore((s) => s.inWatchlist(item.id));
   const toggle = useAppStore((s) => s.toggleWatchlist);
+
+  // Only mounted while open, so Back always maps to closing this dialog.
+  useOverlayBack(true, onClose);
+
   useEffect(() => {
     // Capture phase, so this closes the dialog before the global Back handler
     // can send focus off to the navbar.
