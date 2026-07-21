@@ -9,7 +9,9 @@ import { FilterPanel } from "../components/FilterPanel";
 import { DemoBanner } from "../components/DemoBanner";
 import { SERVICES, ALL_SERVICE_KEYS } from "../services/services";
 import { trendingRow, serviceRow, getGenres, companiesRow } from "../services/catalog";
-import { serviceLayoutRows, serviceBrands, type BrandTile, type ResolvedRow } from "../services/serviceLayouts";
+import { serviceLayoutRows, serviceBrands, type BrandTile } from "../services/serviceLayouts";
+import { BrandStrip } from "../components/BrandStrip";
+import { LayoutRow } from "../components/LayoutRow";
 import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { useIsTV } from "../hooks/useDeviceProfile";
@@ -29,43 +31,6 @@ function ServiceRow({
   return <Row title={`${label} ${serviceName}`} items={q.data} loading={q.isLoading} />;
 }
 
-/** One row from a service's own layout (see services/serviceLayouts.ts). */
-function LayoutRow({ row }: { row: ResolvedRow }) {
-  const q = useQuery({ queryKey: ["layout-row", row.key], queryFn: row.load });
-  return <Row title={row.title} items={q.data} loading={q.isLoading} />;
-}
-
-/**
- * Disney+'s brand tiles. Logos come from TMDB's company artwork — the same
- * source already used for provider icons — so nothing is hotlinked or bundled.
- */
-function BrandStrip({ brands, active, onPick }: {
-  brands: BrandTile[];
-  active?: string;
-  onPick: (brand?: BrandTile) => void;
-}) {
-  return (
-    <div className="no-scrollbar mb-6 flex gap-3 overflow-x-auto px-4 sm:px-8">
-      {brands.map((brand) => (
-        <button
-          key={brand.key}
-          onClick={() => onPick(active === brand.key ? undefined : brand)}
-          aria-label={brand.name}
-          className={`focusable flex h-24 w-40 shrink-0 items-center justify-center rounded-lg border bg-gradient-to-b from-surface-2 to-surface p-5 transition ${
-            active === brand.key ? "border-accent" : "border-white/15 hover:border-white/40"
-          }`}
-        >
-          <img
-            src={`https://image.tmdb.org/t/p/w300${brand.logoPath}`}
-            alt={brand.name}
-            loading="lazy"
-            className="max-h-full max-w-full object-contain brightness-0 invert"
-          />
-        </button>
-      ))}
-    </div>
-  );
-}
 
 export function CatalogPage({ type }: { type: MediaType }) {
   const enabled = useAppStore((s) => s.enabledServices);
@@ -101,6 +66,15 @@ export function CatalogPage({ type }: { type: MediaType }) {
 
   // Selecting a different service shouldn't leave a stale brand filter behind.
   useEffect(() => setBrand(undefined), [soleService?.key, type]);
+
+  // Visible confirmation of which layout is in play. Without it, "one service
+  // selected but generic rows" is indistinguishable from "the build doesn't
+  // have this feature yet", which cost us several rounds of guesswork.
+  const layoutLabel = layoutRows
+    ? `${soleService!.name} categories`
+    : soleService
+      ? `${soleService!.name} categories — clear the genre filter to see them`
+      : null;
 
   const allServicesOn = ALL_SERVICE_KEYS.every((k) => enabled.includes(k));
   const genreName = genre === undefined ? "All genres" : genresQ.data?.find((g) => g.id === genre)?.name ?? "Genre";
@@ -139,6 +113,18 @@ export function CatalogPage({ type }: { type: MediaType }) {
               ))}
             </div>
           </>
+        )}
+
+        {layoutLabel && (
+          <div className="px-4 pb-3 sm:px-8">
+            <span
+              className={`inline-block rounded-full px-3 py-1 text-[11px] font-bold uppercase tracking-wider ${
+                layoutRows ? "bg-accent-soft text-accent" : "bg-surface-2 text-muted"
+              }`}
+            >
+              {layoutLabel}
+            </span>
+          </div>
         )}
 
         <div className="mt-2">

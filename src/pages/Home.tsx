@@ -76,6 +76,7 @@ export function Home() {
         )}
 
         <Row title={seed ? `Because You Watched ${seed.title}` : "Because You've Watched…"} items={because.data} loading={because.isLoading} />
+
         <Row title="Trending Movies" items={trendMovies.data} loading={trendMovies.isLoading} />
         <Row title="Trending TV Series" items={trendTv.data} loading={trendTv.isLoading} />
         <Row title="Popular Films" items={popMovies.data} loading={popMovies.isLoading} />
