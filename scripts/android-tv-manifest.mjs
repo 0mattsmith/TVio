@@ -36,5 +36,19 @@ if (!xml.includes("android:banner")) {
   xml = xml.replace(/(<application\b)/, `$1\n        android:banner="@drawable/banner"`);
 }
 
+// 4) Stop the on-screen keyboard resizing the page.
+//
+// On a TV the IME is enormous, and the default adjustResize shrinks the
+// viewport so hard that content above the focused field — the sign-in QR code
+// in particular — is pushed off screen entirely. Dismissing a TV keyboard with
+// a D-pad to get it back is genuinely awkward. adjustNothing leaves the layout
+// alone and lets the keyboard overlay it instead.
+if (!xml.includes("windowSoftInputMode")) {
+  xml = xml.replace(
+    /(<activity\b)/,
+    `$1\n            android:windowSoftInputMode="adjustNothing"`
+  );
+}
+
 writeFileSync(MANIFEST, xml);
 console.log("Android TV manifest applied (leanback + touchscreen optional + banner).");

@@ -64,7 +64,7 @@ export function TvSignIn() {
   useEffect(() => {
     if (!pairing || !canvasRef.current) return;
     QRCode.toCanvas(canvasRef.current, pairing.qr, {
-      width: 208,
+      width: 176,
       margin: 1,
       color: { dark: "#0a0a0a", light: "#ffffff" },
     }).catch(() => {});
@@ -115,20 +115,20 @@ export function TvSignIn() {
         {/* Instructions */}
         <div>
           <Logo />
-          <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight">
+          <h1 className="mt-5 text-3xl font-black leading-tight tracking-tight">
             Sign in with
             <br />
             your phone
           </h1>
 
-          <ol className="mt-6 space-y-3 text-lg text-white/85">
+          <ol className="mt-5 space-y-2.5 text-base text-white/85">
             {[
               "Open TVio on your phone",
               "Go to Settings → Sign in a TV",
               "Scan the code on the right",
             ].map((step, i) => (
               <li key={step} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-accent text-sm font-black text-black">
+                <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-accent text-xs font-black text-black">
                   {i + 1}
                 </span>
                 <span>{step}</span>
@@ -136,7 +136,7 @@ export function TvSignIn() {
             ))}
           </ol>
 
-          <div className="mt-7 flex min-h-[2rem] items-center gap-3 text-base">
+          <div className="mt-6 flex min-h-[1.75rem] items-center gap-2.5 text-sm">
             {phase === "waiting" && (
               <>
                 <Loader2 size={17} className="animate-spin text-accent" />
@@ -175,8 +175,8 @@ export function TvSignIn() {
 
         {/* QR */}
         <div className="justify-self-center">
-          <div className="relative rounded-2xl bg-white p-5">
-            <canvas ref={canvasRef} className="h-52 w-52" />
+          <div className="relative rounded-2xl bg-white p-4">
+            <canvas ref={canvasRef} className="h-44 w-44" />
             {(phase === "expired" || phase === "signed-in") && (
               <div className="absolute inset-0 flex items-center justify-center rounded-2xl bg-black/85 text-center text-lg font-bold">
                 {phase === "signed-in" ? (
