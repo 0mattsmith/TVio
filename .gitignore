@@ -21,6 +21,8 @@ src-tauri/gen
 *serviceAccount*.json
 *.pem
 *.key
+*.keystore
+*.jks
 
 # Misc
 *.apk
