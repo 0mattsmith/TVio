@@ -15,6 +15,8 @@ export interface NativeSubtitle {
 export interface NativePlayResult {
   positionMs: number;
   durationMs: number;
+  /** The native player gave up after prolonged buffering. */
+  stalled?: boolean;
 }
 
 interface NativePlayerPlugin {

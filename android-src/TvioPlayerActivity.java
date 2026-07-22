@@ -5,6 +5,8 @@ import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
@@ -116,14 +118,18 @@ public class TvioPlayerActivity extends Activity {
         player.setPlayWhenReady(true);
         player.prepare();
 
-        // When the episode ends, close automatically and report the final
-        // position — the web layer then advances Continue Watching and offers
-        // the next episode, rather than the user staring at a paused end frame.
+        // End → close and report so the web layer can advance Continue Watching
+        // and offer the next episode. Prolonged buffering → treat as stuck and
+        // hand back a "stalled" flag so the web layer offers another source.
         player.addListener(new Player.Listener() {
             @Override
             public void onPlaybackStateChanged(int state) {
                 if (state == Player.STATE_ENDED && !isFinishing()) {
-                    reportAndFinish();
+                    reportAndFinish(false);
+                } else if (state == Player.STATE_BUFFERING) {
+                    stallHandler.postDelayed(stallRunnable, STALL_MS);
+                } else {
+                    stallHandler.removeCallbacks(stallRunnable);
                 }
             }
         });
@@ -303,20 +309,28 @@ public class TvioPlayerActivity extends Activity {
                         | View.SYSTEM_UI_FLAG_LAYOUT_STABLE);
     }
 
-    /** Hand the current position back so the web UI can store progress. */
-    private void reportAndFinish() {
+    private static final long STALL_MS = 25000;
+    private final Handler stallHandler = new Handler(Looper.getMainLooper());
+    private final Runnable stallRunnable = () -> {
+        if (!isFinishing()) reportAndFinish(true);
+    };
+
+    /** Hand the current position (and whether it stalled) back to the web UI. */
+    private void reportAndFinish(boolean stalled) {
+        stallHandler.removeCallbacks(stallRunnable);
         Intent data = new Intent();
         if (player != null) {
             data.putExtra("positionMs", player.getCurrentPosition());
             data.putExtra("durationMs", player.getDuration());
         }
+        data.putExtra("stalled", stalled);
         setResult(Activity.RESULT_OK, data);
         finish();
     }
 
     @Override
     public void onBackPressed() {
-        reportAndFinish();
+        reportAndFinish(false);
     }
 
     @Override
@@ -332,13 +346,14 @@ public class TvioPlayerActivity extends Activity {
         super.onStop();
         // Leaving the activity by any route reports progress and tears down.
         if (player != null && !isFinishing()) {
-            reportAndFinish();
+            reportAndFinish(false);
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
+        stallHandler.removeCallbacks(stallRunnable);
         if (player != null) {
             player.release();
             player = null;

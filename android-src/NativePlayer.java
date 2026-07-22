@@ -83,12 +83,15 @@ public class NativePlayer extends Plugin {
         JSObject ret = new JSObject();
         long positionMs = 0;
         long durationMs = 0;
+        boolean stalled = false;
         if (result != null && result.getData() != null) {
             positionMs = result.getData().getLongExtra("positionMs", 0);
             durationMs = result.getData().getLongExtra("durationMs", 0);
+            stalled = result.getData().getBooleanExtra("stalled", false);
         }
         ret.put("positionMs", positionMs);
         ret.put("durationMs", durationMs);
+        ret.put("stalled", stalled);
         call.resolve(ret);
     }
 }

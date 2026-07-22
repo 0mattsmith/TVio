@@ -73,6 +73,38 @@ export function Player() {
   const [pendingNext, setPendingNext] = useState<EpisodeRef | null>(null);
   const [loadingNext, setLoadingNext] = useState(false);
 
+  // Loading / buffering state, so a slow stream reads as "loading", not frozen.
+  // A stream that buffers this long is treated as stuck and the user is offered
+  // a fresh source list.
+  const STALL_MS = 25000;
+  const [buffering, setBuffering] = useState(true);
+  const [stalled, setStalled] = useState(false);
+  const stallTimer = useRef<number>();
+
+  const onBufferStart = () => {
+    setBuffering(true);
+    window.clearTimeout(stallTimer.current);
+    stallTimer.current = window.setTimeout(() => setStalled(true), STALL_MS);
+  };
+  const onBufferEnd = () => {
+    setBuffering(false);
+    setStalled(false);
+    window.clearTimeout(stallTimer.current);
+  };
+
+  // Reopen Quick Watch on the same title/episode so the user can pick another
+  // source — used by both the "can't play" and the "stuck" overlays.
+  const tryAnotherSource = () => {
+    if (data) {
+      openQuickWatch(data, epRef);
+      navigate(`/title/${type}/${id}`, { replace: true });
+    } else {
+      navigate(-1);
+    }
+  };
+
+  useEffect(() => () => window.clearTimeout(stallTimer.current), []);
+
   const onEpisodeFinished = (): boolean => {
     if (!data || !epRef || type !== "tv") return false;
     const next = computeNextEpisode(data.seasonsList, epRef.season, epRef.episode);
@@ -130,6 +162,8 @@ export function Player() {
           sizeBytes: st?.size,
         });
         if (cancelled) return;
+        // Native player gave up buffering → offer a fresh source list.
+        if (res.stalled) return tryAnotherSource();
         const finished = res.durationMs > 0 && res.positionMs >= res.durationMs * 0.9;
         // Finished an episode → advance Continue Watching and offer the next.
         if (finished && onEpisodeFinished()) return; // prompt stays on screen
@@ -287,7 +321,14 @@ export function Player() {
         x-webkit-airplay="allow"
         className="h-full w-full object-contain"
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
-        onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+        onWaiting={onBufferStart}
+        onStalled={onBufferStart}
+        onPlaying={onBufferEnd}
+        onCanPlay={onBufferEnd}
+        onTimeUpdate={(e) => {
+          setTime(e.currentTarget.currentTime);
+          if (buffering) onBufferEnd(); // frames are advancing → not stuck
+        }}
         onEnded={() => {
           if (!onEpisodeFinished()) toDetail(); // no next episode → back to the show
         }}
@@ -308,6 +349,43 @@ export function Player() {
           <span className="rounded bg-black/70 px-3 py-1 text-lg font-medium text-white">
             [ Subtitles enabled — sample track ]
           </span>
+        </div>
+      )}
+
+      {/* Loading / buffering — a slow or large stream, not a frozen one. Only
+          for the web <video>; the native player shows its own spinner. */}
+      {!nativeVideo && buffering && !stalled && !preparing && !error && streamUrl && (
+        <div className="pointer-events-none absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-black/60">
+          <Loader2 className="animate-spin text-accent" size={32} />
+          <div className="text-center">
+            <p className="text-lg font-bold">Loading stream…</p>
+            <p className="mt-0.5 text-sm text-white/60">Larger files can take a moment to start.</p>
+          </div>
+          <div className="h-1 w-48 overflow-hidden rounded-full bg-white/15">
+            <div className="h-full w-full animate-pulse rounded-full bg-accent/60" />
+          </div>
+        </div>
+      )}
+
+      {/* Buffered past the patience threshold — treat it as stuck and offer a
+          fresh source list rather than leaving the user staring at a spinner. */}
+      {!nativeVideo && stalled && !error && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/85 p-6 text-center">
+          <p className="text-lg font-bold">This stream seems stuck</p>
+          <p className="max-w-md text-sm text-white/70">
+            It's still loading after a while — the source may be slow or down. Try another one, or keep waiting.
+          </p>
+          <div className="flex flex-wrap justify-center gap-2">
+            <button onClick={tryAnotherSource} className="focusable rounded-lg bg-accent px-4 py-2 font-bold text-black">
+              Try another source
+            </button>
+            <button
+              onClick={onBufferEnd}
+              className="focusable rounded-lg bg-white/10 px-4 py-2 font-semibold"
+            >
+              Keep waiting
+            </button>
+          </div>
         </div>
       )}
 
@@ -336,19 +414,7 @@ export function Player() {
             works — or use the TVio Windows / Android app, which plays anything.
           </p>
           <div className="flex flex-wrap justify-center gap-2">
-            <button
-              onClick={() => {
-                if (data) {
-                  const s = params.get("s");
-                  const ep = params.get("e");
-                  openQuickWatch(data, s && ep ? { season: Number(s), episode: Number(ep) } : undefined);
-                  navigate(`/title/${data.type}/${data.id}`);
-                } else {
-                  navigate(-1);
-                }
-              }}
-              className="focusable rounded-lg bg-accent px-4 py-2 font-bold text-black"
-            >
+            <button onClick={tryAnotherSource} className="focusable rounded-lg bg-accent px-4 py-2 font-bold text-black">
               Try another source
             </button>
             <button onClick={() => navigate(-1)} className="focusable rounded-lg bg-white/10 px-4 py-2 font-semibold">
