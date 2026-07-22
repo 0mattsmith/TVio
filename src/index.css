@@ -37,6 +37,16 @@ body {
   z-index: 5;
 }
 
+/* Bare icon buttons (the player controls): recolour the icon to teal on focus
+   instead of drawing a square ring around it. Still a spatial-nav target since
+   it's a <button>. */
+.focus-tint:focus-visible {
+  outline: none;
+  color: #14b8a6;
+  transform: scale(1.15);
+  filter: drop-shadow(0 0 8px rgba(20, 184, 166, 0.55));
+}
+
 /* Ten feet away, poster captions set for a desk are unreadable. Driven by an
    attribute on the layout rather than a hook, so it costs nothing per card. */
 [data-tv] .poster-title { font-size: 1rem; line-height: 1.3; }

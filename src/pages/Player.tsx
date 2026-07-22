@@ -457,14 +457,14 @@ export function Player() {
             style={{ background: `linear-gradient(90deg,#14b8a6 ${(time / (duration || 1)) * 100}%, rgba(255,255,255,0.25) 0)` }}
           />
           <div className="flex items-center gap-4">
-            <button onClick={toggle} className="focusable">
+            <button onClick={toggle} className="focus-tint">
               {playing ? <Pause size={26} fill="currentColor" /> : <Play size={26} fill="currentColor" />}
             </button>
-            <button onClick={() => { const v = videoRef.current; if (v) v.currentTime += 10; }} className="focusable">
+            <button onClick={() => { const v = videoRef.current; if (v) v.currentTime += 10; }} className="focus-tint">
               <SkipForward size={22} />
             </button>
             {!isTV && (
-              <button onClick={() => setMuted((m) => !m)} className="focusable" aria-label="Mute">
+              <button onClick={() => setMuted((m) => !m)} className="focus-tint" aria-label="Mute">
                 {muted ? <VolumeX size={22} /> : <Volume2 size={22} />}
               </button>
             )}
@@ -472,7 +472,7 @@ export function Player() {
             <div className="flex-1" />
             <button
               onClick={() => setSubs((s) => !s)}
-              className={`focusable rounded-lg px-2 py-1 ${subs ? "text-accent" : "text-white"}`}
+              className={`focus-tint px-2 py-1 ${subs ? "text-accent" : "text-white"}`}
               aria-label="Subtitles"
             >
               <Subtitles size={22} />
@@ -481,7 +481,7 @@ export function Player() {
             {!isTV && <CastButton videoRef={videoRef} />}
             <button
               onClick={() => videoRef.current?.requestFullscreen?.()}
-              className="focusable"
+              className="focus-tint"
               aria-label="Fullscreen"
             >
               <Maximize size={22} />

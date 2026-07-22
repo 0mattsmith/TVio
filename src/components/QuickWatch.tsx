@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { X, Play, Puzzle, Server, MonitorPlay, ExternalLink, Plus, Clapperboard, LayoutGrid, Tag, Magnet, AlertCircle, MonitorSmartphone } from "lucide-react";
@@ -52,6 +52,8 @@ export function QuickWatch() {
   const isTV = useIsTV();
   const isMobile = useDeviceProfile() === "mobile";
   const [playOnOpen, setPlayOnOpen] = useState(false);
+  const sheetRef = useRef<HTMLDivElement>(null);
+  const sourcesRef = useRef<HTMLDivElement>(null);
 
   const { data, isLoading } = useQuery({
     queryKey: ["detail", item?.type, item?.id],
@@ -71,6 +73,48 @@ export function QuickWatch() {
       document.body.style.overflow = prev;
     };
   }, [item, close]);
+
+  // Focus handling on open: pull focus off the page behind and into the sheet
+  // straight away (an invisible tabindex host), FREEZE the D-pad while sources
+  // resolve, then drop focus onto the topmost source the moment it appears — so
+  // it never lands on the ✕ and you can't fumble the page behind mid-load.
+  useEffect(() => {
+    if (!item) return;
+    let ready = false;
+    sheetRef.current?.focus();
+
+    const freeze = (e: KeyboardEvent) => {
+      if (!ready && e.key.startsWith("Arrow")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", freeze, true);
+
+    const start = Date.now();
+    let raf = 0;
+    const tick = () => {
+      const first = sourcesRef.current?.querySelector<HTMLElement>("a.focusable, button.focusable");
+      if (first) {
+        ready = true;
+        first.focus();
+        return;
+      }
+      // Nothing playable resolved in time (no sources / all failed): unfreeze so
+      // the user isn't stuck, leaving focus in the sheet for the ✕ / Add source.
+      if (Date.now() - start > 6000) {
+        ready = true;
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    };
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      window.removeEventListener("keydown", freeze, true);
+      cancelAnimationFrame(raf);
+    };
+  }, [item]);
 
   if (!item) return null;
 
@@ -113,7 +157,9 @@ export function QuickWatch() {
       onClick={close}
     >
       <div
-        className="animate-row-in max-h-[88vh] w-full overflow-y-auto rounded-t-2xl border border-white/10 bg-surface p-5 shadow-card sm:max-w-lg sm:rounded-2xl sm:p-6"
+        ref={sheetRef}
+        tabIndex={-1}
+        className="animate-row-in max-h-[88vh] w-full overflow-y-auto rounded-t-2xl border border-white/10 bg-surface p-5 shadow-card outline-none sm:max-w-lg sm:rounded-2xl sm:p-6"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -144,7 +190,7 @@ export function QuickWatch() {
         )}
 
         {/* Your sources */}
-        <div className="mt-6">
+        <div ref={sourcesRef} className="mt-6">
           <div className="mb-2 flex items-center justify-between gap-2">
             <p className="text-xs font-bold uppercase tracking-wider text-muted">Play from your sources</p>
             {item.type === "tv" && (
