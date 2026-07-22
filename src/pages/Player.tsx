@@ -32,6 +32,7 @@ export function Player() {
   const location = useLocation();
   const videoRef = useRef<HTMLVideoElement>(null);
   const setProgress = useAppStore((s) => s.setProgress);
+  const markWatched = useAppStore((s) => s.markWatched);
   const openQuickWatch = useAppStore((s) => s.openQuickWatch);
 
   // A resolved stream URL passed from Quick Watch (via router state).
@@ -107,6 +108,8 @@ export function Player() {
 
   const onEpisodeFinished = (): boolean => {
     if (!data || !epRef || type !== "tv") return false;
+    // The episode that just finished is now watched (green tick in the browser).
+    markWatched(data, epRef);
     const next = computeNextEpisode(data.seasonsList, epRef.season, epRef.episode);
     if (!next) return false;
     // Advance the Continue Watching entry to the next episode, ready to watch.
@@ -166,7 +169,10 @@ export function Player() {
         if (res.stalled) return tryAnotherSource();
         const finished = res.durationMs > 0 && res.positionMs >= res.durationMs * 0.9;
         // Finished an episode → advance Continue Watching and offer the next.
-        if (finished && onEpisodeFinished()) return; // prompt stays on screen
+        if (finished) {
+          if (onEpisodeFinished()) return; // prompt stays on screen
+          if (type !== "tv" && data) markWatched(data); // film finished → watched
+        }
         if (data && res.durationMs > 0) {
           setProgress(data, res.positionMs / 1000, res.durationMs / 1000, epRef);
         }
@@ -330,7 +336,9 @@ export function Player() {
           if (buffering) onBufferEnd(); // frames are advancing → not stuck
         }}
         onEnded={() => {
-          if (!onEpisodeFinished()) toDetail(); // no next episode → back to the show
+          if (onEpisodeFinished()) return; // tv episode: marked watched + advanced
+          if (type !== "tv" && data) markWatched(data); // film finished → watched
+          toDetail(); // no next episode → back to the show
         }}
         onError={(e) => {
           // Ignore aborts that happen while swapping the source.

@@ -47,6 +47,8 @@ interface ProfileBucket {
   watchlist: MediaItem[];
   progress: ProgressEntry[];
   collections?: FavCollection[];
+  watched?: MediaItem[];
+  watchedEpisodes?: string[];
 }
 
 export type SourceKind = "builtin" | "aiostreams" | "addon" | "plex" | "jellyfin" | "emby" | "nas";
@@ -134,6 +136,14 @@ interface AppState {
     ep?: { season: number; episode: number }
   ) => void;
 
+  // Watched (of the ACTIVE profile) — finished films/series for the Home row,
+  // plus the set of finished episodes (keyed "seriesId:season:episode").
+  watched: MediaItem[];
+  watchedEpisodes: string[];
+  markWatched: (item: MediaItem, ep?: { season: number; episode: number }) => void;
+  isWatched: (id: number) => boolean;
+  isEpisodeWatched: (seriesId: number, season: number, episode: number) => boolean;
+
   // Sources / addons (Plex, NAS, Stremio addons)
   addons: Addon[];
   addAddon: (url: string, kind?: Addon["kind"], name?: string, sync?: boolean) => void;
@@ -216,8 +226,8 @@ export const useAppStore = create<AppState>()(
           const profile: Profile = { id, name: name.trim() || "Profile", avatar, isMaster };
           // The first (Master) profile inherits any data already on the device.
           const bucket: ProfileBucket = isMaster
-            ? { watchlist: s.watchlist, progress: s.progress, collections: s.collections }
-            : { watchlist: [], progress: [], collections: [] };
+            ? { watchlist: s.watchlist, progress: s.progress, collections: s.collections, watched: s.watched, watchedEpisodes: s.watchedEpisodes }
+            : { watchlist: [], progress: [], collections: [], watched: [], watchedEpisodes: [] };
           return {
             profiles: [...s.profiles, profile],
             profileData: { ...s.profileData, [id]: bucket },
@@ -236,7 +246,7 @@ export const useAppStore = create<AppState>()(
           return {
             profiles: s.profiles.filter((p) => p.id !== id),
             profileData: rest,
-            ...(s.activeProfileId === id ? { activeProfileId: null, watchlist: [], progress: [] } : {}),
+            ...(s.activeProfileId === id ? { activeProfileId: null, watchlist: [], progress: [], watched: [], watchedEpisodes: [] } : {}),
           };
         }),
       switchProfile: (id) =>
@@ -245,7 +255,7 @@ export const useAppStore = create<AppState>()(
           const saved: Record<string, ProfileBucket> = s.activeProfileId
             ? {
                 ...s.profileData,
-                [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress, collections: s.collections },
+                [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress, collections: s.collections, watched: s.watched, watchedEpisodes: s.watchedEpisodes },
               }
             : { ...s.profileData };
           const target = saved[id] || { watchlist: [], progress: [], collections: [] };
@@ -255,6 +265,8 @@ export const useAppStore = create<AppState>()(
             watchlist: target.watchlist,
             progress: target.progress,
             collections: target.collections ?? [],
+            watched: target.watched ?? [],
+            watchedEpisodes: target.watchedEpisodes ?? [],
             lastWatchlistAdd: null,
           };
         }),
@@ -296,6 +308,29 @@ export const useAppStore = create<AppState>()(
             ...s.progress.filter((p) => p.id !== item.id),
           ].slice(0, 20),
         })),
+
+      watched: [],
+      watchedEpisodes: [],
+      markWatched: (item, ep) =>
+        set((s) => {
+          // Store a lean MediaItem (the caller often passes a full detail with
+          // cast/videos/providers, which we don't want bloating localStorage).
+          const lean: MediaItem = {
+            id: item.id, type: item.type, title: item.title, poster: item.poster,
+            backdrop: item.backdrop, year: item.year, rating: item.rating,
+            overview: item.overview, genreIds: item.genreIds,
+          };
+          const watched = [lean, ...s.watched.filter((w) => w.id !== item.id)].slice(0, 40);
+          if (!ep) return { watched }; // a film
+          const key = `${item.id}:${ep.season}:${ep.episode}`;
+          const watchedEpisodes = s.watchedEpisodes.includes(key)
+            ? s.watchedEpisodes
+            : [key, ...s.watchedEpisodes].slice(0, 2000);
+          return { watched, watchedEpisodes };
+        }),
+      isWatched: (id) => get().watched.some((w) => w.id === id),
+      isEpisodeWatched: (seriesId, season, episode) =>
+        get().watchedEpisodes.includes(`${seriesId}:${season}:${episode}`),
 
       addons: [BUILTIN_ADDON],
       addAddon: (url, kind = "addon", name, sync = true) =>
@@ -370,6 +405,8 @@ export const useAppStore = create<AppState>()(
         watchlist: s.watchlist,
         progress: s.progress,
         collections: s.collections,
+        watched: s.watched,
+        watchedEpisodes: s.watchedEpisodes,
         addons: s.addons,
         showOfficialSources: s.showOfficialSources,
         onPlayBehavior: s.onPlayBehavior,

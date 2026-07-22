@@ -28,6 +28,8 @@ export function PosterCard({
   const play = usePlay();
   const inList = useAppStore((s) => s.inWatchlist(item.id));
   const toggle = useAppStore((s) => s.toggleWatchlist);
+  // Films get a "watched" tick; series are ticked per-episode in the browser.
+  const watchedMovie = useAppStore((s) => (item.type === "movie" ? s.isWatched(item.id) : false));
   const [actionsOpen, setActionsOpen] = useState(false);
 
   const holdTimer = useRef<number>();
@@ -74,6 +76,13 @@ export function PosterCard({
             </div>
           )}
         </div>
+
+        {/* Watched tick (films) */}
+        {watchedMovie && (
+          <div className="absolute right-1.5 top-1.5 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-green-500 text-white shadow ring-2 ring-black/40">
+            <Check size={14} strokeWidth={3} />
+          </div>
+        )}
 
         {/* progress bar for continue-watching */}
         {progress !== undefined && progress > 0 && (

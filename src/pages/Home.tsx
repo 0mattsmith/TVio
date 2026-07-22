@@ -13,6 +13,7 @@ export function Home() {
   const watchlist = useAppStore((s) => s.watchlist);
   const progress = useAppStore((s) => s.progress);
   const collections = useAppStore((s) => s.collections);
+  const watched = useAppStore((s) => s.watched);
 
   const trendMovies = useQuery({ queryKey: ["home", "trend", "movie"], queryFn: () => trendingRow("movie") });
   const trendTv = useQuery({ queryKey: ["home", "trend", "tv"], queryFn: () => trendingRow("tv") });
@@ -45,6 +46,7 @@ export function Home() {
           <Row title="Continue Watching…" items={progress} progressFor={progressLookup} />
         )}
         {watchlist.length > 0 && <Row title="My Watchlist" items={watchlist} />}
+        {watched.length > 0 && <Row title="Watched" items={watched} />}
 
         {/* Followed film series — Star Wars, Halloween, Scream… */}
         {collections.length > 0 && (

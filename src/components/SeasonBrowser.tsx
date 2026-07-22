@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Play, Star } from "lucide-react";
+import { Play, Star, Check } from "lucide-react";
 import { getSeason } from "../services/catalog";
 import type { SeasonSummary, MediaItem } from "../services/types";
 import { usePlay } from "../hooks/usePlay";
@@ -18,6 +18,7 @@ export function SeasonBrowser({
   initialSeason?: number;
 }) {
   const play = usePlay();
+  const watchedEpisodes = useAppStore((s) => s.watchedEpisodes);
   // Open on the deep-linked season if there is one, else the season you're
   // partway through, else the first real season — never "Specials" (0).
   const inProgressSeason = useAppStore.getState().progress.find((p) => p.id === series.id)?.season;
@@ -63,6 +64,11 @@ export function SeasonBrowser({
               >
                 <div className="relative aspect-video w-32 shrink-0 overflow-hidden rounded-lg bg-surface-2 sm:w-44">
                   {ep.still && <img src={ep.still} alt={ep.name} loading="lazy" className="h-full w-full object-cover" />}
+                  {watchedEpisodes.includes(`${series.id}:${sel}:${ep.episodeNumber}`) && (
+                    <div className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-green-500 text-white shadow ring-2 ring-black/40">
+                      <Check size={12} strokeWidth={3} />
+                    </div>
+                  )}
                   <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
                     <Play size={26} fill="currentColor" className="text-white" />
                   </div>
