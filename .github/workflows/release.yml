@@ -240,6 +240,8 @@ jobs:
       - run: npx cap sync android
       - name: Inject APK self-updater (plugin + permission + FileProvider)
         run: node scripts/android-updater-patch.mjs
+      - name: Inject native ExoPlayer (Media3 plugin + activity)
+        run: node scripts/android-exoplayer-patch.mjs
       # NOT continue-on-error: a skipped run ships the stock Android robot icon,
       # which looks like a product bug rather than a build warning.
       - name: Generate branded launcher icons + TV banner

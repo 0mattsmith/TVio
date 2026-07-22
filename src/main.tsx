@@ -5,12 +5,16 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { router } from "./router";
 import { isNativeShell } from "./platform/capabilities";
 import { installBackButton } from "./platform/backButton";
+import { initNativePlayback } from "./services/exoPlayer";
 import { FirebaseSync } from "./services/firebaseSync";
 import { UpdateGate } from "./components/UpdateGate";
 import "./index.css";
 
 // Brand as "TVio Lite" on the limited web/PWA build; "TVio" on native builds.
 document.title = isNativeShell() ? "TVio" : "TVio Lite";
+
+// Unlock native playback before first render if ExoPlayer is present.
+initNativePlayback();
 
 const queryClient = new QueryClient({
   defaultOptions: {

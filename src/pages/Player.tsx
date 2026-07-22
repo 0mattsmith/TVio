@@ -9,6 +9,7 @@ import { useAppStore } from "../store/useAppStore";
 import { attachStream, classifyStream } from "../lib/playback";
 import { useIsTV } from "../hooks/useDeviceProfile";
 import { hasNativePlayback } from "../platform/capabilities";
+import { exoPlayerAvailable, playNative } from "../services/exoPlayer";
 import { prepareStream, stopStream, waitForPlaylist } from "../services/nativePlayer";
 
 // Big Buck Bunny — royalty-free sample so the player is usable before addon
@@ -37,6 +38,11 @@ export function Player() {
   const epLabel = params.get("s") && params.get("e") ? `S${params.get("s")} · E${params.get("e")}` : "";
   const isTV = useIsTV();
 
+  // Android: the whole player is a separate native activity, not the <video>
+  // below. Decided once here so both the launch effect and the web-attach
+  // effect agree.
+  const nativeVideo = exoPlayerAvailable();
+
   const [playing, setPlaying] = useState(true);
   const [muted, setMuted] = useState(false);
   const [subs, setSubs] = useState(false);
@@ -52,9 +58,39 @@ export function Player() {
     queryFn: () => getDetail((type || "movie") as MediaType, Number(id)),
   });
 
-  // persist progress to Continue Watching
+  // Android native playback: hand the stream to the ExoPlayer activity, which
+  // decodes AC3/HEVC/MKV the WebView can't, then save the returned position and
+  // go back. Replaces the <video> path entirely on Android.
   useEffect(() => {
-    if (!data || !duration) return;
+    if (!nativeVideo || !streamUrl) return;
+    let cancelled = false;
+    (async () => {
+      const resumeSec =
+        useAppStore.getState().progress.find((p) => p.id === Number(id))?.positionSec ?? 0;
+      try {
+        const res = await playNative({
+          url: streamUrl,
+          title: streamName || data?.title || "",
+          startMs: Math.floor(resumeSec * 1000),
+        });
+        if (!cancelled && data && res.durationMs > 0) {
+          setProgress(data, res.positionMs / 1000, res.durationMs / 1000);
+        }
+      } catch {
+        /* nothing to fall back to on Android — just leave the player */
+      } finally {
+        if (!cancelled) navigate(-1);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nativeVideo, streamUrl]);
+
+  // persist progress to Continue Watching (web/desktop <video> only)
+  useEffect(() => {
+    if (nativeVideo || !data || !duration) return;
     const iv = setInterval(() => {
       const v = videoRef.current;
       if (v && !v.paused) setProgress(data, v.currentTime, duration);
@@ -73,7 +109,7 @@ export function Player() {
   // WebView can't decode are routed through the desktop ffmpeg sidecar.
   useEffect(() => {
     const v = videoRef.current;
-    if (!v) return;
+    if (!v || nativeVideo) return; // Android uses the native activity instead
     setError(false);
     setPreparing("");
     if (!streamUrl) {
