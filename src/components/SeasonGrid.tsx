@@ -33,7 +33,7 @@ export function SeasonGrid({ seriesId, title }: { seriesId: number; title: strin
           {seasons.map((s) => (
             <button
               key={s.seasonNumber}
-              onClick={() => navigate(`/title/tv/${seriesId}`)}
+              onClick={() => navigate(`/title/tv/${seriesId}?season=${s.seasonNumber}`)}
               className="focusable group rounded-lg text-left"
               aria-label={`${title} — ${s.name}`}
             >

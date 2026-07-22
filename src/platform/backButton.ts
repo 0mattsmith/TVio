@@ -13,6 +13,11 @@
 
 const ROOTS = ["/", "/signin", "/profiles"];
 
+// Top-level tabs. On these, the navbar isn't reachable with the D-pad (arrow
+// nav is kept inside the content), so Back is how you get to it: first Back
+// surfaces the navbar, Back from the navbar drops back into the content.
+const TAB_PAGES = ["/", "/movies", "/series", "/live", "/search", "/settings", "/remote"];
+
 function currentPath(): string {
   return (window.location.hash || "#/").replace(/^#/, "").split("?")[0];
 }
@@ -66,7 +71,28 @@ export async function installBackButton(): Promise<() => void> {
       window.history.back();
       return;
     }
-    if (ROOTS.includes(currentPath())) {
+
+    const path = currentPath();
+    // Double-press to leave: the first Back from the content surfaces the navbar
+    // (so one accidental press never drops you off the page), and a second Back
+    // — now with focus on the navbar — falls through and actually goes back /
+    // exits. LEFT also reaches the navbar (see spatialNav), so this is purely a
+    // safety buffer on the way out.
+    if (TAB_PAGES.includes(path)) {
+      const inHeader = Boolean((document.activeElement as HTMLElement | null)?.closest("header"));
+      if (!inHeader) {
+        const nav =
+          document.querySelector<HTMLElement>("header nav [aria-current='page']") ??
+          document.querySelector<HTMLElement>("header nav a[href], header nav button:not([data-spatial-skip])");
+        if (nav) {
+          nav.focus();
+          window.scrollTo({ top: 0, behavior: "smooth" });
+          return;
+        }
+      }
+    }
+
+    if (ROOTS.includes(path)) {
       App.exitApp();
     } else {
       window.history.back();

@@ -149,19 +149,24 @@ export function Settings() {
     <div className="animate-fade-in mx-auto max-w-3xl px-4 pt-24 pb-16 sm:px-8">
       <h1 className="text-3xl font-black tracking-tight">Settings</h1>
 
-      {/* Account */}
+      {/* Account — info left, actions stacked on the right so everything the
+          user acts on sits in one right-hand column (easy D-pad travel). */}
       <section className="mt-8 rounded-xl border border-white/5 bg-surface p-6">
-        <h2 className="text-lg font-bold">Account</h2>
-        <p className="mt-1 text-sm text-muted">{user ? user.email : "Not signed in"}</p>
-        <div className="mt-4 flex gap-3">
-          <Button variant="secondary" onClick={() => navigate("/profiles")}>
-            <Users size={16} /> Switch profile
-          </Button>
-          {user && (
-            <Button variant="ghost" onClick={() => { signOut(); navigate("/signin"); }}>
-              <LogOut size={16} /> Sign out
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold">Account</h2>
+            <p className="mt-1 truncate text-sm text-muted">{user ? user.email : "Not signed in"}</p>
+          </div>
+          <div className="flex shrink-0 flex-col items-stretch gap-2">
+            <Button variant="secondary" onClick={() => navigate("/profiles")}>
+              <Users size={16} /> Switch profile
             </Button>
-          )}
+            {user && (
+              <Button variant="ghost" onClick={() => { signOut(); navigate("/signin"); }}>
+                <LogOut size={16} /> Sign out
+              </Button>
+            )}
+          </div>
         </div>
       </section>
 
@@ -169,15 +174,20 @@ export function Settings() {
           a TV — at the bottom of a long page a D-pad rarely gets to it. */}
       <UpdateSection />
 
-      {/* Sign in on your phone (not shown on a phone — nothing to scan with) */}
+      {/* Sign in on your phone (not shown on a phone — nothing to scan with).
+          QR/button sits to the right of the copy for the one-column layout. */}
       {!isMobile && (
         <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
-          <h2 className="flex items-center gap-2 text-lg font-bold"><Smartphone size={18} /> Sign in on your phone</h2>
-          <p className="mt-1 text-sm text-muted">
-            Scan this with the TVio mobile app (Sign In → <span className="font-semibold text-white">Sign In using QR Code</span>)
-            to sign that phone into this account — no typing.
-          </p>
-          <PairQr signedIn={Boolean(user)} />
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="min-w-0">
+              <h2 className="flex items-center gap-2 text-lg font-bold"><Smartphone size={18} /> Sign in on your phone</h2>
+              <p className="mt-1 text-sm text-muted">
+                Scan this with the TVio mobile app (Sign In → <span className="font-semibold text-white">Sign In using QR Code</span>)
+                to sign that phone into this account — no typing.
+              </p>
+            </div>
+            <div className="shrink-0"><PairQr signedIn={Boolean(user)} /></div>
+          </div>
         </section>
       )}
 
@@ -301,27 +311,31 @@ export function Settings() {
         </div>
       </section>
 
-      {/* Services */}
+      {/* Services — dropdown on the right, level with the other sections' controls. */}
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
-        <h2 className="text-lg font-bold">Streaming services</h2>
-        <p className="mt-1 text-sm text-muted">
-          Enabled services appear as filters and drive the Popular / Trending / New rows.
-        </p>
-        <div className="mt-4 max-w-sm">
-          <Dropdown
-            ariaLabel="Choose streaming services"
-            summary={
-              ALL_SERVICE_KEYS.every((k) => enabledServices.includes(k))
-                ? "All services"
-                : `${enabledServices.length} of ${ALL_SERVICE_KEYS.length} selected`
-            }
-          >
-            <div className="flex flex-wrap gap-2">
-              {[...SERVICES, OTHER_SERVICE].map((s) => (
-                <Chip key={s.key} label={s.name} color={s.color} active={enabledServices.includes(s.key)} onClick={() => toggleService(s.key)} />
-              ))}
-            </div>
-          </Dropdown>
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <h2 className="text-lg font-bold">Streaming services</h2>
+            <p className="mt-1 text-sm text-muted">
+              Enabled services appear as filters and drive the Popular / Trending / New rows.
+            </p>
+          </div>
+          <div className="w-full shrink-0 sm:w-64">
+            <Dropdown
+              ariaLabel="Choose streaming services"
+              summary={
+                ALL_SERVICE_KEYS.every((k) => enabledServices.includes(k))
+                  ? "All services"
+                  : `${enabledServices.length} of ${ALL_SERVICE_KEYS.length} selected`
+              }
+            >
+              <div className="flex flex-wrap gap-2">
+                {[...SERVICES, OTHER_SERVICE].map((s) => (
+                  <Chip key={s.key} label={s.name} color={s.color} active={enabledServices.includes(s.key)} onClick={() => toggleService(s.key)} />
+                ))}
+              </div>
+            </Dropdown>
+          </div>
         </div>
       </section>
 
@@ -425,13 +439,15 @@ export function Settings() {
           // TV sources are read-only: add them on a phone/desktop (or the Lite
           // web app) and they sync here. Sync pulls whatever's on the account now.
           <>
-            <div className="mt-4 rounded-lg border border-white/10 bg-surface-2 px-4 py-3 text-sm text-muted">
-              You can only change this on Desktop or Mobile. Add sources there (or in the Lite web app) and they'll sync to this TV.
+            <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="rounded-lg border border-white/10 bg-surface-2 px-4 py-3 text-sm text-muted">
+                You can only change this on Desktop or Mobile. Add sources there (or in the Lite web app) and they'll sync to this TV.
+              </div>
+              <Button variant="secondary" className="shrink-0" onClick={syncFromAccount} disabled={syncing}>
+                <RefreshCw size={16} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync"}
+              </Button>
             </div>
-            <Button variant="secondary" className="mt-3" onClick={syncFromAccount} disabled={syncing}>
-              <RefreshCw size={16} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync from account"}
-            </Button>
-            {syncMsg && <p className="mt-1.5 text-xs text-accent">{syncMsg}</p>}
+            {syncMsg && <p className="mt-1.5 text-xs text-accent sm:text-right">{syncMsg}</p>}
             <ul className="mt-4 space-y-2">
               {addons.filter((a) => a.kind !== "builtin").length === 0 && (
                 <li className="text-xs text-muted">No sources yet — add one on your phone or computer, then tap Sync.</li>

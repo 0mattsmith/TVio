@@ -9,6 +9,8 @@
 // Everything geometric lives in pickBest, which is pure and unit-tested; the
 // DOM parts around it stay deliberately thin.
 
+import { isNativeShell } from "./capabilities";
+
 export type Dir = "up" | "down" | "left" | "right";
 
 export interface Box {
@@ -126,6 +128,17 @@ const KEYS: Record<string, Dir> = {
   ArrowRight: "right",
 };
 
+/** Move focus up to the navbar (the current tab if there is one). */
+function focusNavbar(): boolean {
+  const nav =
+    document.querySelector<HTMLElement>("header nav [aria-current='page']") ??
+    document.querySelector<HTMLElement>("header nav a[href], header nav button:not([data-spatial-skip])");
+  if (!nav) return false;
+  nav.focus();
+  window.scrollTo({ top: 0, behavior: "smooth" });
+  return true;
+}
+
 function isTextEntry(el: Element): boolean {
   const tag = el.tagName;
   if (tag === "TEXTAREA") return true;
@@ -159,17 +172,13 @@ export function installSpatialNav(): () => void {
 
     // Back jumps to the navbar and lands on the page you're already viewing,
     // so getting out of a long grid is one press rather than many. Overlays
-    // own their own Escape handling, so leave them to it.
+    // own their own Escape handling, so leave them to it. On a native shell the
+    // hardware Back button is handled by installBackButton (Capacitor), so don't
+    // double-handle it here — that path has the fuller tab/navbar model.
     if ((e.key === "Escape" || e.key === "Backspace") && !document.querySelector("[data-spatial-scope]")) {
+      if (isNativeShell()) return;
       if (active && isTextEntry(active)) return;
-      const home =
-        document.querySelector<HTMLElement>("nav [aria-current='page']") ??
-        document.querySelector<HTMLElement>("nav a, nav button");
-      if (home) {
-        e.preventDefault();
-        home.focus();
-        window.scrollTo({ top: 0, behavior: "smooth" });
-      }
+      if (focusNavbar()) e.preventDefault();
       return;
     }
 
@@ -184,7 +193,14 @@ export function installSpatialNav(): () => void {
     // was already inside it — and nothing focuses into a sheet when it opens,
     // so the first press navigated the page behind it instead.
     const overlay = document.querySelector<HTMLElement>("[data-spatial-scope]");
-    const candidates = boxesIn(overlay ?? document).filter((c) => c.el !== active);
+    let candidates = boxesIn(overlay ?? document).filter((c) => c.el !== active);
+    // Keep arrow navigation inside the page content: the navbar is reached with
+    // Back, not by arrowing up or left off the edge of the content into it. Once
+    // focus is actually in the navbar its own links stay navigable (so this only
+    // filters when we're starting from content).
+    if (!overlay && !active?.closest("header")) {
+      candidates = candidates.filter((c) => !c.el.closest("header"));
+    }
     if (candidates.length === 0) return;
 
     // Overlay open but focus still behind it: pull focus in rather than moving.
@@ -208,6 +224,10 @@ export function installSpatialNav(): () => void {
       // At the top of the content with nothing above: snap the page fully to
       // the top so the hero/banner is visible rather than half-scrolled.
       if (dir === "up") window.scrollTo({ top: 0, behavior: "smooth" });
+      // LEFT at the left edge of the content jumps up to the navbar. In the
+      // one-column layouts LEFT is otherwise a dead key, so it's the natural
+      // "go to the menu" gesture; Back is kept for leaving the page.
+      else if (dir === "left" && !active.closest("header")) focusNavbar();
       return;
     }
     next.el.focus({ preventScroll: true });
@@ -230,16 +250,26 @@ export function installSpatialNav(): () => void {
  * TV only; a desktop keyboard has no such problem.
  */
 export function installTvTextEntryGuard(): () => void {
+  // The field we're mid-activating: its own blur() must not re-guard it.
+  let unguarding: EventTarget | null = null;
+
   const guard = (el: Element) => {
     if (!isTextEntry(el)) return;
+    // Never re-guard the field currently being typed in — a DOM change elsewhere
+    // (results loading, a button appearing) mustn't slam the keyboard shut
+    // mid-word. Once unguarded + focused it's the active element, so scans skip it.
+    if (el === document.activeElement && !(el as HTMLInputElement).readOnly) return;
     (el as HTMLInputElement).readOnly = true;
   };
   const unguard = (el: HTMLInputElement | HTMLTextAreaElement) => {
     el.readOnly = false;
-    // Re-focusing is what actually prompts Android to raise the keyboard, now
-    // that the field will accept input.
+    // blur()/focus() is what prompts Android to raise the keyboard now the field
+    // will accept input — but that blur trips onFocusOut, which would re-guard it
+    // straight back to readOnly. Flag it so that one focusout is ignored.
+    unguarding = el;
     el.blur();
     el.focus();
+    unguarding = null;
   };
 
   const scan = () => document.querySelectorAll("input, textarea").forEach(guard);
@@ -264,6 +294,7 @@ export function installTvTextEntryGuard(): () => void {
   };
 
   const onFocusOut = (e: FocusEvent) => {
+    if (e.target === unguarding) return; // its blur is part of activating it
     if (e.target instanceof Element) guard(e.target);
   };
 

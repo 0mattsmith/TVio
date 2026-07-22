@@ -266,6 +266,42 @@ export async function collection(collectionId: number): Promise<MediaItem[]> {
   return (await collectionDetail(collectionId)).parts;
 }
 
+/**
+ * A title logo (transparent wordmark art) for a series or a film collection,
+ * for the brand tiles. Collections rarely carry their own logo, so fall back to
+ * the earliest film's. Returns a ready-to-use image URL, or null if there's none.
+ */
+export async function titleLogo(kind: "tv" | "movie" | "collection", id: number): Promise<string | null> {
+  const pick = (logos: any[] | undefined): string | null => {
+    const all = (logos || []).filter((l) => l.file_path);
+    if (!all.length) return null;
+    const en = all.filter((l) => l.iso_639_1 === "en");
+    const pool = (en.length ? en : all).slice();
+    // Prefer PNG (safe in an <img>) then the most-voted rendition.
+    pool.sort((a, b) => (b.vote_average || 0) - (a.vote_average || 0));
+    const best = pool.find((l) => String(l.file_path).endsWith(".png")) ?? pool[0];
+    return img(best.file_path, "w342");
+  };
+  try {
+    if (kind === "collection") {
+      const c = await tmdb<any>(`/collection/${id}/images`, { include_image_language: "en,null" });
+      const own = pick(c.logos);
+      if (own) return own;
+      const det = await tmdb<any>(`/collection/${id}`);
+      const firstId = (det.parts || [])
+        .filter((p: any) => p.release_date)
+        .sort((a: any, b: any) => String(a.release_date).localeCompare(String(b.release_date)))[0]?.id;
+      if (!firstId) return null;
+      const m = await tmdb<any>(`/movie/${firstId}/images`, { include_image_language: "en,null" });
+      return pick(m.logos);
+    }
+    const data = await tmdb<any>(`/${kind}/${id}/images`, { include_image_language: "en,null" });
+    return pick(data.logos);
+  } catch {
+    return null;
+  }
+}
+
 export async function person(id: number) {
   const raw = await tmdb<any>(`/person/${id}`, { append_to_response: "combined_credits" });
   const credits: MediaItem[] = (raw.combined_credits?.cast || [])

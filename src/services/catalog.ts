@@ -1,6 +1,6 @@
 // Unified catalog layer: uses live TMDB when a key is present, otherwise
 // deterministic demo data so the whole app is browsable out of the box.
-import { hasTmdbKey, discover, trending, popular, detail, person, search, genres, tvSeason, collection, collectionDetail } from "./tmdb";
+import { hasTmdbKey, discover, trending, popular, detail, person, search, genres, tvSeason, collection, collectionDetail, titleLogo } from "./tmdb";
 import { demoRow, demoDetail, demoSeason } from "./demo";
 import type { MediaItem, MediaType, CollectionDetail } from "./types";
 
@@ -89,6 +89,12 @@ export async function getSeason(seriesId: number, seasonNumber: number) {
 export async function getCollection(collectionId: number): Promise<MediaItem[]> {
   if (!hasTmdbKey()) return demoRow("movie", collectionId % 20, 6);
   return collection(collectionId);
+}
+
+/** Title-logo art for a brand tile (series or film collection), or null. */
+export async function getTitleLogo(kind: "tv" | "movie" | "collection", id: number): Promise<string | null> {
+  if (!hasTmdbKey()) return null;
+  return titleLogo(kind, id);
 }
 
 export async function getCollectionDetail(collectionId: number): Promise<CollectionDetail> {

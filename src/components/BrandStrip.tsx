@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Check } from "lucide-react";
 import { brandRowKey, brandItemsLoader, type BrandTile } from "../services/serviceLayouts";
+import { getTitleLogo } from "../services/catalog";
 import type { MediaItem, MediaType } from "../services/types";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w300";
@@ -81,6 +82,17 @@ function BrandButton({
     enabled: Boolean(loader),
   });
 
+  // Tiles without a hardcoded studio logo (collections, series) fetch their own
+  // title art; fall back to the name set in type if there's none.
+  const needsLogo = !brand.logoPath && (brand.seriesId != null || brand.collectionId != null);
+  const logoQ = useQuery({
+    queryKey: ["brand-logo", brand.key],
+    queryFn: () => getTitleLogo(brand.seriesId != null ? "tv" : "collection", (brand.seriesId ?? brand.collectionId)!),
+    enabled: needsLogo,
+    staleTime: Infinity,
+  });
+  const logoUrl = brand.logoPath ? `${TMDB_IMG}${brand.logoPath}` : logoQ.data ?? null;
+
   // Hide a brand with nothing behind it. Walt Disney Pictures has plenty of
   // films and no series, so on the TV Series tab its tile led to an empty page.
   if (loader && !q.isLoading && (q.data?.length ?? 0) === 0) return null;
@@ -97,16 +109,16 @@ function BrandButton({
           : "border-white/20 hover:border-white/50 hover:brightness-110"
       }`}
     >
-      {brand.logoPath ? (
+      {logoUrl ? (
         <img
-          src={`${TMDB_IMG}${brand.logoPath}`}
+          src={logoUrl}
           alt={brand.name}
           loading="lazy"
           className={`max-h-full max-w-full object-contain transition-opacity ${selected ? "" : "opacity-95"}`}
           style={{ filter: brand.darkArtwork ? KNOCKOUT : undefined }}
         />
       ) : (
-        // Collection/series tiles have no studio logo — set the name in type.
+        // No logo art (yet / at all) — set the name in type on the plate.
         <span className="text-center text-base font-extrabold uppercase leading-tight tracking-wide text-white">
           {brand.name}
         </span>

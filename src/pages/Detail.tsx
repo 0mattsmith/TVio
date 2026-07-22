@@ -1,4 +1,4 @@
-import { useParams, useNavigate, Link } from "react-router-dom";
+import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Play, Plus, Check, ArrowLeft, Star, ExternalLink, EyeOff, Layers, Heart } from "lucide-react";
 import { getDetail, getCollection } from "../services/catalog";
@@ -15,6 +15,10 @@ import { embedUrl } from "../services/trailers";
 
 export function Detail() {
   const { type, id } = useParams<{ type: MediaType; id: string }>();
+  const [searchParams] = useSearchParams();
+  // Opening a specific season poster (from a series' season grid) deep-links here.
+  const seasonParam = searchParams.get("season");
+  const initialSeason = seasonParam ? Number(seasonParam) : undefined;
   const navigate = useNavigate();
   const play = usePlay();
   const mediaType = (type || "movie") as MediaType;
@@ -148,7 +152,7 @@ export function Detail() {
         {/* Episodes (TV) */}
         {mediaType === "tv" && data.seasonsList && data.seasonsList.length > 0 && (
           <div className="order-1">
-            <SeasonBrowser series={data} seasons={data.seasonsList} />
+            <SeasonBrowser series={data} seasons={data.seasonsList} initialSeason={initialSeason} />
           </div>
         )}
 

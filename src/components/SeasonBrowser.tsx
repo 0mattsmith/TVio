@@ -7,12 +7,25 @@ import { usePlay } from "../hooks/usePlay";
 import { defaultSeason } from "../services/nextEpisode";
 import { useAppStore } from "../store/useAppStore";
 
-export function SeasonBrowser({ series, seasons }: { series: MediaItem; seasons: SeasonSummary[] }) {
+export function SeasonBrowser({
+  series,
+  seasons,
+  initialSeason,
+}: {
+  series: MediaItem;
+  seasons: SeasonSummary[];
+  /** Deep-linked season (e.g. from a season-poster tile) — wins if it exists. */
+  initialSeason?: number;
+}) {
   const play = usePlay();
-  // Open on the season you're partway through, else the first real season —
-  // never "Specials" (season 0) by default.
+  // Open on the deep-linked season if there is one, else the season you're
+  // partway through, else the first real season — never "Specials" (0).
   const inProgressSeason = useAppStore.getState().progress.find((p) => p.id === series.id)?.season;
-  const [sel, setSel] = useState(() => defaultSeason(seasons, inProgressSeason));
+  const [sel, setSel] = useState(() =>
+    initialSeason != null && seasons.some((s) => s.seasonNumber === initialSeason)
+      ? initialSeason
+      : defaultSeason(seasons, inProgressSeason)
+  );
 
   const { data, isLoading } = useQuery({
     queryKey: ["season", series.id, sel],
