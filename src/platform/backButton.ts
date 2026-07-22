@@ -17,6 +17,28 @@ function currentPath(): string {
   return (window.location.hash || "#/").replace(/^#/, "").split("?")[0];
 }
 
+// Screens like the player need to intercept Back for their own multi-step
+// behaviour (hide overlay → confirm → exit) before the app-level handler steps
+// through history. A handler returns true when it has consumed the press.
+type BackInterceptor = () => boolean;
+const interceptors: BackInterceptor[] = [];
+
+export function registerBackInterceptor(fn: BackInterceptor): () => void {
+  interceptors.push(fn);
+  return () => {
+    const i = interceptors.indexOf(fn);
+    if (i >= 0) interceptors.splice(i, 1);
+  };
+}
+
+/** Runs the most-recently-registered interceptors first. */
+function intercepted(): boolean {
+  for (let i = interceptors.length - 1; i >= 0; i--) {
+    if (interceptors[i]()) return true;
+  }
+  return false;
+}
+
 interface CapacitorApp {
   addListener(event: "backButton", cb: () => void): Promise<{ remove: () => void | Promise<void> }>;
   exitApp(): Promise<void>;
@@ -35,6 +57,9 @@ export async function installBackButton(): Promise<() => void> {
   }
 
   const handle = await App.addListener("backButton", () => {
+    // A screen-level interceptor (the player) gets first refusal.
+    if (intercepted()) return;
+
     // An overlay always has a history entry behind it, so going back closes it
     // before anything else — checked first so Back never exits with a sheet up.
     if (document.querySelector("[data-spatial-scope]")) {

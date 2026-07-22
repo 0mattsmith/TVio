@@ -10,6 +10,7 @@ import { attachStream, classifyStream } from "../lib/playback";
 import { useIsTV } from "../hooks/useDeviceProfile";
 import { hasNativePlayback } from "../platform/capabilities";
 import { exoPlayerAvailable, playNative } from "../services/exoPlayer";
+import { registerBackInterceptor } from "../platform/backButton";
 import { prepareStream, stopStream, waitForPlaylist } from "../services/nativePlayer";
 
 // Big Buck Bunny — royalty-free sample so the player is usable before addon
@@ -113,6 +114,48 @@ export function Player() {
     const t = setTimeout(() => playing && setShowUI(false), 3000);
     return () => clearTimeout(t);
   }, [showUI, playing]);
+
+  // Two-stage Back, so a stray press can't dump you out of a stream:
+  //   controls up   → hide them
+  //   controls down → show "press Back again to exit", armed for a few seconds
+  //   pressed again → leave the player
+  const [confirmExit, setConfirmExit] = useState(false);
+  const confirmTimer = useRef<number>();
+  const handleBack = (): boolean => {
+    if (nativeVideo) return false; // the native activity owns its own Back
+    if (showUI) {
+      setShowUI(false);
+      return true;
+    }
+    if (!confirmExit) {
+      setConfirmExit(true);
+      window.clearTimeout(confirmTimer.current);
+      confirmTimer.current = window.setTimeout(() => setConfirmExit(false), 3500);
+      return true;
+    }
+    window.clearTimeout(confirmTimer.current);
+    navigate(-1);
+    return true;
+  };
+
+  // Hardware Back (Android) via the interceptor; Escape / Backspace for a
+  // keyboard or a remote that emits key events. Same logic for both.
+  useEffect(() => {
+    const stop = registerBackInterceptor(handleBack);
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.key === "Escape" || e.key === "Backspace") && handleBack()) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", onKey, true);
+    return () => {
+      stop();
+      window.removeEventListener("keydown", onKey, true);
+      window.clearTimeout(confirmTimer.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showUI, confirmExit, nativeVideo]);
 
   // Attach the right playback engine for the resolved stream. Formats the
   // WebView can't decode are routed through the desktop ffmpeg sidecar.
@@ -328,6 +371,15 @@ export function Player() {
           </div>
         </div>
       </div>
+
+      {/* Shown when Back is pressed with the controls already hidden — a second
+          Back within a few seconds actually leaves the stream. */}
+      {confirmExit && (
+        <div className="absolute bottom-6 right-6 z-30 animate-row-in rounded-xl border border-white/15 bg-black/85 px-4 py-3 text-sm shadow-card backdrop-blur">
+          <span className="font-semibold">Press Back again to exit</span>
+          <span className="ml-1 text-muted">— or wait to keep watching.</span>
+        </div>
+      )}
     </div>
   );
 }
