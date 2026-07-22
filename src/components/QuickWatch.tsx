@@ -12,6 +12,7 @@ import type { WatchProvider, MediaType } from "../services/types";
 import { useIsTV } from "../hooks/useDeviceProfile";
 import { useOverlayBack } from "../hooks/useOverlayBack";
 import { fetchStreams, isWebPlayable, isHttpAddon, streamTitle, streamSubtitle, humanSize } from "../addons/manager";
+import { rankByTitleMatch, type StreamExpectation, type MatchVerdict, type StreamCheck } from "../addons/match";
 import type { Stream } from "../addons/types";
 import { hasNativePlayback } from "../platform/capabilities";
 import { classifyStream } from "../lib/playback";
@@ -173,6 +174,12 @@ export function QuickWatch() {
                     addon={addon}
                     type={item.type}
                     imdbId={imdbId}
+                    expect={{
+                      title: item.title,
+                      year: item.year ? Number(item.year) : undefined,
+                      season: episode?.season,
+                      episode: episode?.episode,
+                    }}
                     episode={episode || undefined}
                     native={native}
                     onPlay={playStream}
@@ -254,11 +261,21 @@ export function QuickWatch() {
   );
 }
 
+// Short badge naming which check a doubtful stream failed.
+function badgeLabel(verdict: MatchVerdict | undefined, reason: StreamCheck["reason"]): string | null {
+  if (verdict !== "mismatch" && verdict !== "uncertain") return null;
+  const soft = verdict === "uncertain";
+  if (reason === "episode") return soft ? "Check episode" : "Wrong episode?";
+  if (reason === "year") return soft ? "Check year" : "Wrong year?";
+  return soft ? "Check title" : "Different title?";
+}
+
 // Fetches and lists one addon's streams for the current title/episode.
 function AddonSource({
   addon,
   type,
   imdbId,
+  expect,
   episode,
   native,
   onPlay,
@@ -266,6 +283,7 @@ function AddonSource({
   addon: Addon;
   type: MediaType;
   imdbId: string;
+  expect: StreamExpectation;
   episode?: EpisodeRef;
   native: boolean;
   onPlay: (s: Stream) => void;
@@ -280,8 +298,16 @@ function AddonSource({
   // On the web build, only surface streams the browser can actually play.
   // Native builds (Tauri / Capacitor) bundle a player, so show everything.
   const all = data || [];
-  const visible = native ? all : all.filter(webPlayable);
-  const hidden = all.length - visible.length;
+  const playable = native ? all : all.filter(webPlayable);
+
+  // Cross-check each result's release name against the title we requested, and
+  // sort the likely wrong ones (Barney & Friends for Friends) to the bottom.
+  // Demoted and badged rather than hidden — release naming is messy enough that
+  // dropping "uncertain" ones would lose working sources.
+  const ranked = rankByTitleMatch(playable, (s) => streamTitle(s), expect);
+  const visible = ranked.map((r) => r.item);
+  const checks = new Map(ranked.map((r) => [r.item, r]));
+  const hidden = all.length - playable.length;
 
   return (
     <div>
@@ -308,15 +334,34 @@ function AddonSource({
           {visible.map((s, i) => {
             const size = humanSize(s.behaviorHints?.videoSize);
             const sub = streamSubtitle(s);
+            const check = checks.get(s);
+            const verdict = check?.verdict;
+            const doubtful = verdict === "mismatch" || verdict === "uncertain";
+            const label = badgeLabel(verdict, check?.reason ?? null);
             return (
               <button
                 key={`${addon.id}-${i}`}
                 onClick={() => onPlay(s)}
-                title="Play"
-                className="focusable flex w-full items-center gap-3 rounded-lg bg-surface-2 px-3 py-2 text-left hover:bg-white/10"
+                title={verdict === "mismatch" ? "This file's name doesn't match what you selected" : "Play"}
+                className={`focusable flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left hover:bg-white/10 ${
+                  doubtful ? "bg-surface-2/50" : "bg-surface-2"
+                }`}
               >
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{streamTitle(s)}</div>
+                  <div className="flex items-center gap-2">
+                    <span className={`truncate text-sm font-semibold ${doubtful ? "text-muted" : ""}`}>
+                      {streamTitle(s)}
+                    </span>
+                    {label && (
+                      <span
+                        className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${
+                          verdict === "mismatch" ? "bg-red-500/15 text-red-300" : "bg-amber-500/15 text-amber-300"
+                        }`}
+                      >
+                        {label}
+                      </span>
+                    )}
+                  </div>
                   {(sub || size) && (
                     <div className="truncate text-[11px] text-muted">{[sub, size].filter(Boolean).join("  ·  ")}</div>
                   )}
