@@ -221,13 +221,12 @@ export function installSpatialNav(): () => void {
     // feel broken — the view should only ever move because the selection did.
     e.preventDefault();
     if (!next) {
-      // At the top of the content with nothing above: snap the page fully to
-      // the top so the hero/banner is visible rather than half-scrolled.
+      // At the top/left edge of the content, UP or LEFT rises to the navbar —
+      // the natural "go to the menu" gesture on a TV (Back reaches it too; this
+      // just makes the D-pad do the obvious thing at the edge).
+      if ((dir === "up" || dir === "left") && !active.closest("header") && focusNavbar()) return;
+      // No navbar to rise to (or already in it): at least snap fully to the top.
       if (dir === "up") window.scrollTo({ top: 0, behavior: "smooth" });
-      // LEFT at the left edge of the content jumps up to the navbar. In the
-      // one-column layouts LEFT is otherwise a dead key, so it's the natural
-      // "go to the menu" gesture; Back is kept for leaving the page.
-      else if (dir === "left" && !active.closest("header")) focusNavbar();
       return;
     }
     next.el.focus({ preventScroll: true });
