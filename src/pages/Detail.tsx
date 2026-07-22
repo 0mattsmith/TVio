@@ -1,8 +1,7 @@
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Play, Plus, Check, ArrowLeft, Star, ExternalLink, EyeOff, Layers, Heart } from "lucide-react";
+import { Play, Plus, Check, ArrowLeft, Star, Layers, Heart } from "lucide-react";
 import { getDetail, getCollection } from "../services/catalog";
-import { resolveProviderUrl } from "../services/services";
 import type { MediaType, WatchProvider } from "../services/types";
 import { Button } from "../components/Button";
 import { PosterCard } from "../components/PosterCard";
@@ -33,7 +32,6 @@ export function Detail() {
   const inList = useAppStore((s) => s.inWatchlist(numId));
   const toggle = useAppStore((s) => s.toggleWatchlist);
   const showOfficial = useAppStore((s) => s.showOfficialSources);
-  const compact = useAppStore((s) => s.compactProviders);
   const toggleCollection = useAppStore((s) => s.toggleCollection);
   const followingCollection = useAppStore((s) => (data?.collectionId ? s.inCollections(data.collectionId) : false));
 
@@ -106,48 +104,28 @@ export function Detail() {
                 {inList ? <Check size={18} /> : <Plus size={18} />} {inList ? "In Watchlist" : "Watchlist"}
               </Button>
             </div>
+
+            {/* Where it's available — shown under Play for a quick glance, but
+                NOT clickable. Pressing Play opens Quick Watch, which lists the
+                same services as real, selectable ways to watch. */}
+            {showOfficial && (flatrate.length > 0 || buyRent.length > 0) && (
+              <div className="mt-5 space-y-2.5">
+                {flatrate.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">Available on</p>
+                    <ProviderTags items={flatrate} />
+                  </div>
+                )}
+                {buyRent.length > 0 && (
+                  <div>
+                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">Rent or buy</p>
+                    <ProviderTags items={buyRent} />
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Where to watch — last on TV, where the priority is Play then browse */}
-        <section className="order-5 mt-10">
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="text-xl font-bold">Ways to Watch</h2>
-            <button onClick={() => play(data)} className="focusable flex items-center gap-1.5 rounded-lg bg-accent px-3 py-1.5 text-sm font-bold text-black">
-              <Play size={15} fill="currentColor" /> Quick Watch
-            </button>
-          </div>
-
-          {!showOfficial ? (
-            <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-surface-2/50 px-4 py-3 text-sm text-muted">
-              <EyeOff size={16} className="shrink-0" />
-              <span>
-                Official streaming options are hidden. Use Quick Watch for your own sources, or turn them back on in{" "}
-                <button onClick={() => navigate("/settings")} className="text-accent hover:underline">Settings</button>.
-              </span>
-            </div>
-          ) : flatrate.length === 0 && buyRent.length === 0 ? (
-            <p className="text-sm text-muted">No official streaming availability found for your region.</p>
-          ) : (
-            <>
-              {flatrate.length > 0 && (
-                <div className="mb-4">
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Stream</p>
-                  <ProviderList items={flatrate} watchLink={data.watchLink} compact={compact} />
-                </div>
-              )}
-              {buyRent.length > 0 && (
-                <div>
-                  <p className="mb-2 text-xs font-bold uppercase tracking-wider text-muted">Rent or Buy</p>
-                  <ProviderList items={buyRent} watchLink={data.watchLink} compact={compact} />
-                </div>
-              )}
-              <p className="mt-3 text-xs text-muted">
-                Click a service to sign in and watch. Availability via TMDB / JustWatch for your region.
-              </p>
-            </>
-          )}
-        </section>
 
         {/* Episodes (TV) */}
         {mediaType === "tv" && data.seasonsList && data.seasonsList.length > 0 && (
@@ -250,61 +228,27 @@ export function Detail() {
   );
 }
 
-function ProviderList({
-  items,
-  watchLink,
-  compact,
-}: {
-  items: WatchProvider[];
-  watchLink: string | null;
-  compact?: boolean;
-}) {
+// Non-clickable availability chips (logo + name). The clickable, selectable
+// versions live in Quick Watch, opened by the Play button.
+function ProviderTags({ items }: { items: WatchProvider[] }) {
   return (
-    <div className="flex flex-wrap gap-3">
-      {items.map((p) => {
-        const url = resolveProviderUrl(p.name, watchLink);
-        if (compact) {
-          return (
-            <a
-              key={p.providerId + p.name}
-              href={url || "#"}
-              target="_blank"
-              rel="noopener noreferrer"
-              onClick={(e) => !url && e.preventDefault()}
-              className="focusable block h-11 w-11 overflow-hidden rounded-lg bg-surface-2 transition-transform hover:scale-105"
-              title={`Open ${p.name}`}
-              aria-label={p.name}
-            >
-              {p.logo ? (
-                <img src={p.logo} alt={p.name} className="h-full w-full object-cover" />
-              ) : (
-                <span className="flex h-full w-full items-center justify-center text-xs font-bold text-muted">
-                  {p.name.slice(0, 2)}
-                </span>
-              )}
-            </a>
-          );
-        }
-        return (
-          <a
-            key={p.providerId + p.name}
-            href={url || "#"}
-            target="_blank"
-            rel="noopener noreferrer"
-            onClick={(e) => !url && e.preventDefault()}
-            className="focusable group flex items-center gap-2 rounded-lg bg-surface-2 px-3 py-2 transition-colors hover:bg-white/10"
-            title={`Open ${p.name}`}
-          >
-            {p.logo ? (
-              <img src={p.logo} alt={p.name} className="h-8 w-8 rounded" />
-            ) : (
-              <span className="h-8 w-8 rounded bg-white/5" />
-            )}
-            <span className="text-sm font-semibold">{p.name}</span>
-            <ExternalLink size={14} className="text-muted group-hover:text-accent" />
-          </a>
-        );
-      })}
+    <div className="flex flex-wrap gap-2">
+      {items.map((p) => (
+        <div
+          key={p.providerId + p.name}
+          title={p.name}
+          className="flex items-center gap-2 rounded-lg bg-surface-2 px-2.5 py-1.5"
+        >
+          {p.logo ? (
+            <img src={p.logo} alt={p.name} className="h-6 w-6 rounded" />
+          ) : (
+            <span className="flex h-6 w-6 items-center justify-center rounded bg-white/5 text-[10px] font-bold text-muted">
+              {p.name.slice(0, 2)}
+            </span>
+          )}
+          <span className="text-xs font-semibold text-white/85">{p.name}</span>
+        </div>
+      ))}
     </div>
   );
 }

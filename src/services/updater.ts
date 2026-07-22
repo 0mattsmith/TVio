@@ -198,7 +198,18 @@ function apkUpdater(): ApkUpdaterPlugin | null {
   return (cap?.Plugins?.ApkUpdater as ApkUpdaterPlugin) ?? null;
 }
 
-/** Downloads the APK, then hands it to Android's installer (which prompts). */
+/**
+ * Downloads the APK, then hands it to Android's installer (which prompts).
+ *
+ * Deliberately does NOT pre-check the "install unknown apps" permission. That
+ * check (canRequestPackageInstalls) reads false even when the permission is
+ * granted on some devices — Android TV especially — which made TVio open the
+ * settings screen on every single update. And opening that screen backgrounds
+ * the app, so the follow-up install intent was blocked (Android 10+), forcing a
+ * second press and a re-download. Firing the install intent straight from the
+ * foreground button press lets the OS use the REAL permission state: it prompts
+ * inline only the first time, then installs in one press ever after.
+ */
 export async function installApk(url: string, onProgress?: (pct: number) => void): Promise<void> {
   const plugin = apkUpdater();
   if (!plugin) {
@@ -208,8 +219,6 @@ export async function installApk(url: string, onProgress?: (pct: number) => void
   let sub: { remove: () => void } | undefined;
   try {
     if (onProgress) sub = await plugin.addListener("downloadProgress", (d) => onProgress(d.progress));
-    const { allowed } = await plugin.canInstall();
-    if (!allowed) await plugin.openInstallSettings();
     await plugin.downloadAndInstall({ url });
   } catch {
     window.open(url, "_blank");

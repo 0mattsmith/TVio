@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, RefreshCw, Check, Loader2, AlertCircle, RotateCw, Sparkles } from "lucide-react";
 import { Button } from "./Button";
 import {
@@ -35,6 +35,7 @@ export function UpdateSection() {
   const [android, setAndroid] = useState<UpdateInfo | null>(null);
   const [webReady, setWebReady] = useState(false);
   const [whatsNew, setWhatsNew] = useState<string[]>([]);
+  const actionsRef = useRef<HTMLDivElement>(null);
 
   // Notes for the version currently installed — shown whether or not there's an
   // update, so "what did the last update change?" is always answerable.
@@ -47,6 +48,15 @@ export function UpdateSection() {
       active = false;
     };
   }, []);
+
+  // When an action becomes available (Install / Reload), move focus onto it so a
+  // D-pad user can act at once — the button swap from "Check…" to "Install" drops
+  // focus, so the first OK press was hitting nothing.
+  useEffect(() => {
+    if (status !== "ready") return;
+    const raf = requestAnimationFrame(() => actionsRef.current?.querySelector<HTMLElement>("button")?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [status]);
 
   const fail = (e: unknown) => {
     setError(e instanceof Error ? e.message : "Couldn't check for updates.");
@@ -104,7 +114,8 @@ export function UpdateSection() {
         setNotice("Update installed. Close TVio and reopen it to finish.");
       } else if (channel === "android" && android?.apkUrl) {
         // Straight to "Downloading…" (skip the "Installing…" flash) so the tap
-        // gives immediate, correctly-labelled feedback that it's working.
+        // gives immediate feedback. The OS handles the "install unknown apps"
+        // permission inline the first time, then it's one press ever after.
         setStatus("downloading");
         await installApk(android.apkUrl, setPct);
         setStatus("ready");
@@ -144,7 +155,7 @@ export function UpdateSection() {
         <RotateCw size={18} /> About &amp; updates
       </h2>
 
-      <div className="mt-4 flex flex-wrap items-center justify-between gap-4">
+      <div ref={actionsRef} className="mt-4 flex flex-wrap items-center justify-between gap-4">
         <div className="min-w-0">
           <div className="text-sm font-semibold">{version}</div>
           <p className="mt-0.5 text-xs text-muted">{caption}</p>

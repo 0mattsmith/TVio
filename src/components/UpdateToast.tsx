@@ -1,11 +1,11 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Download, X, Loader2 } from "lucide-react";
 import { checkAndroidUpdate, installApk, type UpdateInfo } from "../services/updater";
 import { useIsTV } from "../hooks/useDeviceProfile";
 
-// Android / Android TV only: downloads the APK in the background, then hands it
-// to Android's installer (which always shows its own confirmation for sideloaded
-// apps — plus a one-time "install unknown apps" toggle).
+// Android / Android TV only: a small prompt when a newer APK is available.
+// Tapping Install grabs the "install unknown apps" permission if needed (once),
+// then downloads and hands the APK to Android's installer for confirmation.
 //
 // Desktop is handled by UpdateGate at launch instead, so an update never
 // interrupts a session that's already running.
@@ -14,21 +14,15 @@ export function UpdateToast() {
   const [progress, setProgress] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(false);
   const isTV = useIsTV();
+  const installRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     let active = true;
-    // Small delay so updating never competes with first paint.
+    // Small delay so the check never competes with first paint.
     const t = setTimeout(() => {
       checkAndroidUpdate(__APP_VERSION__)
         .then((info) => {
-          if (!active || !info?.apkUrl) return;
-          setUpdate(info);
-          // Start fetching straight away — by the time the user looks, the only
-          // thing left is confirming the install.
-          setProgress(0);
-          installApk(info.apkUrl, (pct) => active && setProgress(pct)).finally(() => {
-            if (active) setProgress(100);
-          });
+          if (active && info?.apkUrl) setUpdate(info);
         })
         .catch(() => {});
     }, 4000);
@@ -38,8 +32,24 @@ export function UpdateToast() {
     };
   }, []);
 
-  if (!update || dismissed) return null;
   const downloading = progress !== null && progress < 100;
+
+  // On a TV, bring focus to Install when the prompt appears, so the remote can
+  // act (install or dismiss) without hunting for the button.
+  useEffect(() => {
+    if (!isTV || !update || dismissed || downloading) return;
+    const raf = requestAnimationFrame(() => installRef.current?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [isTV, update, dismissed, downloading]);
+
+  if (!update || dismissed) return null;
+
+  const install = async () => {
+    if (!update.apkUrl) return;
+    setProgress(0);
+    await installApk(update.apkUrl, setProgress);
+    setProgress(100);
+  };
 
   return (
     <div className="fixed bottom-4 right-4 z-[70] w-80 max-w-[calc(100vw-2rem)] animate-row-in">
@@ -52,13 +62,11 @@ export function UpdateToast() {
             <div className="mt-0.5 text-sm font-bold">TVio {update.version}</div>
             <p className="mt-1 text-xs text-muted">
               {downloading
-                ? "Fetching in the background — you can keep watching."
-                : "Confirm the install when Android asks."}
+                ? "Confirm the install when Android asks."
+                : "Install the new version now, or later."}
             </p>
           </div>
-          {/* A corner X is a poor D-pad target; TV uses a reachable "Later"
-              button below instead. */}
-          {!isTV && (
+          {!isTV && !downloading && (
             <button onClick={() => setDismissed(true)} className="focusable text-muted hover:text-white" aria-label="Dismiss">
               <X size={16} />
             </button>
@@ -77,19 +85,18 @@ export function UpdateToast() {
         ) : (
           <div className="mt-3 flex gap-2">
             <button
-              onClick={() => update.apkUrl && installApk(update.apkUrl, setProgress)}
+              ref={installRef}
+              onClick={install}
               className="focusable flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent py-2.5 text-sm font-bold text-black"
             >
               <Download size={15} /> Install now
             </button>
-            {isTV && (
-              <button
-                onClick={() => setDismissed(true)}
-                className="focusable rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20"
-              >
-                Later
-              </button>
-            )}
+            <button
+              onClick={() => setDismissed(true)}
+              className="focusable rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20"
+            >
+              Later
+            </button>
           </div>
         )}
       </div>

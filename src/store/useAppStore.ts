@@ -122,6 +122,11 @@ interface AppState {
   lastWatchlistAdd: { item: MediaItem; at: number } | null;
   clearWatchlistAdd: () => void;
 
+  // Contextual navbar branding — the sub-brand currently open (e.g. WWE) so the
+  // navbar can show it beside the TVio mark. Transient (not persisted).
+  activeBrand: { key: string; name: string } | null;
+  setActiveBrand: (b: { key: string; name: string } | null) => void;
+
   // Followed film series (of the ACTIVE profile)
   collections: FavCollection[];
   inCollections: (id: number) => boolean;
@@ -331,6 +336,9 @@ export const useAppStore = create<AppState>()(
       isWatched: (id) => get().watched.some((w) => w.id === id),
       isEpisodeWatched: (seriesId, season, episode) =>
         get().watchedEpisodes.includes(`${seriesId}:${season}:${episode}`),
+
+      activeBrand: null,
+      setActiveBrand: (b) => set({ activeBrand: b }),
 
       addons: [BUILTIN_ADDON],
       addAddon: (url, kind = "addon", name, sync = true) =>

@@ -90,6 +90,7 @@ export function pickBest<T extends { box: Box }>(from: Box, candidates: T[], dir
   let alignedTravel = Infinity;
   let offset: T | null = null;
   let offsetScore = Infinity;
+  let offsetTravel = Infinity;
 
   for (const candidate of candidates) {
     const m = measure(from, candidate.box, dir);
@@ -103,9 +104,15 @@ export function pickBest<T extends { box: Box }>(from: Box, candidates: T[], dir
     } else if (m.travel + m.gap * 4 < offsetScore) {
       offsetScore = m.travel + m.gap * 4;
       offset = candidate;
+      offsetTravel = m.travel;
     }
   }
 
+  // Prefer an aligned candidate — UNLESS an offset one sits in a clearly nearer
+  // row (much less travel). Without this a lone offset poster one row away is
+  // skipped in favour of an aligned poster two rows away, so a short row (e.g.
+  // a single "My Film Series" tile) gets jumped clean over.
+  if (aligned && offset && offsetTravel < alignedTravel * 0.5) return offset;
   return aligned ?? offset;
 }
 

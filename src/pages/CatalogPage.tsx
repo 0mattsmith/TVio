@@ -57,6 +57,7 @@ export function CatalogPage({ type }: { type: MediaType }) {
   const enabled = useAppStore((s) => s.enabledServices);
   const toggleService = useAppStore((s) => s.toggleService);
   const setAllServices = useAppStore((s) => s.setAllServices);
+  const setActiveBrand = useAppStore((s) => s.setActiveBrand);
   const [genre, setGenre] = useState<number | undefined>(undefined);
   const isTV = useIsTV();
   const isMobile = useDeviceProfile() === "mobile";
@@ -98,6 +99,13 @@ export function CatalogPage({ type }: { type: MediaType }) {
 
   // Selecting a different service shouldn't leave a stale brand filter behind.
   useEffect(() => setBrand(undefined), [soleService?.key, type]);
+
+  // Surface the open sub-brand (e.g. WWE) to the navbar, and clear it on the way
+  // out so the badge doesn't linger on other pages.
+  useEffect(() => {
+    setActiveBrand(brand ? { key: brand.key, name: brand.name } : null);
+    return () => setActiveBrand(null);
+  }, [brand, setActiveBrand]);
 
   // On TV, land on the top suggestion when arriving at a catalog page. Without
   // this, focus lingered on wherever it was on the previous screen and the

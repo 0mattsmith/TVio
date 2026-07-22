@@ -15,6 +15,7 @@ export function Navbar() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const iptvEnabled = useAppStore((s) => s.iptvEnabled);
+  const activeBrand = useAppStore((s) => s.activeBrand);
   const profiles = useAppStore((s) => s.profiles);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
@@ -38,13 +39,21 @@ export function Navbar() {
       }`}
     >
       <nav className="mx-auto flex h-16 items-center px-4 sm:px-8">
-        {/* Left: wordmark */}
-        <div className="flex flex-1 items-center">
+        {/* Left: wordmark + the open sub-brand (e.g. WWE) beside it */}
+        <div className="flex flex-1 items-center gap-2 sm:gap-3">
           {/* Not a focus stop on a remote — it only goes Home, and the navbar
               already has a Home link a press away. */}
           <button data-spatial-skip onClick={() => navigate("/")} className="focusable rounded" aria-label="Home">
             <Logo />
           </button>
+          {activeBrand && (
+            <>
+              <span className="h-5 w-px shrink-0 bg-white/25" />
+              <span className="whitespace-nowrap text-base font-black uppercase tracking-tight text-accent sm:text-lg">
+                {activeBrand.name}
+              </span>
+            </>
+          )}
         </div>
 
         {/* Center: search + primary tabs */}

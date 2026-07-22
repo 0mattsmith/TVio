@@ -68,6 +68,15 @@ export function Player() {
     queryFn: () => getDetail((type || "movie") as MediaType, Number(id)),
   });
 
+  // Keep the latest detail + episode in refs. The native-playback effect below
+  // runs once (before this detail query resolves) and its async result handler
+  // would otherwise close over a stale, undefined `data`/`epRef` — which meant
+  // nothing landed in Continue Watching and the next episode was never queued.
+  const dataRef = useRef(data);
+  dataRef.current = data;
+  const epRefRef = useRef(epRef);
+  epRefRef.current = epRef;
+
   // Next-episode autoplay. When an episode finishes we advance Continue
   // Watching to the next one and offer to play it; picking Yes resolves a
   // stream for it and remounts the player on the new episode.
@@ -96,8 +105,9 @@ export function Player() {
   // Reopen Quick Watch on the same title/episode so the user can pick another
   // source — used by both the "can't play" and the "stuck" overlays.
   const tryAnotherSource = () => {
-    if (data) {
-      openQuickWatch(data, epRef);
+    const d = dataRef.current;
+    if (d) {
+      openQuickWatch(d, epRefRef.current);
       navigate(`/title/${type}/${id}`, { replace: true });
     } else {
       navigate(-1);
@@ -107,13 +117,15 @@ export function Player() {
   useEffect(() => () => window.clearTimeout(stallTimer.current), []);
 
   const onEpisodeFinished = (): boolean => {
-    if (!data || !epRef || type !== "tv") return false;
+    const d = dataRef.current;
+    const ep = epRefRef.current;
+    if (!d || !ep || type !== "tv") return false;
     // The episode that just finished is now watched (green tick in the browser).
-    markWatched(data, epRef);
-    const next = computeNextEpisode(data.seasonsList, epRef.season, epRef.episode);
+    markWatched(d, ep);
+    const next = computeNextEpisode(d.seasonsList, ep.season, ep.episode);
     if (!next) return false;
     // Advance the Continue Watching entry to the next episode, ready to watch.
-    setProgress(data, 0, 0, next);
+    setProgress(d, 0, 0, next);
     setPendingNext(next);
     return true;
   };
@@ -171,10 +183,10 @@ export function Player() {
         // Finished an episode → advance Continue Watching and offer the next.
         if (finished) {
           if (onEpisodeFinished()) return; // prompt stays on screen
-          if (type !== "tv" && data) markWatched(data); // film finished → watched
+          if (type !== "tv" && dataRef.current) markWatched(dataRef.current); // film finished → watched
         }
-        if (data && res.durationMs > 0) {
-          setProgress(data, res.positionMs / 1000, res.durationMs / 1000, epRef);
+        if (dataRef.current && res.durationMs > 0) {
+          setProgress(dataRef.current, res.positionMs / 1000, res.durationMs / 1000, epRefRef.current);
         }
         navigate(-1);
       } catch {
