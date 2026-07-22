@@ -33,6 +33,10 @@ jobs:
           name: TVio ${{ github.ref_name }}
           draft: false
           prerelease: true
+          # Appends a "What's Changed" list from the commits since the last
+          # release, which is what the in-app "What's new" card reads and
+          # cleans up. Far more useful than the fixed boilerplate alone.
+          generate_release_notes: true
           body: |
             Automated TVio build.
 

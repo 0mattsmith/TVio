@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Download, RefreshCw, Check, Loader2, AlertCircle, RotateCw } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Download, RefreshCw, Check, Loader2, AlertCircle, RotateCw, Sparkles } from "lucide-react";
 import { Button } from "./Button";
 import {
   updateChannel,
@@ -8,9 +8,11 @@ import {
   installDesktopUpdate,
   checkAndroidUpdate,
   installApk,
+  fetchReleaseNotes,
   type DesktopUpdate,
   type UpdateInfo,
 } from "../services/updater";
+import { cleanReleaseNotes } from "../services/releaseNotes";
 import { isNativeShell, hasNativePlayback } from "../platform/capabilities";
 
 type Status = "idle" | "checking" | "current" | "downloading" | "ready" | "installing" | "error";
@@ -32,6 +34,19 @@ export function UpdateSection() {
   const [desktop, setDesktop] = useState<DesktopUpdate | null>(null);
   const [android, setAndroid] = useState<UpdateInfo | null>(null);
   const [webReady, setWebReady] = useState(false);
+  const [whatsNew, setWhatsNew] = useState<string[]>([]);
+
+  // Notes for the version currently installed — shown whether or not there's an
+  // update, so "what did the last update change?" is always answerable.
+  useEffect(() => {
+    let active = true;
+    fetchReleaseNotes(__APP_VERSION__).then((body) => {
+      if (active) setWhatsNew(cleanReleaseNotes(body));
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const fail = (e: unknown) => {
     setError(e instanceof Error ? e.message : "Couldn't check for updates.");
@@ -183,6 +198,24 @@ export function UpdateSection() {
           <AlertCircle size={15} className="mt-0.5 shrink-0" />
           {error}
         </p>
+      )}
+
+      {/* What changed in the version you're running — the same notes the
+          post-update card shows, always available here too. */}
+      {whatsNew.length > 0 && (
+        <div className="mt-5 border-t border-white/5 pt-4">
+          <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-accent">
+            <Sparkles size={13} /> What's new in {__APP_VERSION__}
+          </div>
+          <ul className="mt-2 space-y-1">
+            {whatsNew.map((l, i) => (
+              <li key={i} className="flex gap-2 text-sm text-white/80">
+                <span className="text-accent">•</span>
+                <span>{l}</span>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </section>
   );
