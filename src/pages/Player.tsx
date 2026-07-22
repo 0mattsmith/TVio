@@ -11,6 +11,8 @@ import { useIsTV } from "../hooks/useDeviceProfile";
 import { hasNativePlayback } from "../platform/capabilities";
 import { exoPlayerAvailable, playNative } from "../services/exoPlayer";
 import { registerBackInterceptor } from "../platform/backButton";
+import { computeNextEpisode, resolveEpisodeStream, type EpisodeRef } from "../services/nextEpisode";
+import { isHttpAddon } from "../addons/manager";
 import { prepareStream, stopStream, waitForPlaylist } from "../services/nativePlayer";
 
 // Big Buck Bunny — royalty-free sample so the player is usable before addon
@@ -65,6 +67,50 @@ export function Player() {
     queryFn: () => getDetail((type || "movie") as MediaType, Number(id)),
   });
 
+  // Next-episode autoplay. When an episode finishes we advance Continue
+  // Watching to the next one and offer to play it; picking Yes resolves a
+  // stream for it and remounts the player on the new episode.
+  const [pendingNext, setPendingNext] = useState<EpisodeRef | null>(null);
+  const [loadingNext, setLoadingNext] = useState(false);
+
+  const onEpisodeFinished = (): boolean => {
+    if (!data || !epRef || type !== "tv") return false;
+    const next = computeNextEpisode(data.seasonsList, epRef.season, epRef.episode);
+    if (!next) return false;
+    // Advance the Continue Watching entry to the next episode, ready to watch.
+    setProgress(data, 0, 0, next);
+    setPendingNext(next);
+    return true;
+  };
+
+  const toDetail = () => navigate(`/title/${type}/${id}`, { replace: true });
+
+  const playNext = async () => {
+    if (!pendingNext || !data?.imdbId) return toDetail();
+    setLoadingNext(true);
+    const addons = useAppStore
+      .getState()
+      .addons.filter((a) => a.enabled && isHttpAddon(a.url));
+    const found = await resolveEpisodeStream({
+      addons,
+      imdbId: data.imdbId,
+      ref: pendingNext,
+      expect: { title: data.title, year: data.year ? Number(data.year) : undefined },
+      native: nativeVideo || hasNativePlayback(),
+    });
+    setLoadingNext(false);
+    if (found) {
+      navigate(`/watch/${type}/${id}?s=${pendingNext.season}&e=${pendingNext.episode}`, {
+        state: { url: found.url, name: found.name },
+        replace: true,
+      });
+    } else {
+      // Nothing clean found for the next episode — drop the user on the show
+      // page to choose a source themselves rather than autoplay a wrong file.
+      toDetail();
+    }
+  };
+
   // Android native playback: hand the stream to the ExoPlayer activity, which
   // decodes AC3/HEVC/MKV the WebView can't, then save the returned position and
   // go back. Replaces the <video> path entirely on Android.
@@ -83,20 +129,23 @@ export function Player() {
           filename: st?.filename,
           sizeBytes: st?.size,
         });
-        if (!cancelled && data && res.durationMs > 0) {
+        if (cancelled) return;
+        const finished = res.durationMs > 0 && res.positionMs >= res.durationMs * 0.9;
+        // Finished an episode → advance Continue Watching and offer the next.
+        if (finished && onEpisodeFinished()) return; // prompt stays on screen
+        if (data && res.durationMs > 0) {
           setProgress(data, res.positionMs / 1000, res.durationMs / 1000, epRef);
         }
+        navigate(-1);
       } catch {
-        /* nothing to fall back to on Android — just leave the player */
-      } finally {
-        if (!cancelled) navigate(-1);
+        if (!cancelled) navigate(-1); // nothing to fall back to on Android
       }
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nativeVideo, streamUrl]);
+  }, [nativeVideo, streamUrl, data]);
 
   // persist progress to Continue Watching (web/desktop <video> only)
   useEffect(() => {
@@ -239,6 +288,9 @@ export function Player() {
         className="h-full w-full object-contain"
         onLoadedMetadata={(e) => setDuration(e.currentTarget.duration)}
         onTimeUpdate={(e) => setTime(e.currentTarget.currentTime)}
+        onEnded={() => {
+          if (!onEpisodeFinished()) toDetail(); // no next episode → back to the show
+        }}
         onError={(e) => {
           // Ignore aborts that happen while swapping the source.
           const err = e.currentTarget.error;
@@ -371,6 +423,34 @@ export function Player() {
           </div>
         </div>
       </div>
+
+      {/* Episode finished — offer the next one. */}
+      {pendingNext && (
+        <div className="absolute bottom-6 right-6 z-40 w-64 animate-row-in rounded-xl border border-white/15 bg-black/90 p-4 shadow-card backdrop-blur">
+          <div className="text-[11px] font-bold uppercase tracking-wider text-accent">Up next</div>
+          <div className="mt-0.5 text-sm font-bold">
+            Play S{pendingNext.season} · E{pendingNext.episode}?
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={playNext}
+              disabled={loadingNext}
+              autoFocus
+              className="focusable flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-accent py-2 text-sm font-bold text-black"
+            >
+              {loadingNext ? <Loader2 size={14} className="animate-spin" /> : <Play size={14} fill="currentColor" />}
+              {loadingNext ? "Finding…" : "Yes"}
+            </button>
+            <button
+              onClick={toDetail}
+              disabled={loadingNext}
+              className="focusable rounded-lg bg-white/10 px-4 py-2 text-sm font-semibold hover:bg-white/20"
+            >
+              No
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Shown when Back is pressed with the controls already hidden — a second
           Back within a few seconds actually leaves the stream. */}

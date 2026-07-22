@@ -165,6 +165,30 @@ const RANK: Record<MatchVerdict, number> = { match: 0, uncertain: 1, mismatch: 2
 
 const MB = 1_000_000;
 
+// Release-name tags that signal a foreign-language audio track…
+const FOREIGN_AUDIO =
+  /\b(french|truefrench|vostfr|vff?|vfq|vo|german|deutsch|italian|ita|spanish|espanol|castellano|latino|korean|japanese|hindi|tamil|telugu|russian|polish|portuguese|dublado|legendado|nordic|swedish|danish|norwegian|dutch|turkish|thai)\b/i;
+// …and tags that mean English is present anyway (multi-track, or explicit).
+const ENGLISH_AUDIO = /\b(english|eng|multi|dual[ .-]?audio|dual)\b/i;
+
+/**
+ * Judges a release name's audio language against the preferred one.
+ *
+ * The audio codec isn't in the metadata, but the language usually is in the
+ * name. A name that flags a foreign language and nothing English is very likely
+ * a foreign dub — pushed down (or hidden by the caller). Anything that mentions
+ * English, is multi-track, or carries no language tag at all is left alone,
+ * since untagged releases are overwhelmingly English.
+ *
+ * Only filters when English is preferred; other preferences pass through until
+ * we build out per-language matching.
+ */
+export function matchAudioLanguage(name: string, preferred = "en"): MatchVerdict {
+  if (preferred !== "en") return "match";
+  if (ENGLISH_AUDIO.test(name)) return "match";
+  return FOREIGN_AUDIO.test(name) ? "mismatch" : "match";
+}
+
 /**
  * Is the file large enough to plausibly contain this runtime of video?
  *
@@ -193,12 +217,14 @@ export interface StreamExpectation {
   episode?: number;
   /** TMDB runtime in minutes — enables the file-size plausibility check. */
   runtimeMin?: number;
+  /** Preferred audio language (ISO 639-1) — flags foreign-dub releases. */
+  preferredLang?: string;
 }
 
 export interface StreamCheck {
   verdict: MatchVerdict;
   /** Which dimension pulled the verdict down — for the badge label. */
-  reason: "title" | "year" | "episode" | "size" | null;
+  reason: "title" | "year" | "episode" | "size" | "language" | null;
 }
 
 /**
@@ -212,6 +238,7 @@ export function checkStream(name: string, expect: StreamExpectation, sizeBytes?:
     { reason: "episode", verdict: matchEpisode(name, expect.season, expect.episode) },
     { reason: "year", verdict: matchYear(name, expect.year) },
     { reason: "size", verdict: plausibleSize(sizeBytes, expect.runtimeMin) },
+    { reason: "language", verdict: matchAudioLanguage(name, expect.preferredLang ?? "en") },
   ];
   let verdict: MatchVerdict = "match";
   let reason: StreamCheck["reason"] = null;

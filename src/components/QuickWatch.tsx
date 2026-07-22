@@ -185,6 +185,7 @@ export function QuickWatch() {
                       season: episode?.season,
                       episode: episode?.episode,
                       runtimeMin: data?.runtime ?? undefined,
+                      preferredLang: useAppStore.getState().preferredAudioLang || "en",
                     }}
                     episode={episode || undefined}
                     native={native}
@@ -274,6 +275,7 @@ function badgeLabel(verdict: MatchVerdict | undefined, reason: StreamCheck["reas
   if (reason === "episode") return soft ? "Check episode" : "Wrong episode?";
   if (reason === "year") return soft ? "Check year" : "Wrong year?";
   if (reason === "size") return soft ? "Small file" : "Too small — sample?";
+  if (reason === "language") return soft ? "Language?" : "Not English?";
   return soft ? "Check title" : "Different title?";
 }
 

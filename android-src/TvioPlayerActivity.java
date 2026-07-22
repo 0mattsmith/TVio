@@ -17,6 +17,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
@@ -113,6 +114,18 @@ public class TvioPlayerActivity extends Activity {
         }
         player.setPlayWhenReady(true);
         player.prepare();
+
+        // When the episode ends, close automatically and report the final
+        // position — the web layer then advances Continue Watching and offers
+        // the next episode, rather than the user staring at a paused end frame.
+        player.addListener(new Player.Listener() {
+            @Override
+            public void onPlaybackStateChanged(int state) {
+                if (state == Player.STATE_ENDED && !isFinishing()) {
+                    reportAndFinish();
+                }
+            }
+        });
 
         addOverlayControls();
     }
