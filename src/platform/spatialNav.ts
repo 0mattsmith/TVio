@@ -215,7 +215,10 @@ export function installSpatialNav(): () => void {
     // start grabs something instead of doing nothing.
     if (!active || active === document.body || (overlay && !overlay.contains(active))) {
       e.preventDefault();
-      candidates[0].el.focus();
+      // Don't let a top-left Back button be the first thing focused when a page
+      // is entered cold — prefer the first real content control.
+      const first = candidates.find((c) => !c.el.closest("[data-back]")) ?? candidates[0];
+      first.el.focus();
       return;
     }
 

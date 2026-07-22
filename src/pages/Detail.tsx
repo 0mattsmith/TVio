@@ -59,6 +59,7 @@ export function Detail() {
         <div className="absolute inset-0 hero-fade" />
         <div className="absolute inset-0 hero-fade-left" />
         <button
+          data-back
           onClick={() => navigate(-1)}
           className="focusable absolute left-4 top-20 flex items-center gap-2 rounded-full bg-black/50 px-4 py-2 text-sm font-semibold backdrop-blur sm:left-8"
         >
@@ -109,7 +110,7 @@ export function Detail() {
                 NOT clickable. Pressing Play opens Quick Watch, which lists the
                 same services as real, selectable ways to watch. */}
             {showOfficial && (flatrate.length > 0 || buyRent.length > 0) && (
-              <div className="mt-5 space-y-2.5">
+              <div className="mt-5 flex flex-wrap gap-x-8 gap-y-4">
                 {flatrate.length > 0 && (
                   <div>
                     <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">Available on</p>
@@ -228,8 +229,8 @@ export function Detail() {
   );
 }
 
-// Non-clickable availability chips (logo + name). The clickable, selectable
-// versions live in Quick Watch, opened by the Play button.
+// Non-clickable availability icons (logo only; name in the tooltip). The
+// clickable, selectable versions live in Quick Watch, opened by the Play button.
 function ProviderTags({ items }: { items: WatchProvider[] }) {
   return (
     <div className="flex flex-wrap gap-2">
@@ -237,16 +238,16 @@ function ProviderTags({ items }: { items: WatchProvider[] }) {
         <div
           key={p.providerId + p.name}
           title={p.name}
-          className="flex items-center gap-2 rounded-lg bg-surface-2 px-2.5 py-1.5"
+          aria-label={p.name}
+          className="h-9 w-9 overflow-hidden rounded-lg bg-surface-2"
         >
           {p.logo ? (
-            <img src={p.logo} alt={p.name} className="h-6 w-6 rounded" />
+            <img src={p.logo} alt={p.name} className="h-full w-full object-cover" />
           ) : (
-            <span className="flex h-6 w-6 items-center justify-center rounded bg-white/5 text-[10px] font-bold text-muted">
+            <span className="flex h-full w-full items-center justify-center text-[10px] font-bold text-muted">
               {p.name.slice(0, 2)}
             </span>
           )}
-          <span className="text-xs font-semibold text-white/85">{p.name}</span>
         </div>
       ))}
     </div>

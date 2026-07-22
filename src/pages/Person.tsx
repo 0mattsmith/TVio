@@ -17,6 +17,7 @@ export function Person() {
   return (
     <div className="animate-fade-in px-4 pt-24 sm:px-8">
       <button
+        data-back
         onClick={() => navigate(-1)}
         className="focusable mb-6 flex items-center gap-2 rounded-full bg-surface-2 px-4 py-2 text-sm font-semibold"
       >

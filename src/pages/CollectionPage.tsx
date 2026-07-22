@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Heart, Layers, Play } from "lucide-react";
@@ -6,6 +7,7 @@ import { PosterCard } from "../components/PosterCard";
 import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
 import { usePlay } from "../hooks/usePlay";
+import { useIsTV } from "../hooks/useDeviceProfile";
 
 /** A film series (Star Wars, Halloween, Scream…) listed in release order. */
 export function CollectionPage() {
@@ -22,6 +24,16 @@ export function CollectionPage() {
   const following = useAppStore((s) => s.inCollections(collectionId));
   const toggleCollection = useAppStore((s) => s.toggleCollection);
 
+  // On a TV, land on the first film rather than the Back button when the page
+  // opens — the films are the point of a series page.
+  const isTV = useIsTV();
+  const filmsRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isTV || !data) return;
+    const raf = requestAnimationFrame(() => filmsRef.current?.querySelector<HTMLElement>(".focusable")?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [isTV, data]);
+
   if (isLoading || !data) return <div className="skeleton h-screen w-full" />;
 
   return (
@@ -32,6 +44,7 @@ export function CollectionPage() {
         <div className="absolute inset-0 hero-fade" />
         <div className="absolute inset-0 hero-fade-left" />
         <button
+          data-back
           onClick={() => navigate(-1)}
           className="focusable absolute left-4 top-20 flex items-center gap-2 rounded-full bg-black/50 px-4 py-2 text-sm font-semibold backdrop-blur sm:left-8"
         >
@@ -76,7 +89,7 @@ export function CollectionPage() {
         {/* Films, numbered in release order */}
         <section className="mb-16 mt-10">
           <h2 className="mb-3 text-xl font-bold">All films</h2>
-          <div className="flex flex-wrap gap-2.5">
+          <div ref={filmsRef} className="flex flex-wrap gap-2.5">
             {data.parts.map((film, i) => (
               <div key={film.id} className="relative">
                 <span className="absolute -left-1 -top-1 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-accent text-xs font-black text-black">
