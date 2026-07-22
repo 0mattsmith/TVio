@@ -4,10 +4,15 @@ import { Play, Star } from "lucide-react";
 import { getSeason } from "../services/catalog";
 import type { SeasonSummary, MediaItem } from "../services/types";
 import { usePlay } from "../hooks/usePlay";
+import { defaultSeason } from "../services/nextEpisode";
+import { useAppStore } from "../store/useAppStore";
 
 export function SeasonBrowser({ series, seasons }: { series: MediaItem; seasons: SeasonSummary[] }) {
   const play = usePlay();
-  const [sel, setSel] = useState(seasons[0]?.seasonNumber ?? 1);
+  // Open on the season you're partway through, else the first real season —
+  // never "Specials" (season 0) by default.
+  const inProgressSeason = useAppStore.getState().progress.find((p) => p.id === series.id)?.season;
+  const [sel, setSel] = useState(() => defaultSeason(seasons, inProgressSeason));
 
   const { data, isLoading } = useQuery({
     queryKey: ["season", series.id, sel],

@@ -7,7 +7,7 @@ import { useDeviceProfile } from "../hooks/useDeviceProfile";
 
 const BASE_TABS = [
   { to: "/", label: "Home", icon: Home, end: true },
-  { to: "/series", label: "TV Series", icon: Tv, end: false },
+  { to: "/series", label: "TV Shows", icon: Tv, end: false },
   { to: "/movies", label: "Movies", icon: Clapperboard, end: false },
 ];
 

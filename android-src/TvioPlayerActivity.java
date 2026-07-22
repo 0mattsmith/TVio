@@ -17,6 +17,7 @@ import androidx.media3.common.C;
 import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
+import androidx.media3.common.PlaybackParameters;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
@@ -179,8 +180,9 @@ public class TvioPlayerActivity extends Activity {
         lp.setMargins(0, margin, margin, 0);
         overlayControls.setLayoutParams(lp);
 
-        overlayControls.addView(iconButton(android.R.drawable.ic_lock_silent_mode_off, v -> showAudioTracks()));
-        overlayControls.addView(iconButton(android.R.drawable.ic_menu_info_details, v -> showStreamInfo()));
+        // One settings gear rather than a row of icons — it opens a menu with
+        // Speed, Audio and Info, which is where players usually put these.
+        overlayControls.addView(iconButton(android.R.drawable.ic_menu_preferences, v -> showSettingsMenu()));
         overlay.addView(overlayControls);
 
         // Hide/show the row in lockstep with the player controls.
@@ -204,6 +206,38 @@ public class TvioPlayerActivity extends Activity {
 
     private int px(int dp) {
         return (int) (dp * getResources().getDisplayMetrics().density);
+    }
+
+    /** The gear menu: Speed, Audio, Info. */
+    private void showSettingsMenu() {
+        if (player == null) return;
+        String[] items = {"Playback speed", "Audio track", "Stream info"};
+        new AlertDialog.Builder(this)
+                .setItems(items, (dialog, which) -> {
+                    if (which == 0) showSpeedMenu();
+                    else if (which == 1) showAudioTracks();
+                    else showStreamInfo();
+                })
+                .show();
+    }
+
+    private static final float[] SPEEDS = {0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f};
+
+    private void showSpeedMenu() {
+        if (player == null) return;
+        String[] labels = {"0.5x", "0.75x", "Normal", "1.25x", "1.5x", "2x"};
+        float current = player.getPlaybackParameters().speed;
+        int checked = 2; // Normal
+        for (int i = 0; i < SPEEDS.length; i++) {
+            if (Math.abs(SPEEDS[i] - current) < 0.01f) checked = i;
+        }
+        new AlertDialog.Builder(this)
+                .setTitle("Playback speed")
+                .setSingleChoiceItems(labels, checked, (dialog, which) -> {
+                    player.setPlaybackParameters(new PlaybackParameters(SPEEDS[which]));
+                    dialog.dismiss();
+                })
+                .show();
     }
 
     private void showAudioTracks() {

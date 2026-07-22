@@ -204,7 +204,12 @@ export function installSpatialNav(): () => void {
     // page out from under the highlight, which is the thing that makes a remote
     // feel broken — the view should only ever move because the selection did.
     e.preventDefault();
-    if (!next) return;
+    if (!next) {
+      // At the top of the content with nothing above: snap the page fully to
+      // the top so the hero/banner is visible rather than half-scrolled.
+      if (dir === "up") window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     next.el.focus({ preventScroll: true });
     next.el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
   };

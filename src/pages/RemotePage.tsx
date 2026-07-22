@@ -4,7 +4,7 @@ import {
   ChevronUp, ChevronDown, ChevronLeft, ChevronRight, CornerUpLeft, Home, Play,
   Volume2, VolumeX, Send, Search, Loader2, Tv, MonitorPlay, RefreshCw, Gamepad2,
 } from "lucide-react";
-import { discoverTargets, type PlayTarget } from "../services/playon";
+import { discoverTargets, playOnAvailable, type PlayTarget } from "../services/playon";
 import { sendKey, sendText, type RemoteKey } from "../services/remote";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
 
@@ -101,14 +101,20 @@ export function RemotePage() {
             ))}
           </div>
         )}
-        {targets && targets.length === 0 && (
+        {/* Browsers can't scan the LAN, so on Lite/desktop the remote can never
+            find a screen — say that outright instead of implying it's searching. */}
+        {!playOnAvailable() ? (
           <p className="mt-3 text-xs text-muted">
-            No screens found. Open TVio on your Android TV or PC — same account or Wi-Fi — then Scan. Full remote runs from the TVio mobile app.
+            The remote needs the TVio mobile app — a browser can't discover screens on your network. Install the
+            Android app and open it on the same Wi-Fi as your TV.
           </p>
-        )}
-        {targets === null && (
+        ) : targets && targets.length === 0 ? (
+          <p className="mt-3 text-xs text-muted">
+            No screens found. Open TVio on your Android TV or PC — same account or Wi-Fi — then Scan.
+          </p>
+        ) : targets === null ? (
           <p className="mt-3 flex items-center gap-2 text-xs text-muted"><Loader2 size={14} className="animate-spin" /> Scanning…</p>
-        )}
+        ) : null}
       </div>
 
       {/* Keyboard / search */}
