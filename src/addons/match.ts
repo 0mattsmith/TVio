@@ -134,12 +134,15 @@ export function releaseYear(name: string): number | null {
  * disagree by a year over festival vs general release dates.
  */
 export function matchYear(name: string, expectedYear?: number): MatchVerdict {
-  if (!expectedYear) return "uncertain";
+  // Year is only ever a signal when it's present AND disagrees. A missing
+  // expected year, or a release name with no year (common, especially for TV
+  // episodes), is neutral — never a penalty.
+  if (!expectedYear) return "match";
   const found = releaseYear(name);
-  if (found === null) return "uncertain"; // no year in the name — can't judge
+  if (found === null) return "match";
   const diff = Math.abs(found - expectedYear);
   if (diff === 0) return "match";
-  if (diff === 1) return "uncertain";
+  if (diff === 1) return "uncertain"; // festival vs general release can differ by a year
   return "mismatch";
 }
 
@@ -159,19 +162,43 @@ export function matchEpisode(name: string, season?: number, episode?: number): M
 }
 
 const RANK: Record<MatchVerdict, number> = { match: 0, uncertain: 1, mismatch: 2 };
-const worst = (a: MatchVerdict, b: MatchVerdict): MatchVerdict => (RANK[a] >= RANK[b] ? a : b);
+
+const MB = 1_000_000;
+
+/**
+ * Is the file large enough to plausibly contain this runtime of video?
+ *
+ * We can't read a stream's real duration without opening it, but a file that's
+ * far too small for the runtime is almost always a sample, a fake decoy, or a
+ * short clip mislabelled as the whole thing — never what the user wants. The
+ * floor is deliberately generous (a real rip is well above it) so a genuinely
+ * low-quality-but-complete file isn't wrongly condemned.
+ *
+ *   < 0.7 MB/min (~90 kbps)  → sample/fake territory     → mismatch
+ *   < 1.2 MB/min (~160 kbps) → suspiciously thin         → uncertain
+ * Missing runtime or size → can't judge → no penalty.
+ */
+export function plausibleSize(sizeBytes?: number, runtimeMin?: number): MatchVerdict {
+  if (!sizeBytes || !runtimeMin || runtimeMin <= 0) return "match";
+  const mbPerMin = sizeBytes / MB / runtimeMin;
+  if (mbPerMin < 0.7) return "mismatch";
+  if (mbPerMin < 1.2) return "uncertain";
+  return "match";
+}
 
 export interface StreamExpectation {
   title: string;
   year?: number;
   season?: number;
   episode?: number;
+  /** TMDB runtime in minutes — enables the file-size plausibility check. */
+  runtimeMin?: number;
 }
 
 export interface StreamCheck {
   verdict: MatchVerdict;
   /** Which dimension pulled the verdict down — for the badge label. */
-  reason: "title" | "year" | "episode" | null;
+  reason: "title" | "year" | "episode" | "size" | null;
 }
 
 /**
@@ -179,11 +206,12 @@ export interface StreamCheck {
  * `reason` names whichever failed, so the UI can say "Wrong episode?" rather
  * than a generic warning.
  */
-export function checkStream(name: string, expect: StreamExpectation): StreamCheck {
+export function checkStream(name: string, expect: StreamExpectation, sizeBytes?: number): StreamCheck {
   const checks: { reason: StreamCheck["reason"]; verdict: MatchVerdict }[] = [
     { reason: "title", verdict: matchTitle(name, expect.title) },
     { reason: "episode", verdict: matchEpisode(name, expect.season, expect.episode) },
     { reason: "year", verdict: matchYear(name, expect.year) },
+    { reason: "size", verdict: plausibleSize(sizeBytes, expect.runtimeMin) },
   ];
   let verdict: MatchVerdict = "match";
   let reason: StreamCheck["reason"] = null;
@@ -193,9 +221,6 @@ export function checkStream(name: string, expect: StreamExpectation): StreamChec
       reason = c.reason;
     }
   }
-  // Year alone is a soft signal — never let a missing/odd year flag an
-  // otherwise good match as anything worse than uncertain.
-  void worst;
   return { verdict, reason: verdict === "match" ? null : reason };
 }
 
@@ -203,13 +228,14 @@ export function checkStream(name: string, expect: StreamExpectation): StreamChec
 export function rankByTitleMatch<T>(
   items: T[],
   nameOf: (item: T) => string,
-  expected: string | StreamExpectation
+  expected: string | StreamExpectation,
+  sizeOf?: (item: T) => number | undefined
 ): { item: T; verdict: MatchVerdict; reason: StreamCheck["reason"] }[] {
   // Accepts a bare title (title-only check) or a full expectation (title +
-  // year + episode), so callers can opt into the stronger checks.
+  // year + episode + runtime), so callers can opt into the stronger checks.
   const expect: StreamExpectation = typeof expected === "string" ? { title: expected } : expected;
   return items
-    .map((item, index) => ({ item, index, ...checkStream(nameOf(item), expect) }))
+    .map((item, index) => ({ item, index, ...checkStream(nameOf(item), expect, sizeOf?.(item)) }))
     .sort((a, b) => RANK[a.verdict] - RANK[b.verdict] || a.index - b.index)
     .map(({ item, verdict, reason }) => ({ item, verdict, reason }));
 }

@@ -179,6 +179,7 @@ export function QuickWatch() {
                       year: item.year ? Number(item.year) : undefined,
                       season: episode?.season,
                       episode: episode?.episode,
+                      runtimeMin: data?.runtime ?? undefined,
                     }}
                     episode={episode || undefined}
                     native={native}
@@ -267,6 +268,7 @@ function badgeLabel(verdict: MatchVerdict | undefined, reason: StreamCheck["reas
   const soft = verdict === "uncertain";
   if (reason === "episode") return soft ? "Check episode" : "Wrong episode?";
   if (reason === "year") return soft ? "Check year" : "Wrong year?";
+  if (reason === "size") return soft ? "Small file" : "Too small — sample?";
   return soft ? "Check title" : "Different title?";
 }
 
@@ -304,7 +306,12 @@ function AddonSource({
   // sort the likely wrong ones (Barney & Friends for Friends) to the bottom.
   // Demoted and badged rather than hidden — release naming is messy enough that
   // dropping "uncertain" ones would lose working sources.
-  const ranked = rankByTitleMatch(playable, (s) => streamTitle(s), expect);
+  const ranked = rankByTitleMatch(
+    playable,
+    (s) => streamTitle(s),
+    expect,
+    (s) => s.behaviorHints?.videoSize
+  );
   const visible = ranked.map((r) => r.item);
   const checks = new Map(ranked.map((r) => [r.item, r]));
   const hidden = all.length - playable.length;
