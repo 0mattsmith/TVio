@@ -39,6 +39,24 @@ export async function companiesRow(
   return discover(type, { providerId, companies, sort: "popularity.desc", minVotes: 20 });
 }
 
+export interface DiscoverRowOpts {
+  companies?: number[];
+  genre?: number;
+  sort?: "popularity.desc" | "vote_average.desc" | "primary_release_date.desc" | "first_air_date.desc" | "first_air_date.asc";
+  minVotes?: number;
+}
+
+/** A general discover row (used by custom brand layouts like WWE). */
+export async function discoverRow(type: MediaType, opts: DiscoverRowOpts): Promise<MediaItem[]> {
+  if (!hasTmdbKey()) return demoRow(type, (opts.companies?.[0] ?? 1) + (opts.genre ?? 0), 14);
+  return discover(type, {
+    companies: opts.companies,
+    genre: opts.genre,
+    sort: opts.sort ?? "popularity.desc",
+    minVotes: opts.minVotes,
+  });
+}
+
 /** A service's own originals, via its TV network. Series only. */
 export async function networkRow(type: MediaType, networkId: number): Promise<MediaItem[]> {
   if (!hasTmdbKey()) return demoRow(type, networkId, 18);

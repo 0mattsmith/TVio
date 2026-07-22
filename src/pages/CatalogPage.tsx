@@ -15,6 +15,7 @@ import { BrandStrip } from "../components/BrandStrip";
 import { LayoutRow } from "../components/LayoutRow";
 import { PosterGrid } from "../components/PosterGrid";
 import { SeasonGrid } from "../components/SeasonGrid";
+import { BrandLayout } from "../components/BrandLayout";
 import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { useIsTV, useDeviceProfile } from "../hooks/useDeviceProfile";
@@ -221,7 +222,9 @@ export function CatalogPage({ type }: { type: MediaType }) {
                 // and wants all of it, so show a grid rather than making them
                 // drag sideways through a single row. Series tiles show their
                 // season posters; collections/studios show their films.
-                brand.seriesId != null ? (
+                brand.layout ? (
+                  <BrandLayout key={brand.key} layout={brand.layout} />
+                ) : brand.seriesId != null ? (
                   <SeasonGrid key={brand.key} seriesId={brand.seriesId} title={brand.name} />
                 ) : (
                   <BrandGrid key={brand.key} brand={brand} type={type} providerId={soleService!.providerId} />

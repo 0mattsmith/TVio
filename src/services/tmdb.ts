@@ -115,7 +115,8 @@ type Sort =
   | "vote_count.desc"
   | "vote_average.desc"
   | "primary_release_date.desc"
-  | "first_air_date.desc";
+  | "first_air_date.desc"
+  | "first_air_date.asc";
 
 export function discover(type: MediaType, opts: {
   providerId?: number;

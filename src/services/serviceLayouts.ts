@@ -1,6 +1,6 @@
 import type { MediaItem, MediaType } from "./types";
 import type { StreamService } from "./services";
-import { serviceRow, companiesRow, networkRow, topRatedRow, getCollection } from "./catalog";
+import { serviceRow, companiesRow, networkRow, topRatedRow, getCollection, type DiscoverRowOpts } from "./catalog";
 
 // Service-shaped browsing.
 //
@@ -29,6 +29,8 @@ export interface BrandTile {
   collectionId?: number;
   /** Series tile: a show, shown as its individual season posters. */
   seriesId?: number;
+  /** Layout tile: selecting it shows its own set of rows (e.g. WWE). */
+  layout?: BrandRowSpec[];
   /** Restrict the tile to these tabs (defaults to both movie and tv). */
   types?: MediaType[];
   /**
@@ -40,6 +42,29 @@ export interface BrandTile {
   darkArtwork?: boolean;
 }
 
+/** One row inside a layout tile (see WWE_LAYOUT). */
+export interface BrandRowSpec {
+  key: string;
+  title: string;
+  /** A series shown as a horizontal row of its season posters. */
+  seriesSeasons?: number;
+  /** A discover row of a fixed media type (films or shows). */
+  discover?: { mediaType: MediaType } & DiscoverRowOpts;
+}
+
+// The WWE homescreen when you pick the WWE tile: the weekly/flagship shows as
+// season rows, the events as films, plus documentaries and the classics — all
+// via TMDB (series ids and the WWE company, 146598, verified live).
+const WWE_LAYOUT: BrandRowSpec[] = [
+  { key: "raw", title: "Monday Night Raw", seriesSeasons: 4656 },
+  { key: "smackdown", title: "Friday Night SmackDown", seriesSeasons: 1549 },
+  { key: "nxt", title: "WWE NXT", seriesSeasons: 31991 },
+  { key: "ple", title: "Premium Live Events (PPVs & PLEs)", discover: { mediaType: "movie", companies: [146598], sort: "primary_release_date.desc" } },
+  { key: "docs", title: "Documentaries", discover: { mediaType: "tv", companies: [146598], genre: 99, sort: "popularity.desc", minVotes: 0 } },
+  { key: "wcw", title: "WCW", seriesSeasons: 1837 },
+  { key: "ecw", title: "ECW", seriesSeasons: 14774 },
+  { key: "classic", title: "Classic Programming", discover: { mediaType: "tv", companies: [146598], sort: "first_air_date.asc", minVotes: 0 } },
+];
 
 /**
  * Two notes on what's reachable here.
@@ -92,6 +117,8 @@ const DISNEY_BRANDS: BrandTile[] = [
 
 const LAYOUTS: Record<string, Layout> = {
   netflix: {
+    // WWE moved to Netflix — its own home, reachable from the WWE tile.
+    brands: [{ key: "wwe", name: "WWE", layout: WWE_LAYOUT }],
     rows: [
       { kind: "trending", title: "Trending Now" },
       { kind: "originals", title: "Netflix Originals" },

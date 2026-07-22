@@ -3,38 +3,50 @@ import { useNavigate } from "react-router-dom";
 import { getDetail } from "../services/catalog";
 
 /**
- * A show shown as its individual season posters — the Disney+-style treatment
- * for The Simpsons, Family Guy, Futurama and American Dad, which have dozens of
- * seasons each with their own artwork. Picking one opens the series page (where
- * the season browser takes over). Season 0 ("Specials") is dropped.
+ * A show shown as its individual season posters. As a `grid` it's the Disney+
+ * -style treatment for The Simpsons/Family Guy tiles; as a `row` it's one
+ * horizontal strip inside a bigger layout (e.g. WWE's Raw / SmackDown rows).
+ * Picking a season opens the series page on that season. Season 0 is dropped.
  */
-export function SeasonGrid({ seriesId, title }: { seriesId: number; title: string }) {
+export function SeasonGrid({
+  seriesId,
+  title,
+  variant = "grid",
+}: {
+  seriesId: number;
+  title: string;
+  variant?: "grid" | "row";
+}) {
   const navigate = useNavigate();
   const q = useQuery({
     queryKey: ["series-seasons", seriesId],
     queryFn: () => getDetail("tv", seriesId),
   });
   const seasons = (q.data?.seasonsList ?? []).filter((s) => s.seasonNumber > 0);
-  const grid =
-    "grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5 px-4 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:px-8";
+
+  const isRow = variant === "row";
+  const container = isRow
+    ? "no-scrollbar focus-scroller flex gap-2.5 overflow-x-auto px-4 sm:px-8"
+    : "grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5 px-4 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:px-8";
+  const cardW = isRow ? "w-[130px] shrink-0 sm:w-[150px]" : "";
 
   return (
     <section className="mb-8 animate-row-in">
       <h2 className="mb-3 px-4 text-lg font-bold tracking-tight sm:px-8">{title}</h2>
 
       {q.isLoading ? (
-        <div className={grid}>
+        <div className={container}>
           {Array.from({ length: 12 }).map((_, i) => (
-            <div key={i} className="skeleton aspect-[2/3] w-full rounded-lg" />
+            <div key={i} className={`skeleton aspect-[2/3] rounded-lg ${isRow ? "w-[130px] shrink-0 sm:w-[150px]" : "w-full"}`} />
           ))}
         </div>
       ) : seasons.length > 0 ? (
-        <div className={grid}>
+        <div className={container}>
           {seasons.map((s) => (
             <button
               key={s.seasonNumber}
               onClick={() => navigate(`/title/tv/${seriesId}?season=${s.seasonNumber}`)}
-              className="focusable group rounded-lg text-left"
+              className={`focusable group rounded-lg text-left ${cardW}`}
               aria-label={`${title} — ${s.name}`}
             >
               <div className="aspect-[2/3] overflow-hidden rounded-lg bg-surface-2">
