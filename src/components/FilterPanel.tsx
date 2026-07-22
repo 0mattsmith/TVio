@@ -5,6 +5,7 @@ import { useAppStore } from "../store/useAppStore";
 import { Chip } from "./Chip";
 import { Button } from "./Button";
 import { useOverlayBack } from "../hooks/useOverlayBack";
+import { useIsTV } from "../hooks/useDeviceProfile";
 
 // Focused filter overlay used on TV (and available anywhere) so the browse
 // screen shows a single "Filters" entry instead of two chip strips — far fewer
@@ -23,6 +24,7 @@ export function FilterPanel({
   onGenre: (id?: number) => void;
 }) {
   useOverlayBack(open, onClose);
+  const isTV = useIsTV();
 
   const enabled = useAppStore((s) => s.enabledServices);
   const toggle = useAppStore((s) => s.toggleService);
@@ -45,7 +47,15 @@ export function FilterPanel({
   if (!open) return null;
 
   return (
-    <div data-spatial-scope className="fixed inset-0 z-50 flex justify-end bg-black/70 backdrop-blur-sm" onClick={onClose}>
+    // On TV the full-scale navbar (rendered outside the zoom) paints over any
+    // overlay inside it, so start the panel below the navbar rather than at the
+    // very top where its heading would hide behind it. 6.5rem matches the
+    // content's paddingTop (the navbar's height inside the 0.65 zoom).
+    <div
+      data-spatial-scope
+      className={`fixed z-50 flex justify-end bg-black/70 backdrop-blur-sm ${isTV ? "inset-x-0 bottom-0 top-[6.5rem]" : "inset-0"}`}
+      onClick={onClose}
+    >
       <div
         className="animate-fade-in flex h-full w-full max-w-md flex-col border-l border-white/10 bg-surface p-6 shadow-card"
         onClick={(e) => e.stopPropagation()}

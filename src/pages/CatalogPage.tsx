@@ -4,18 +4,20 @@ import { SlidersHorizontal } from "lucide-react";
 import { Hero } from "../components/Hero";
 import { Row } from "../components/Row";
 import { Chip } from "../components/Chip";
+import { Dropdown } from "../components/Dropdown";
 import { ServiceFilter } from "../components/ServiceFilter";
 import { FilterPanel } from "../components/FilterPanel";
 import { DemoBanner } from "../components/DemoBanner";
-import { SERVICES, ALL_SERVICE_KEYS } from "../services/services";
-import { trendingRow, serviceRow, getGenres, companiesRow } from "../services/catalog";
-import { serviceLayoutRows, serviceBrands, brandRowKey, type BrandTile } from "../services/serviceLayouts";
+import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
+import { trendingRow, serviceRow, getGenres } from "../services/catalog";
+import { serviceLayoutRows, serviceBrands, brandRowKey, brandItemsLoader, type BrandTile } from "../services/serviceLayouts";
 import { BrandStrip } from "../components/BrandStrip";
 import { LayoutRow } from "../components/LayoutRow";
 import { PosterGrid } from "../components/PosterGrid";
+import { SeasonGrid } from "../components/SeasonGrid";
 import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
-import { useIsTV } from "../hooks/useDeviceProfile";
+import { useIsTV, useDeviceProfile } from "../hooks/useDeviceProfile";
 
 // One row = one service + one kind. Kept as its own component so each query
 // is independent and lazy.
@@ -45,15 +47,18 @@ function BrandGrid({
 }) {
   const q = useQuery({
     queryKey: brandRowKey(type, providerId, brand),
-    queryFn: () => companiesRow(type, providerId, brand.companies),
+    queryFn: brandItemsLoader(type, providerId, brand)!,
   });
   return <PosterGrid title={brand.name} items={q.data} loading={q.isLoading} />;
 }
 
 export function CatalogPage({ type }: { type: MediaType }) {
   const enabled = useAppStore((s) => s.enabledServices);
+  const toggleService = useAppStore((s) => s.toggleService);
+  const setAllServices = useAppStore((s) => s.setAllServices);
   const [genre, setGenre] = useState<number | undefined>(undefined);
   const isTV = useIsTV();
+  const isMobile = useDeviceProfile() === "mobile";
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const genresQ = useQuery({ queryKey: ["genres", type], queryFn: () => getGenres(type) });
@@ -78,7 +83,7 @@ export function CatalogPage({ type }: { type: MediaType }) {
   });
 
   const [brand, setBrand] = useState<BrandTile | undefined>(undefined);
-  const brands = soleService ? serviceBrands(soleService) : [];
+  const brands = soleService ? serviceBrands(soleService, type) : [];
 
   const layoutRows = useMemo(
     () =>
@@ -127,11 +132,13 @@ export function CatalogPage({ type }: { type: MediaType }) {
 
       {/* The filters ride up over the hero's fade. The overlap has to stay
           smaller than the hero's bottom padding or it eats the Play buttons —
-          mobile's padding is smaller, so the overlap is too. */}
-      <div className="relative z-10 -mt-4 sm:-mt-14">
+          mobile's padding is smaller, so the overlap is too. On TV the hero
+          (and its Play row) sits lower, so pull up far less or the single
+          Filters button collides with the Play button. */}
+      <div className={`relative z-10 -mt-4 ${isTV ? "sm:-mt-4" : "sm:-mt-14"}`}>
         {isTV ? (
           // TV: collapse both filters into one focus target to cut D-pad stops.
-          <div className="flex items-center gap-3 px-4 pb-3 sm:px-8">
+          <div className="flex items-center gap-3 px-4 pb-3 pt-2 sm:px-8">
             <button
               onClick={() => setFiltersOpen(true)}
               className="focusable flex items-center gap-2 rounded-full border border-white/15 bg-surface-2 px-5 py-2.5 text-sm font-semibold hover:border-white/40"
@@ -139,6 +146,27 @@ export function CatalogPage({ type }: { type: MediaType }) {
               <SlidersHorizontal size={16} /> Filters
             </button>
             <span className="truncate text-sm text-muted">{servicesLabel} · {genreName}</span>
+          </div>
+        ) : isMobile ? (
+          // Small screens: collapse both chip strips into dropdowns so the page
+          // isn't buried under filters before you reach any posters.
+          <div className="space-y-2 px-4 pb-2 pt-1 sm:px-8">
+            <Dropdown ariaLabel="Streaming services" summary={servicesLabel}>
+              <div className="flex flex-wrap gap-2">
+                <Chip label={allServicesOn ? "All" : "Select all"} active={allServicesOn} onClick={() => setAllServices(!allServicesOn)} />
+                {[...SERVICES, OTHER_SERVICE].map((s) => (
+                  <Chip key={s.key} label={s.name} color={s.color} active={enabled.includes(s.key)} onClick={() => toggleService(s.key)} />
+                ))}
+              </div>
+            </Dropdown>
+            <Dropdown ariaLabel="Genre" summary={genreName}>
+              <div className="flex flex-wrap gap-2">
+                <Chip label="All genres" active={genre === undefined} onClick={() => setGenre(undefined)} />
+                {(genresQ.data || []).map((g) => (
+                  <Chip key={g.id} label={g.name} active={genre === g.id} onClick={() => setGenre(g.id)} />
+                ))}
+              </div>
+            </Dropdown>
           </div>
         ) : (
           <>
@@ -189,10 +217,15 @@ export function CatalogPage({ type }: { type: MediaType }) {
                 />
               )}
               {brand ? (
-                // Once a brand is picked the user has narrowed to one
-                // collection and wants all of it, so show a grid rather than
-                // making them drag sideways through a single row.
-                <BrandGrid brand={brand} type={type} providerId={soleService!.providerId} />
+                // Once a brand is picked the user has narrowed to one collection
+                // and wants all of it, so show a grid rather than making them
+                // drag sideways through a single row. Series tiles show their
+                // season posters; collections/studios show their films.
+                brand.seriesId != null ? (
+                  <SeasonGrid key={brand.key} seriesId={brand.seriesId} title={brand.name} />
+                ) : (
+                  <BrandGrid key={brand.key} brand={brand} type={type} providerId={soleService!.providerId} />
+                )
               ) : (
                 layoutRows.map((row) => <LayoutRow key={row.key} row={row} />)
               )}

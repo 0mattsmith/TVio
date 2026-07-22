@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { brandRowKey, type BrandTile } from "../services/serviceLayouts";
-import { companiesRow } from "../services/catalog";
-import type { MediaType } from "../services/types";
+import { Check } from "lucide-react";
+import { brandRowKey, brandItemsLoader, type BrandTile } from "../services/serviceLayouts";
+import type { MediaItem, MediaType } from "../services/types";
 
 const TMDB_IMG = "https://image.tmdb.org/t/p/w300";
 
@@ -70,16 +70,20 @@ function BrandButton({
   selected: boolean;
   onPick: (brand?: BrandTile) => void;
 }) {
-  // Shares its cache entry with the grid shown once the brand is picked, so
-  // this costs nothing extra on selection.
+  // Company/collection tiles carry a MediaItem[] loader, shared with the grid
+  // shown once the brand is picked (so selection costs nothing extra) and used
+  // to hide empties. Series tiles have no such loader — they're always
+  // populated — so their query is disabled and the emptiness check skipped.
+  const loader = brandItemsLoader(type, providerId, brand);
   const q = useQuery({
     queryKey: brandRowKey(type, providerId, brand),
-    queryFn: () => companiesRow(type, providerId, brand.companies),
+    queryFn: loader ?? (() => Promise.resolve<MediaItem[]>([])),
+    enabled: Boolean(loader),
   });
 
   // Hide a brand with nothing behind it. Walt Disney Pictures has plenty of
   // films and no series, so on the TV Series tab its tile led to an empty page.
-  if (!q.isLoading && (q.data?.length ?? 0) === 0) return null;
+  if (loader && !q.isLoading && (q.data?.length ?? 0) === 0) return null;
 
   return (
     <button
@@ -87,19 +91,34 @@ function BrandButton({
       aria-label={brand.name}
       aria-pressed={selected}
       style={{ background: PLATE }}
-      className={`focusable flex h-24 w-40 shrink-0 items-center justify-center rounded-lg border p-6 transition duration-200 ${
+      className={`focusable relative flex h-24 w-40 shrink-0 items-center justify-center rounded-lg border p-6 transition duration-200 ${
         selected
-          ? "border-accent ring-2 ring-accent/50"
+          ? "border-accent ring-2 ring-accent/60"
           : "border-white/20 hover:border-white/50 hover:brightness-110"
       }`}
     >
-      <img
-        src={`${TMDB_IMG}${brand.logoPath}`}
-        alt={brand.name}
-        loading="lazy"
-        className="max-h-full max-w-full object-contain"
-        style={{ filter: brand.darkArtwork ? KNOCKOUT : undefined }}
-      />
+      {brand.logoPath ? (
+        <img
+          src={`${TMDB_IMG}${brand.logoPath}`}
+          alt={brand.name}
+          loading="lazy"
+          className={`max-h-full max-w-full object-contain transition-opacity ${selected ? "" : "opacity-95"}`}
+          style={{ filter: brand.darkArtwork ? KNOCKOUT : undefined }}
+        />
+      ) : (
+        // Collection/series tiles have no studio logo — set the name in type.
+        <span className="text-center text-base font-extrabold uppercase leading-tight tracking-wide text-white">
+          {brand.name}
+        </span>
+      )}
+      {/* Clear-but-subtle "this one's on" marker. Click the tile again to clear
+          it — the badge (and accent border) is the only cue that it's active,
+          so it stays inside the tile bounds (the strip clips vertical overflow). */}
+      {selected && (
+        <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-accent text-black shadow ring-2 ring-[#0d2549]">
+          <Check size={12} strokeWidth={3} />
+        </span>
+      )}
     </button>
   );
 }

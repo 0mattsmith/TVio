@@ -22,13 +22,13 @@ export function PosterGrid({
       <h2 className="mb-3 px-4 text-lg font-bold tracking-tight sm:px-8">{title}</h2>
 
       {loading ? (
-        <div className="grid grid-cols-3 gap-2.5 px-4 sm:grid-cols-4 sm:px-8 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5 px-4 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:px-8">
           {Array.from({ length: 12 }).map((_, i) => (
             <div key={i} className="skeleton aspect-[2/3] w-full rounded-lg" />
           ))}
         </div>
       ) : items && items.length > 0 ? (
-        <div className="grid grid-cols-3 gap-2.5 px-4 sm:grid-cols-4 sm:px-8 md:grid-cols-5 lg:grid-cols-6 xl:grid-cols-8">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(110px,1fr))] gap-2.5 px-4 sm:grid-cols-[repeat(auto-fill,minmax(150px,1fr))] sm:px-8">
           {items.map((item) => (
             <PosterCard key={`${item.type}-${item.id}`} item={item} fluid />
           ))}

@@ -140,12 +140,10 @@ const art = {
   },
 };
 
-// Square app icon (also the source for `tauri icon`) — drawn natively at 1024.
-const iconSvg = (n) => `<svg xmlns="http://www.w3.org/2000/svg" width="${n}" height="${n}">
-    <rect width="${n}" height="${n}" rx="${n * 0.19}" fill="${BG}"/>
-    ${glow("g", n / 2, n * 0.35, n * 0.75)}<rect width="${n}" height="${n}" rx="${n * 0.19}" fill="url(#g)"/>
-    ${wordmark(n / 2, n / 2, n * 0.29)}
-  </svg>`;
+// The app icon is the shared canonical mark (see scripts/brand.mjs), so the
+// desktop exe/taskbar icon is pixel-identical to the Android launcher and the
+// PWA favicon rather than a separately hand-tuned near-copy.
+import { iconSvg } from "./brand.mjs";
 
 async function main() {
   mkdirSync("build", { recursive: true });

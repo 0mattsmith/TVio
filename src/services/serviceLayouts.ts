@@ -1,6 +1,6 @@
 import type { MediaItem, MediaType } from "./types";
 import type { StreamService } from "./services";
-import { serviceRow, companiesRow, networkRow, topRatedRow } from "./catalog";
+import { serviceRow, companiesRow, networkRow, topRatedRow, getCollection } from "./catalog";
 
 // Service-shaped browsing.
 //
@@ -17,9 +17,20 @@ import { serviceRow, companiesRow, networkRow, topRatedRow } from "./catalog";
 export interface BrandTile {
   key: string;
   name: string;
-  /** TMDB company logo path — the official artwork, same source as provider icons. */
-  logoPath: string;
-  companies: number[];
+  /**
+   * TMDB company logo path — the official artwork, same source as provider
+   * icons. Optional: collection/series tiles carry no studio logo and render
+   * their name as text on the plate instead.
+   */
+  logoPath?: string;
+  /** Studio/brand tile: OR of these TMDB company ids. */
+  companies?: number[];
+  /** Franchise tile: a TMDB collection, shown as its films in release order. */
+  collectionId?: number;
+  /** Series tile: a show, shown as its individual season posters. */
+  seriesId?: number;
+  /** Restrict the tile to these tabs (defaults to both movie and tv). */
+  types?: MediaType[];
   /**
    * True when the artwork is a dark wordmark on transparency, so it has to be
    * knocked out to white to show on the tile. This is a fact about the file,
@@ -63,9 +74,20 @@ const DISNEY_BRANDS: BrandTile[] = [
   { key: "disney", name: "Disney", logoPath: "/wdrCwmRnLFJhEoH8GSfymY85KHT.png", companies: [2], darkArtwork: true },
   { key: "pixar", name: "Pixar", logoPath: "/1TjvGVDMYsj6JBxOAkUHpPEwLf7.png", companies: [3], darkArtwork: true },
   { key: "marvel", name: "Marvel", logoPath: "/hUzeosd33nzE5MCNsZxCGEKTXaQ.png", companies: [420] },
-  { key: "starwars", name: "Star Wars", logoPath: "/tlVSws0RvvtPBwViUyOFAO0vcQS.png", companies: [1], darkArtwork: true },
+  // Lucasfilm's whole catalogue — kept on the TV tab (Mandalorian, Andor,
+  // Ahsoka…). On Movies the curated Skywalker-saga collection tile below stands
+  // in for it, so there aren't two "Star Wars" tiles on the same tab.
+  { key: "starwars", name: "Star Wars", logoPath: "/tlVSws0RvvtPBwViUyOFAO0vcQS.png", companies: [1], darkArtwork: true, types: ["tv"] },
   { key: "natgeo", name: "National Geographic", logoPath: "/fRqMjLjyAqThtEg9P9WKCXLmCpJ.png", companies: [7521] },
   { key: "20th", name: "20th Century", logoPath: "/h0rjX5vjW5r8yEnUBStFarjcLT4.png", companies: [127928], darkArtwork: true },
+  // Movie franchises — shown as their films in release order (TMDB collections).
+  { key: "sw-saga", name: "Star Wars", collectionId: 10, types: ["movie"] },
+  { key: "toystory", name: "Toy Story", collectionId: 10194, types: ["movie"] },
+  // TV staples — shown as their individual season posters (see SeasonGrid).
+  { key: "simpsons", name: "The Simpsons", seriesId: 456, types: ["tv"] },
+  { key: "familyguy", name: "Family Guy", seriesId: 1434, types: ["tv"] },
+  { key: "futurama", name: "Futurama", seriesId: 615, types: ["tv"] },
+  { key: "americandad", name: "American Dad!", seriesId: 1433, types: ["tv"] },
 ];
 
 const LAYOUTS: Record<string, Layout> = {
@@ -169,8 +191,24 @@ export function brandRowKey(type: MediaType, providerId: number, brand: BrandTil
   return ["brand-row", type, providerId, brand.key];
 }
 
-export function serviceBrands(service: StreamService): BrandTile[] {
-  return LAYOUTS[service.key]?.brands ?? [];
+/**
+ * The MediaItem[] loader for a tile — a studio's discover row or a film
+ * collection. Series tiles (rendered as season posters, not a flat list) have
+ * no loader here; SeasonGrid reads them from the series detail instead.
+ */
+export function brandItemsLoader(
+  type: MediaType,
+  providerId: number,
+  brand: BrandTile
+): (() => Promise<MediaItem[]>) | null {
+  if (brand.collectionId != null) return () => getCollection(brand.collectionId!);
+  if (brand.companies?.length) return () => companiesRow(type, providerId, brand.companies!);
+  return null;
+}
+
+export function serviceBrands(service: StreamService, type: MediaType): BrandTile[] {
+  const brands = LAYOUTS[service.key]?.brands ?? [];
+  return brands.filter((b) => !b.types || b.types.includes(type));
 }
 
 export function hasServiceLayout(service: StreamService): boolean {

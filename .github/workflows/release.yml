@@ -288,6 +288,25 @@ jobs:
             echo "::warning::No adaptive launcher icon in the APK — the app will show the stock icon."
           fi
 
+      # "App not installed" on a phone almost always means either (a) an older
+      # build with a DIFFERENT signing certificate is already installed (you must
+      # uninstall it once), or (b) the APK isn't v2-signed (newer Android refuses
+      # it). Print the signer + scheme so we can tell which — and fail loudly if a
+      # release build somehow came out without the v2 signature it needs.
+      - name: Report APK signer (diagnose "App not installed")
+        run: |
+          APKSIGNER=$(ls "$ANDROID_HOME"/build-tools/*/apksigner 2>/dev/null | sort -V | tail -1)
+          if [ -z "$APKSIGNER" ]; then echo "apksigner not found — skipping"; exit 0; fi
+          echo "--- tvio-mobile.apk signature ---"
+          "$APKSIGNER" verify --verbose --print-certs tvio-mobile.apk || echo "::warning::apksigner could not verify tvio-mobile.apk"
+          if [ "${{ steps.signing.outputs.signed }}" = "true" ]; then
+            if ! "$APKSIGNER" verify tvio-mobile.apk 2>/dev/null | grep -q "v2 scheme.*true"; then
+              echo "::warning::Release APK is not v2-signed — phones on Android 11+ will refuse to install it."
+            else
+              echo "  ✓ v2 signature present"
+            fi
+          fi
+
       - name: Apply Android TV (leanback) manifest
         run: node scripts/android-tv-manifest.mjs
       - name: Build Android TV APK

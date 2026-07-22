@@ -1,8 +1,8 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw } from "lucide-react";
-import { SERVICES, OTHER_SERVICE } from "../services/services";
+import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X } from "lucide-react";
+import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
 import { hasTmdbKey, currentRegion, usingBuiltInKey } from "../services/tmdb";
 import { firebaseEnabled } from "../services/firebase";
 import { pullAccountSources } from "../services/firebaseSync";
@@ -16,6 +16,27 @@ import { ChangePassword } from "../components/ChangePassword";
 import { fetchManifest } from "../addons/manager";
 import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
+import { Dropdown } from "../components/Dropdown";
+
+const AUDIO_LANGS: [string, string][] = [
+  ["en", "English"], ["es", "Spanish"], ["fr", "French"], ["de", "German"],
+  ["it", "Italian"], ["pt", "Portuguese"], ["ja", "Japanese"], ["ko", "Korean"],
+  ["zh", "Chinese"], ["hi", "Hindi"], ["ar", "Arabic"], ["ru", "Russian"],
+];
+
+// Where-to-watch / availability regions TMDB supports. Country name shown, ISO
+// 3166-1 code stored. Kept short and popular rather than exhaustive.
+const REGIONS: [string, string][] = [
+  ["US", "United States"], ["GB", "United Kingdom"], ["CA", "Canada"], ["AU", "Australia"],
+  ["IE", "Ireland"], ["NZ", "New Zealand"], ["DE", "Germany"], ["FR", "France"],
+  ["ES", "Spain"], ["IT", "Italy"], ["NL", "Netherlands"], ["SE", "Sweden"],
+  ["NO", "Norway"], ["DK", "Denmark"], ["FI", "Finland"], ["BR", "Brazil"],
+  ["MX", "Mexico"], ["AR", "Argentina"], ["IN", "India"], ["JP", "Japan"],
+  ["KR", "South Korea"], ["ZA", "South Africa"],
+];
+
+const selectCls =
+  "focusable shrink-0 rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent";
 
 function Toggle({ on, onClick, label }: { on: boolean; onClick: () => void; label: string }) {
   return (
@@ -60,14 +81,15 @@ export function Settings() {
   const [keyInput, setKeyInput] = useState(tmdbKey);
   const [regionInput, setRegionInput] = useState(tmdbRegion);
   const [saved, setSaved] = useState(false);
-  const saveTmdb = () => {
-    // Persist + apply the key to the TMDB client, then refetch everything with
-    // it. No page reload (that broke under the service worker on Pages).
-    setTmdbKey(keyInput);
-    setTmdbRegion(regionInput);
+  // Auto-save (there's no Save button): persist the key + region to the TMDB
+  // client and refetch everything with them. No page reload (that broke under
+  // the service worker on Pages).
+  const applyTmdb = (key: string, region: string) => {
+    setTmdbKey(key);
+    setTmdbRegion(region);
     queryClient.invalidateQueries();
     setSaved(true);
-    setTimeout(() => setSaved(false), 2500);
+    setTimeout(() => setSaved(false), 2000);
   };
 
   // Profile management (Master only)
@@ -142,6 +164,10 @@ export function Settings() {
           )}
         </div>
       </section>
+
+      {/* Version + manual update check. Kept near the top so it's reachable on
+          a TV — at the bottom of a long page a D-pad rarely gets to it. */}
+      <UpdateSection />
 
       {/* Sign in on your phone (not shown on a phone — nothing to scan with) */}
       {!isMobile && (
@@ -230,49 +256,46 @@ export function Settings() {
 
         )}
 
-        <div className="mt-5">
-          <div className="text-sm font-semibold">Preferred audio language</div>
-          <div className="mb-2 text-xs text-muted">
-            The native player picks this track by default, so streams don't start on commentary, a dub, or silence.
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-semibold">Preferred audio language</div>
+            <div className="text-xs text-muted">
+              The native player picks this track by default, so streams don't start on commentary, a dub, or silence.
+            </div>
           </div>
           <select
             value={preferredAudioLang}
             onChange={(e) => setPreferredAudioLang(e.target.value)}
-            className="focusable w-full max-w-xs rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent sm:w-auto"
+            aria-label="Preferred audio language"
+            className={selectCls}
           >
-            {[
-              ["en", "English"], ["es", "Spanish"], ["fr", "French"], ["de", "German"],
-              ["it", "Italian"], ["pt", "Portuguese"], ["ja", "Japanese"], ["ko", "Korean"],
-              ["zh", "Chinese"], ["hi", "Hindi"], ["ar", "Arabic"], ["ru", "Russian"],
-            ].map(([code, label]) => (
+            {AUDIO_LANGS.map(([code, label]) => (
               <option key={code} value={code}>{label}</option>
             ))}
           </select>
         </div>
 
-        <div className="mt-5">
-          <div className="text-sm font-semibold">When I press Play</div>
-          <div className="mb-2 text-xs text-muted">Choose what the Play button does.</div>
-          <div className="flex gap-2">
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-semibold">When I press Play</div>
+            <div className="text-xs text-muted">Choose what the Play button does.</div>
+          </div>
+          {/* A single segmented toggle: both options live on the right, each with
+              its icon + label, the active one filled teal. */}
+          <div className="flex shrink-0 rounded-full border border-white/10 bg-surface-2 p-1">
             <button
               onClick={() => setOnPlayBehavior("menu")}
-              className={`focusable flex flex-1 items-center gap-2 rounded-lg border px-4 py-3 text-left ${onPlayBehavior === "menu" ? "border-accent bg-accent-soft" : "border-white/10 bg-surface-2"}`}
+              aria-pressed={onPlayBehavior === "menu"}
+              className={`focusable flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${onPlayBehavior === "menu" ? "bg-accent text-black" : "text-muted hover:text-white"}`}
             >
-              <ListVideo size={18} className="text-accent" />
-              <div>
-                <div className="text-sm font-semibold">Quick Watch menu</div>
-                <div className="text-xs text-muted">Pick a source</div>
-              </div>
+              <ListVideo size={15} /> Quick Watch
             </button>
             <button
               onClick={() => setOnPlayBehavior("best")}
-              className={`focusable flex flex-1 items-center gap-2 rounded-lg border px-4 py-3 text-left ${onPlayBehavior === "best" ? "border-accent bg-accent-soft" : "border-white/10 bg-surface-2"}`}
+              aria-pressed={onPlayBehavior === "best"}
+              className={`focusable flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors ${onPlayBehavior === "best" ? "bg-accent text-black" : "text-muted hover:text-white"}`}
             >
-              <Zap size={18} className="text-accent" />
-              <div>
-                <div className="text-sm font-semibold">Play best source</div>
-                <div className="text-xs text-muted">Start instantly</div>
-              </div>
+              <Zap size={15} /> Best source
             </button>
           </div>
         </div>
@@ -284,10 +307,21 @@ export function Settings() {
         <p className="mt-1 text-sm text-muted">
           Enabled services appear as filters and drive the Popular / Trending / New rows.
         </p>
-        <div className="mt-4 flex flex-wrap gap-2">
-          {[...SERVICES, OTHER_SERVICE].map((s) => (
-            <Chip key={s.key} label={s.name} color={s.color} active={enabledServices.includes(s.key)} onClick={() => toggleService(s.key)} />
-          ))}
+        <div className="mt-4 max-w-sm">
+          <Dropdown
+            ariaLabel="Choose streaming services"
+            summary={
+              ALL_SERVICE_KEYS.every((k) => enabledServices.includes(k))
+                ? "All services"
+                : `${enabledServices.length} of ${ALL_SERVICE_KEYS.length} selected`
+            }
+          >
+            <div className="flex flex-wrap gap-2">
+              {[...SERVICES, OTHER_SERVICE].map((s) => (
+                <Chip key={s.key} label={s.name} color={s.color} active={enabledServices.includes(s.key)} onClick={() => toggleService(s.key)} />
+              ))}
+            </div>
+          </Dropdown>
         </div>
       </section>
 
@@ -311,7 +345,7 @@ export function Settings() {
                     onKeyDown={(e) => e.key === "Enter" && saveProfileEdit()}
                     className="focusable w-full rounded-lg border border-white/10 bg-surface px-3 py-2 text-sm outline-none focus:border-accent"
                   />
-                  <AvatarPicker value={editAvatar} onChange={setEditAvatar} size="sm" />
+                  <AvatarPicker value={editAvatar} onChange={setEditAvatar} size="sm" dropdown />
                   <div className="flex gap-2">
                     <Button onClick={saveProfileEdit} disabled={!editName.trim()}>Save</Button>
                     <Button variant="ghost" onClick={() => setEditingProfile(null)}>Cancel</Button>
@@ -370,7 +404,7 @@ export function Settings() {
                 placeholder="Name"
                 className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent sm:w-48"
               />
-              <div className="flex-1"><AvatarPicker value={newProfileAvatar} onChange={setNewProfileAvatar} size="sm" /></div>
+              <div className="flex-1"><AvatarPicker value={newProfileAvatar} onChange={setNewProfileAvatar} size="sm" dropdown /></div>
               <Button onClick={createProfile} disabled={!newProfileName.trim()}><Plus size={16} /> Add</Button>
             </div>
           </div>
@@ -386,6 +420,39 @@ export function Settings() {
           Add your own ways to watch — they appear in Quick Watch above the official options.
         </p>
 
+        {isTV ? (
+          // Typing an AIOStreams key or URL on a remote is miserable, so on the
+          // TV sources are read-only: add them on a phone/desktop (or the Lite
+          // web app) and they sync here. Sync pulls whatever's on the account now.
+          <>
+            <div className="mt-4 rounded-lg border border-white/10 bg-surface-2 px-4 py-3 text-sm text-muted">
+              You can only change this on Desktop or Mobile. Add sources there (or in the Lite web app) and they'll sync to this TV.
+            </div>
+            <Button variant="secondary" className="mt-3" onClick={syncFromAccount} disabled={syncing}>
+              <RefreshCw size={16} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync from account"}
+            </Button>
+            {syncMsg && <p className="mt-1.5 text-xs text-accent">{syncMsg}</p>}
+            <ul className="mt-4 space-y-2">
+              {addons.filter((a) => a.kind !== "builtin").length === 0 && (
+                <li className="text-xs text-muted">No sources yet — add one on your phone or computer, then tap Sync.</li>
+              )}
+              {addons.map((a) => {
+                const Icon = SOURCE_ICON[a.kind];
+                return (
+                  <li key={a.id} className="flex items-center gap-3 rounded-lg bg-surface-2 px-4 py-3">
+                    <Icon size={18} className="shrink-0 text-accent" />
+                    <div className="min-w-0">
+                      <div className="text-sm font-semibold">{a.name}</div>
+                      <div className="break-all text-xs text-muted">{a.url}</div>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          </>
+        ) : (
+        <>
+
         {/* AIOStreams */}
         <div className="mt-4">
           <div className="mb-1.5 text-sm font-semibold">AIOStreams</div>
@@ -400,14 +467,7 @@ export function Settings() {
             <Button onClick={installAiostreams} disabled={installing || hasAiostreams}>
               <Plus size={16} /> {installing ? "Adding…" : "Add"}
             </Button>
-            {/* On TV, pull the key from the account rather than typing it on a remote. */}
-            {isTV && (
-              <Button variant="secondary" onClick={syncFromAccount} disabled={syncing}>
-                <RefreshCw size={16} className={syncing ? "animate-spin" : ""} /> {syncing ? "Syncing…" : "Sync"}
-              </Button>
-            )}
           </div>
-          {isTV && syncMsg && <p className="mt-1.5 text-xs text-accent">{syncMsg}</p>}
           {firebaseEnabled && !hasAiostreams && (
             <label className="mt-2 flex cursor-pointer items-center gap-2 text-xs text-muted">
               <input
@@ -468,6 +528,8 @@ export function Settings() {
             );
           })}
         </ul>
+        </>
+        )}
       </section>
 
       {/* Live TV / IPTV */}
@@ -544,46 +606,79 @@ export function Settings() {
             : "TVio uses TMDB for posters, cast, trailers and where-to-watch. Add your own free key to switch off demo mode — it's stored only on this device."}
         </p>
 
-        <div className="mt-4 space-y-3">
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted">TMDB API key</span>
-            <input
-              type="password"
-              value={keyInput}
-              onChange={(e) => setKeyInput(e.target.value)}
-              placeholder="Paste your TMDB API key (v3)"
-              className="focusable w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
-            />
-          </label>
-          <label className="block">
-            <span className="mb-1.5 block text-xs font-bold uppercase tracking-wider text-muted">Region (optional)</span>
-            <input
-              value={regionInput}
-              onChange={(e) => setRegionInput(e.target.value.toUpperCase().slice(0, 2))}
-              placeholder="US"
-              className="focusable w-28 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
-            />
-          </label>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <Button onClick={saveTmdb} disabled={keyInput === tmdbKey && regionInput === tmdbRegion}>
-              Save
-            </Button>
-            <span className="text-xs">
+        <div className="mt-4 space-y-4">
+          {/* TMDB API key. Not editable on a TV — you can't sensibly type a key
+              on a remote — so it shows an at-a-glance Activated / Not activated
+              status instead, and you set it up on a phone or computer. */}
+          {isTV ? (
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <div className="text-sm font-semibold">TMDB API key</div>
+                <div className="text-xs text-muted">Set this up on Desktop or Mobile.</div>
+              </div>
               {hasTmdbKey() ? (
-                <span className="text-accent">● Connected{usingBuiltInKey() && !tmdbKey ? " (built-in)" : ""}</span>
+                <span className="flex shrink-0 items-center gap-1.5 text-sm font-bold text-accent">
+                  <Check size={16} strokeWidth={3} /> Activated
+                </span>
               ) : (
-                <span className="text-yellow-400">● Demo mode</span>
+                <span className="flex shrink-0 items-center gap-1.5 text-sm font-bold text-yellow-400">
+                  <X size={16} strokeWidth={3} /> Not activated
+                </span>
               )}
-              {" · "}Region {currentRegion()}
-              {saved && <span className="ml-2 text-accent">Saved ✓</span>}
-            </span>
+            </div>
+          ) : (
+            <label className="block">
+              <span className="mb-1.5 flex items-center justify-between gap-3">
+                <span className="text-xs font-bold uppercase tracking-wider text-muted">TMDB API key</span>
+                {/* Sits right by the empty box, and only while there's no key. */}
+                {!hasTmdbKey() && (
+                  <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" className="text-xs font-semibold text-accent underline">
+                    Get a free key at themoviedb.org
+                  </a>
+                )}
+              </span>
+              <input
+                type="password"
+                value={keyInput}
+                onChange={(e) => setKeyInput(e.target.value)}
+                onBlur={() => { if (keyInput !== tmdbKey) applyTmdb(keyInput, regionInput); }}
+                placeholder="Paste your TMDB API key (v3)"
+                className="focusable w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
+              />
+            </label>
+          )}
+
+          {/* Region — a dropdown, and set-able on the TV too (unlike the key). */}
+          <div className="flex items-center justify-between gap-4">
+            <div>
+              <div className="text-sm font-semibold">Region</div>
+              <div className="text-xs text-muted">Tailors where-to-watch and release info.</div>
+            </div>
+            <select
+              aria-label="Region"
+              value={regionInput || currentRegion()}
+              onChange={(e) => { const r = e.target.value; setRegionInput(r); applyTmdb(keyInput, r); }}
+              className={selectCls}
+            >
+              {(REGIONS.some(([c]) => c === (regionInput || currentRegion()))
+                ? REGIONS
+                : ([[regionInput || currentRegion(), regionInput || currentRegion()], ...REGIONS] as [string, string][])
+              ).map(([code, label]) => (
+                <option key={code} value={code}>{label} ({code})</option>
+              ))}
+            </select>
           </div>
 
-          <p className="text-xs text-muted">
-            Get a free key at{" "}
-            <a href="https://www.themoviedb.org/settings/api" target="_blank" rel="noopener noreferrer" className="text-accent underline">themoviedb.org</a>.
-          </p>
+          {/* Status — saves automatically, so no Save button. */}
+          <div className="text-xs">
+            {hasTmdbKey() ? (
+              <span className="text-accent">● Connected{usingBuiltInKey() && !tmdbKey ? " (built-in)" : ""}</span>
+            ) : (
+              <span className="text-yellow-400">● Demo mode</span>
+            )}
+            {" · "}Region {currentRegion()}
+            {saved && <span className="ml-2 text-accent">Saved ✓</span>}
+          </div>
         </div>
       </section>
       </>
@@ -602,8 +697,6 @@ export function Settings() {
         </section>
       )}
 
-      {/* Version + manual update check. */}
-      <UpdateSection />
     </div>
   );
 }
