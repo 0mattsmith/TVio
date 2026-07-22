@@ -32,8 +32,9 @@ export function Player() {
   const openQuickWatch = useAppStore((s) => s.openQuickWatch);
 
   // A resolved stream URL passed from Quick Watch (via router state).
-  const streamUrl = (location.state as { url?: string } | null)?.url;
-  const streamName = (location.state as { name?: string } | null)?.name;
+  const st = location.state as { url?: string; name?: string; filename?: string; size?: number } | null;
+  const streamUrl = st?.url;
+  const streamName = st?.name;
   const params = new URLSearchParams(location.search);
   const epLabel = params.get("s") && params.get("e") ? `S${params.get("s")} · E${params.get("e")}` : "";
   // Threaded into progress so Continue Watching can show which episode.
@@ -78,6 +79,8 @@ export function Player() {
           title: streamName || data?.title || "",
           startMs: Math.floor(resumeSec * 1000),
           audioLang: useAppStore.getState().preferredAudioLang || "en",
+          filename: st?.filename,
+          sizeBytes: st?.size,
         });
         if (!cancelled && data && res.durationMs > 0) {
           setProgress(data, res.positionMs / 1000, res.durationMs / 1000, epRef);

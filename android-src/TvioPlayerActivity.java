@@ -1,23 +1,28 @@
 package app.tvio.mobile;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Bundle;
+import android.view.Gravity;
 import android.view.View;
 import android.view.WindowManager;
+import android.widget.FrameLayout;
 import android.widget.ImageButton;
+import android.widget.LinearLayout;
 
 import androidx.annotation.OptIn;
 import androidx.media3.common.C;
+import androidx.media3.common.Format;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MimeTypes;
-import androidx.media3.common.Player;
-import androidx.media3.common.TrackSelectionParameters;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
 import androidx.media3.ui.TrackSelectionDialogBuilder;
+
+import java.util.Locale;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -41,6 +46,10 @@ public class TvioPlayerActivity extends Activity {
     private ExoPlayer player;
     private PlayerView playerView;
     private long startMs;
+    private LinearLayout overlayControls;
+    private String sourceTitle;
+    private String sourceFilename;
+    private long sourceSize;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -53,6 +62,9 @@ public class TvioPlayerActivity extends Activity {
         Intent intent = getIntent();
         String url = intent.getStringExtra("url");
         String title = intent.getStringExtra("title");
+        sourceTitle = title;
+        sourceFilename = intent.getStringExtra("filename");
+        sourceSize = intent.getLongExtra("sizeBytes", 0L);
         startMs = intent.getLongExtra("startMs", 0L);
 
         if (url == null || url.isEmpty()) {
@@ -102,7 +114,7 @@ public class TvioPlayerActivity extends Activity {
         player.setPlayWhenReady(true);
         player.prepare();
 
-        addAudioTrackButton();
+        addOverlayControls();
     }
 
     /** Parallel string arrays from the plugin: subUrls / subLangs / subLabels. */
@@ -136,34 +148,104 @@ public class TvioPlayerActivity extends Activity {
     }
 
     /**
-     * Media3's PlayerView ships a subtitle button but not an audio one, so we
-     * add a small button that opens the track picker for audio — the whole point
-     * of the native player for dual-audio releases.
+     * Media3's PlayerView ships a subtitle button but not an audio one or an
+     * info one, so we add a small top-right control row. It's parented to the
+     * controller-visibility listener below so it hides with the rest of the UI
+     * rather than staying on screen after the controls fade.
      */
-    private void addAudioTrackButton() {
-        ImageButton button = new ImageButton(this);
-        button.setImageResource(android.R.drawable.ic_lock_silent_mode_off);
-        button.setBackgroundColor(0x66000000);
-        button.setColorFilter(0xFFFFFFFF);
-        int size = (int) (48 * getResources().getDisplayMetrics().density);
-        android.widget.FrameLayout.LayoutParams lp =
-                new android.widget.FrameLayout.LayoutParams(size, size, android.view.Gravity.TOP | android.view.Gravity.END);
-        int margin = (int) (16 * getResources().getDisplayMetrics().density);
+    private void addOverlayControls() {
+        FrameLayout overlay = playerView.getOverlayFrameLayout();
+        if (overlay == null) return;
+
+        overlayControls = new LinearLayout(this);
+        overlayControls.setOrientation(LinearLayout.HORIZONTAL);
+        int margin = px(16);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.WRAP_CONTENT, FrameLayout.LayoutParams.WRAP_CONTENT,
+                Gravity.TOP | Gravity.END);
         lp.setMargins(0, margin, margin, 0);
-        button.setLayoutParams(lp);
-        button.setOnClickListener(v -> showAudioTracks());
-        if (playerView.getOverlayFrameLayout() != null) {
-            playerView.getOverlayFrameLayout().addView(button);
-        }
+        overlayControls.setLayoutParams(lp);
+
+        overlayControls.addView(iconButton(android.R.drawable.ic_lock_silent_mode_off, v -> showAudioTracks()));
+        overlayControls.addView(iconButton(android.R.drawable.ic_menu_info_details, v -> showStreamInfo()));
+        overlay.addView(overlayControls);
+
+        // Hide/show the row in lockstep with the player controls.
+        playerView.setControllerVisibilityListener(
+                (PlayerView.ControllerVisibilityListener) visibility ->
+                        overlayControls.setVisibility(visibility));
+    }
+
+    private ImageButton iconButton(int icon, View.OnClickListener onClick) {
+        ImageButton b = new ImageButton(this);
+        b.setImageResource(icon);
+        b.setBackgroundColor(0x66000000);
+        b.setColorFilter(0xFFFFFFFF);
+        int s = px(48);
+        LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(s, s);
+        lp.setMarginStart(px(8));
+        b.setLayoutParams(lp);
+        b.setOnClickListener(onClick);
+        return b;
+    }
+
+    private int px(int dp) {
+        return (int) (dp * getResources().getDisplayMetrics().density);
     }
 
     private void showAudioTracks() {
         if (player == null) return;
-        new TrackSelectionDialogBuilder(
-                this, "Audio", player, C.TRACK_TYPE_AUDIO)
+        new TrackSelectionDialogBuilder(this, "Audio", player, C.TRACK_TYPE_AUDIO)
                 .setAllowAdaptiveSelections(false)
                 .build()
                 .show();
+    }
+
+    /** Everything we can tell the user about what's actually playing. */
+    private void showStreamInfo() {
+        if (player == null) return;
+        StringBuilder sb = new StringBuilder();
+        if (sourceTitle != null && !sourceTitle.isEmpty()) sb.append(sourceTitle).append("\n\n");
+        if (sourceFilename != null && !sourceFilename.isEmpty()) sb.append("File: ").append(sourceFilename).append("\n");
+        if (sourceSize > 0) sb.append("Size: ").append(humanSize(sourceSize)).append("\n");
+
+        Format v = player.getVideoFormat();
+        if (v != null) {
+            sb.append("\nVideo: ");
+            if (v.width > 0 && v.height > 0) sb.append(v.width).append("x").append(v.height);
+            if (v.frameRate > 0) sb.append("  ").append(Math.round(v.frameRate)).append("fps");
+            if (v.codecs != null) sb.append("  ").append(v.codecs);
+            int vb = bitrate(v);
+            if (vb > 0) sb.append("  ").append(vb / 1000).append(" kbps");
+            sb.append("\n");
+        }
+
+        Format a = player.getAudioFormat();
+        if (a != null) {
+            sb.append("Audio: ");
+            if (a.language != null) sb.append(a.language).append("  ");
+            if (a.sampleMimeType != null) sb.append(a.sampleMimeType.replace("audio/", "")).append("  ");
+            if (a.channelCount > 0) sb.append(a.channelCount).append("ch  ");
+            int ab = bitrate(a);
+            if (ab > 0) sb.append(ab / 1000).append(" kbps");
+            sb.append("\n");
+        }
+
+        new AlertDialog.Builder(this)
+                .setTitle("Stream info")
+                .setMessage(sb.toString().trim())
+                .setPositiveButton("Close", null)
+                .show();
+    }
+
+    private int bitrate(Format f) {
+        if (f.peakBitrate != Format.NO_VALUE) return f.peakBitrate;
+        return f.averageBitrate != Format.NO_VALUE ? f.averageBitrate : 0;
+    }
+
+    private String humanSize(long bytes) {
+        if (bytes >= 1_000_000_000L) return String.format(Locale.US, "%.1f GB", bytes / 1e9);
+        return String.format(Locale.US, "%.0f MB", bytes / 1e6);
     }
 
     private void immersive() {

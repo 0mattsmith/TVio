@@ -24,6 +24,8 @@ interface NativePlayerPlugin {
     title?: string;
     startMs?: number;
     audioLang?: string;
+    filename?: string;
+    sizeBytes?: number;
     subtitles?: NativeSubtitle[];
   }): Promise<NativePlayResult>;
 }
@@ -62,6 +64,8 @@ export async function playNative(opts: {
   title?: string;
   startMs?: number;
   audioLang?: string;
+  filename?: string;
+  sizeBytes?: number;
   subtitles?: NativeSubtitle[];
 }): Promise<NativePlayResult> {
   const plugin = cap()?.Plugins?.NativePlayer;

@@ -19,6 +19,10 @@ export const SERVICES: StreamService[] = [
   { key: "paramount", name: "Paramount+", color: "#0064ff", providerId: 531, networkId: 4330 },
   { key: "apple", name: "Apple TV+", color: "#ffffff", providerId: 350, networkId: 2552 },
   { key: "peacock", name: "Peacock", color: "#ffce00", providerId: 386, networkId: 3353 },
+  // NOW (formerly NOW TV) — the streaming home of Sky content in the UK/IE.
+  // TMDB watch-provider id 39. No single TMDB network maps to it (Sky content
+  // airs across Sky Atlantic, Sky Max, etc.), so it has no "Originals" row.
+  { key: "now", name: "NOW", color: "#00b7b3", providerId: 39 },
 ];
 
 // Pseudo-service for popular titles not on any tracked platform.

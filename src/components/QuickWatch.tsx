@@ -83,7 +83,12 @@ export function QuickWatch() {
   const playStream = (stream: Stream) => {
     if (!stream.url) return;
     navigate(`/watch/${item.type}/${item.id}${epQuery}`, {
-      state: { url: stream.url, name: streamTitle(stream) },
+      state: {
+        url: stream.url,
+        name: streamTitle(stream),
+        filename: stream.behaviorHints?.filename,
+        size: stream.behaviorHints?.videoSize,
+      },
     });
     close();
   };
