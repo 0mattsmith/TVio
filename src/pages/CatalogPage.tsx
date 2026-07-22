@@ -93,6 +93,20 @@ export function CatalogPage({ type }: { type: MediaType }) {
   // Selecting a different service shouldn't leave a stale brand filter behind.
   useEffect(() => setBrand(undefined), [soleService?.key, type]);
 
+  // On TV, land on the top suggestion when arriving at a catalog page. Without
+  // this, focus lingered on wherever it was on the previous screen and the
+  // browser restored the scroll position, so the first D-pad press grabbed a
+  // poster halfway down the page instead of the hero.
+  useEffect(() => {
+    if (!isTV) return;
+    window.scrollTo(0, 0);
+    if (!heroQ.data?.[0]) return;
+    const raf = requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>("main .focusable")?.focus({ preventScroll: false });
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [isTV, type, heroQ.data]);
+
   // Visible confirmation of which layout is in play. Without it, "one service
   // selected but generic rows" is indistinguishable from "the build doesn't
   // have this feature yet", which cost us several rounds of guesswork.

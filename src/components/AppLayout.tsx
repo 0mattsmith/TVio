@@ -47,8 +47,14 @@ export function AppLayout() {
       {/* A 10-foot layout at 1080p leaves very little on screen at once, so the
           content is scaled down on TV. `zoom` rather than `transform: scale`
           because zoom reflows the layout — coordinates stay honest, which the
-          focus geometry above depends on. The navbar is left alone. */}
-      <div data-tv={isTV || undefined} style={isTV ? ({ zoom: 0.65 } as React.CSSProperties) : undefined}>
+          focus geometry above depends on. The navbar is left alone.
+          paddingTop clears the fixed full-scale navbar so page content — the
+          catalog hero especially — starts cleanly below it rather than under
+          it. It's inside the zoom, so ~6.5rem renders as ~4rem (the navbar). */}
+      <div
+        data-tv={isTV || undefined}
+        style={isTV ? ({ zoom: 0.65, paddingTop: "6.5rem" } as React.CSSProperties) : undefined}
+      >
         <main className="min-h-screen">
           <Outlet />
         </main>
