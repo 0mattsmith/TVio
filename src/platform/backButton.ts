@@ -49,6 +49,14 @@ interface CapacitorApp {
   exitApp(): Promise<void>;
 }
 
+// Kept so the Quit? dialog can actually close the app when the user confirms.
+let capApp: CapacitorApp | null = null;
+
+/** Close the native app (no-op off native). Used by the Quit? confirmation. */
+export async function quitApp(): Promise<void> {
+  await capApp?.exitApp();
+}
+
 export async function installBackButton(): Promise<() => void> {
   let App: CapacitorApp;
   try {
@@ -60,6 +68,7 @@ export async function installBackButton(): Promise<() => void> {
   } catch {
     return () => {}; // plugin absent (web build) — nothing to do
   }
+  capApp = App;
 
   const handle = await App.addListener("backButton", () => {
     // A screen-level interceptor (the player) gets first refusal.
@@ -90,6 +99,11 @@ export async function installBackButton(): Promise<() => void> {
           return;
         }
       }
+      // Focus is on the navbar already (reached via that first Back or via LEFT):
+      // a further Back at the top of a tab asks before quitting, rather than
+      // dropping out of the app on a single stray press.
+      window.dispatchEvent(new CustomEvent("tvio:confirm-quit"));
+      return;
     }
 
     if (ROOTS.includes(path)) {

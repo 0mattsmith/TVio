@@ -17,6 +17,7 @@ import { fetchManifest } from "../addons/manager";
 import { Button } from "../components/Button";
 import { Chip } from "../components/Chip";
 import { Dropdown } from "../components/Dropdown";
+import { useOverlayBack } from "../hooks/useOverlayBack";
 
 const AUDIO_LANGS: [string, string][] = [
   ["en", "English"], ["es", "Spanish"], ["fr", "French"], ["de", "German"],
@@ -95,6 +96,8 @@ export function Settings() {
   // Profile management (Master only)
   const [newProfileName, setNewProfileName] = useState("");
   const [newProfileAvatar, setNewProfileAvatar] = useState(PROFILE_AVATARS[0]);
+  const [addOpen, setAddOpen] = useState(false);
+  useOverlayBack(addOpen, () => setAddOpen(false)); // hardware Back closes the dialog
   const [editingProfile, setEditingProfile] = useState<string | null>(null);
   const [editName, setEditName] = useState("");
   const [editAvatar, setEditAvatar] = useState(PROFILE_AVATARS[0]);
@@ -103,6 +106,7 @@ export function Settings() {
     addProfile(newProfileName, newProfileAvatar);
     setNewProfileName("");
     setNewProfileAvatar(PROFILE_AVATARS[Math.floor(Math.random() * PROFILE_AVATARS.length)]);
+    setAddOpen(false);
   };
   const saveProfileEdit = () => {
     if (editingProfile && editName.trim()) updateProfile(editingProfile, { name: editName, avatar: editAvatar });
@@ -343,10 +347,25 @@ export function Settings() {
       <>
       {/* Profiles (Master only) */}
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
-        <h2 className="flex items-center gap-2 text-lg font-bold"><Users size={18} /> Profiles</h2>
-        <p className="mt-1 text-sm text-muted">
-          Each profile keeps its own watchlist and continue-watching. Only the Master profile can add or remove them.
-        </p>
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold"><Users size={18} /> Profiles</h2>
+            <p className="mt-1 text-sm text-muted">
+              Each profile keeps its own watchlist and continue-watching. Only the Master profile can add or remove them.
+            </p>
+          </div>
+          {/* Add lives in the right column with the row pencils, and opens a
+              dialog rather than an inline form — much tidier on a TV. */}
+          {profiles.length < 5 && (
+            <button
+              onClick={() => { setNewProfileName(""); setAddOpen(true); }}
+              className="focusable flex shrink-0 items-center gap-1.5 rounded-lg bg-accent px-3 py-2 text-sm font-bold text-black"
+              aria-label="Add a profile"
+            >
+              <Plus size={16} /> Add
+            </button>
+          )}
+        </div>
 
         <ul className="mt-4 space-y-2">
           {profiles.map((p) => (
@@ -407,25 +426,42 @@ export function Settings() {
           ))}
         </ul>
 
-        {profiles.length < 5 ? (
-          <div className="mt-4 rounded-lg border border-dashed border-white/15 p-4">
-            <div className="mb-2 text-sm font-semibold">Add a profile</div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-start">
+        {profiles.length >= 5 && (
+          <p className="mt-3 text-xs text-muted">Maximum of 5 profiles reached.</p>
+        )}
+      </section>
+
+      {/* Create-profile dialog (opened by the + button in the header above). */}
+      {addOpen && (
+        <div
+          data-spatial-scope
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
+          onClick={() => setAddOpen(false)}
+        >
+          <div
+            className="animate-fade-in w-full max-w-md rounded-2xl border border-white/10 bg-surface p-6 shadow-card"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 className="flex items-center gap-2 text-lg font-bold"><Users size={18} /> Create a profile</h3>
+            <p className="mt-1 text-sm text-muted">Give it a name and pick an avatar.</p>
+            <div className="mt-4 space-y-3">
               <input
+                autoFocus
                 value={newProfileName}
                 onChange={(e) => setNewProfileName(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && createProfile()}
                 placeholder="Name"
-                className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent sm:w-48"
+                className="focusable w-full rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent"
               />
-              <div className="flex-1"><AvatarPicker value={newProfileAvatar} onChange={setNewProfileAvatar} size="sm" dropdown /></div>
-              <Button onClick={createProfile} disabled={!newProfileName.trim()}><Plus size={16} /> Add</Button>
+              <AvatarPicker value={newProfileAvatar} onChange={setNewProfileAvatar} size="sm" dropdown />
+            </div>
+            <div className="mt-6 flex justify-end gap-2">
+              <Button variant="ghost" onClick={() => setAddOpen(false)}>Cancel</Button>
+              <Button onClick={createProfile} disabled={!newProfileName.trim()}><Plus size={16} /> Add profile</Button>
             </div>
           </div>
-        ) : (
-          <p className="mt-3 text-xs text-muted">Maximum of 5 profiles reached.</p>
-        )}
-      </section>
+        </div>
+      )}
 
       {/* Sources */}
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">

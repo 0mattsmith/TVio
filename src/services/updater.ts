@@ -141,24 +141,46 @@ export async function installDesktopUpdate(update: DesktopUpdate): Promise<void>
 
 // --- Android (Capacitor) -----------------------------------------------------
 
-/** Looks for a newer release and returns its APK (install still needs a tap). */
+interface GhRelease {
+  tag_name?: string;
+  draft?: boolean;
+  body?: string;
+  assets?: { name: string; browser_download_url: string }[];
+}
+
+/** The right APK for this device (TV vs phone) on a release, or undefined. */
+function apkAsset(rel: GhRelease) {
+  const assets = rel.assets || [];
+  const wantTv = /tv/i.test(navigator.userAgent);
+  return (
+    assets.find((a) => (wantTv ? /androidtv/i.test(a.name) : /mobile/i.test(a.name)) && a.name.endsWith(".apk")) ||
+    assets.find((a) => a.name.endsWith(".apk"))
+  );
+}
+
+/**
+ * Looks for a newer release and returns its APK (install still needs a tap).
+ *
+ * Deliberately uses the releases LIST rather than /releases/latest: `/latest`
+ * hides prereleases, and the pipeline keeps a release marked prerelease until
+ * every platform's build is green — so a stuck desktop build would otherwise
+ * freeze phone/TV updates on the last fully-green release. We take the newest
+ * release (draft excluded) that actually carries an APK for this device.
+ */
 export async function checkAndroidUpdate(currentVersion: string): Promise<UpdateInfo | null> {
   if (!isCapacitor()) return null;
   try {
-    const res = await fetch(`${RELEASES_API}/latest`, { headers: { accept: "application/vnd.github+json" } });
+    const res = await fetch(`${RELEASES_API}?per_page=20`, { headers: { accept: "application/vnd.github+json" } });
     if (!res.ok) return null;
-    const rel = await res.json();
-    const tag: string = rel.tag_name || "";
-    if (!tag || !isNewer(tag, currentVersion)) return null;
+    const list = (await res.json()) as GhRelease[];
 
-    const assets: { name: string; browser_download_url: string }[] = rel.assets || [];
-    const wantTv = /tv/i.test(navigator.userAgent);
-    const pick =
-      assets.find((a) => (wantTv ? /androidtv/i.test(a.name) : /mobile/i.test(a.name)) && a.name.endsWith(".apk")) ||
-      assets.find((a) => a.name.endsWith(".apk"));
-    if (!pick) return null;
+    const best = (Array.isArray(list) ? list : [])
+      .filter((r) => !r.draft && r.tag_name && apkAsset(r))
+      .reduce<GhRelease | null>((acc, r) => (!acc || isNewer(r.tag_name!, acc.tag_name!) ? r : acc), null);
 
-    return { version: tag, notes: rel.body, apkUrl: pick.browser_download_url };
+    if (!best || !isNewer(best.tag_name!, currentVersion)) return null;
+    const pick = apkAsset(best)!;
+    return { version: best.tag_name!, notes: best.body, apkUrl: pick.browser_download_url };
   } catch {
     return null;
   }

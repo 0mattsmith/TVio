@@ -93,19 +93,23 @@ export function UpdateSection() {
   };
 
   const install = async () => {
-    setStatus("installing");
+    setError("");
     try {
       if (channel === "desktop" && desktop) {
+        setStatus("installing");
         await installDesktopUpdate(desktop);
         // Windows normally terminates us inside that call and the installer
         // restarts the app. Reaching this line means it didn't, so say so
         // rather than spinning on "Installing…" forever.
         setNotice("Update installed. Close TVio and reopen it to finish.");
       } else if (channel === "android" && android?.apkUrl) {
+        // Straight to "Downloading…" (skip the "Installing…" flash) so the tap
+        // gives immediate, correctly-labelled feedback that it's working.
         setStatus("downloading");
         await installApk(android.apkUrl, setPct);
         setStatus("ready");
       } else if (webReady) {
+        setStatus("installing");
         window.location.reload();
       }
     } catch (e) {

@@ -9,6 +9,7 @@ import { WatchlistToast } from "./WatchlistToast";
 import { UpdateToast } from "./UpdateToast";
 import { WhatsNew } from "./WhatsNew";
 import { PrefetchToast } from "./PrefetchToast";
+import { QuitDialog } from "./QuitDialog";
 import { useAppStore } from "../store/useAppStore";
 import { hasTmdbKey } from "../services/tmdb";
 
@@ -67,6 +68,7 @@ export function AppLayout() {
       <UpdateToast />
       <WhatsNew />
       <PrefetchToast />
+      <QuitDialog />
     </div>
   );
 }

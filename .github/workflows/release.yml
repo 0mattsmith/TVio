@@ -344,11 +344,18 @@ jobs:
   # either job fails the release stays a prerelease and the updater keeps
   # pointing at the last complete one, rather than a broken newer one.
   publish-release:
-    name: Publish release (both builds succeeded)
+    name: Publish release (Android build succeeded)
     needs: [create-release, windows, android]
+    # Promote to a full release — GitHub "Latest", which the updaters read — as
+    # soon as the ANDROID build succeeds. APKs are the primary distribution, and
+    # a failing desktop build must not freeze phone/TV updates on an old version
+    # (which is exactly what "both must be green" did: one broken windows build
+    # left every release a prerelease). always() so this still runs when the
+    # windows job failed; the desktop updater simply finds no latest.json there
+    # and falls back to its manual download, which is how desktop is updated anyway.
     if: >-
-      ${{ startsWith(github.ref, 'refs/tags/v')
-      && needs.windows.result == 'success'
+      ${{ always()
+      && startsWith(github.ref, 'refs/tags/v')
       && needs.android.result == 'success' }}
     runs-on: ubuntu-latest
     steps:
