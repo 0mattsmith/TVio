@@ -117,8 +117,9 @@ const DISNEY_BRANDS: BrandTile[] = [
 
 const LAYOUTS: Record<string, Layout> = {
   netflix: {
-    // WWE moved to Netflix — its own home, reachable from the WWE tile.
-    brands: [{ key: "wwe", name: "WWE", layout: WWE_LAYOUT }],
+    // WWE moved to Netflix — its own home, reachable from the WWE tile. Logo is
+    // the WWE company mark (146598), knocked out to white on the tile's plate.
+    brands: [{ key: "wwe", name: "WWE", logoPath: "/6B6g6PR19RWX4UVi8Q46lZbwb2L.png", darkArtwork: true, layout: WWE_LAYOUT }],
     rows: [
       { kind: "trending", title: "Trending Now" },
       { kind: "originals", title: "Netflix Originals" },

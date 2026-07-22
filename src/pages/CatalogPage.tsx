@@ -103,11 +103,16 @@ export function CatalogPage({ type }: { type: MediaType }) {
   // this, focus lingered on wherever it was on the previous screen and the
   // browser restored the scroll position, so the first D-pad press grabbed a
   // poster halfway down the page instead of the hero.
+  //
+  // But NOT while a panel is open: toggling a service in the Filters sidebar
+  // refetches the hero, and this effect would then rip focus out of the sidebar
+  // back to the top — so it stayed put only if a spatial scope is on screen.
   useEffect(() => {
-    if (!isTV) return;
+    if (!isTV || document.querySelector("[data-spatial-scope]")) return;
     window.scrollTo(0, 0);
     if (!heroQ.data?.[0]) return;
     const raf = requestAnimationFrame(() => {
+      if (document.querySelector("[data-spatial-scope]")) return;
       document.querySelector<HTMLElement>("main .focusable")?.focus({ preventScroll: false });
     });
     return () => cancelAnimationFrame(raf);
