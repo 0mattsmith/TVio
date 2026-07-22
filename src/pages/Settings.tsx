@@ -48,6 +48,7 @@ export function Settings() {
     iptvEnabled, setIptvEnabled,
     iptvPlaylists, iptvEpgUrls, addIptvPlaylist, removeIptvPlaylist, addIptvEpg, removeIptvEpg,
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
+    preferredAudioLang, setPreferredAudioLang,
     profiles, activeProfileId, addProfile, updateProfile, removeProfile, profileData, watchlist,
   } = useAppStore();
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
@@ -228,6 +229,26 @@ export function Settings() {
         </div>
 
         )}
+
+        <div className="mt-5">
+          <div className="text-sm font-semibold">Preferred audio language</div>
+          <div className="mb-2 text-xs text-muted">
+            The native player picks this track by default, so streams don't start on commentary, a dub, or silence.
+          </div>
+          <select
+            value={preferredAudioLang}
+            onChange={(e) => setPreferredAudioLang(e.target.value)}
+            className="focusable w-full max-w-xs rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm outline-none focus:border-accent sm:w-auto"
+          >
+            {[
+              ["en", "English"], ["es", "Spanish"], ["fr", "French"], ["de", "German"],
+              ["it", "Italian"], ["pt", "Portuguese"], ["ja", "Japanese"], ["ko", "Korean"],
+              ["zh", "Chinese"], ["hi", "Hindi"], ["ar", "Arabic"], ["ru", "Russian"],
+            ].map(([code, label]) => (
+              <option key={code} value={code}>{label}</option>
+            ))}
+          </select>
+        </div>
 
         <div className="mt-5">
           <div className="text-sm font-semibold">When I press Play</div>

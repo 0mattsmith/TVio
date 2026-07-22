@@ -137,6 +137,9 @@ interface AppState {
   setTmdbKey: (v: string) => void;
   tmdbRegion: string;
   setTmdbRegion: (v: string) => void;
+  // Preferred audio language (ISO 639-1) for the native player's default track.
+  preferredAudioLang: string;
+  setPreferredAudioLang: (v: string) => void;
   // First-run onboarding (sign-in → TMDB key) completed / skipped
   onboardingDone: boolean;
   setOnboardingDone: (v: boolean) => void;
@@ -291,6 +294,8 @@ export const useAppStore = create<AppState>()(
       setTmdbKey: (v) => set({ tmdbKey: v.trim() }),
       tmdbRegion: "",
       setTmdbRegion: (v) => set({ tmdbRegion: v.trim() }),
+      preferredAudioLang: "en",
+      setPreferredAudioLang: (v) => set({ preferredAudioLang: v }),
       onboardingDone: false,
       setOnboardingDone: (v) => set({ onboardingDone: v }),
       lastSeenVersion: "",
@@ -331,6 +336,7 @@ export const useAppStore = create<AppState>()(
         platformOverride: s.platformOverride,
         tmdbKey: s.tmdbKey,
         tmdbRegion: s.tmdbRegion,
+        preferredAudioLang: s.preferredAudioLang,
         onboardingDone: s.onboardingDone,
         lastSeenVersion: s.lastSeenVersion,
         iptvEnabled: s.iptvEnabled,

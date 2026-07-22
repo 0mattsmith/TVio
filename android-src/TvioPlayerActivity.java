@@ -71,6 +71,19 @@ public class TvioPlayerActivity extends Activity {
         player = new ExoPlayer.Builder(this).build();
         playerView.setPlayer(player);
 
+        // Pick a sensible default audio track. Without this, ExoPlayer can land
+        // on a commentary track, a foreign-language dub, or nothing at all
+        // ("None") when the container's default flag is missing. Preferring the
+        // user's language (English unless changed) selects the main track.
+        String audioLang = intent.getStringExtra("audioLang");
+        if (audioLang == null || audioLang.isEmpty()) audioLang = "en";
+        player.setTrackSelectionParameters(
+                player.getTrackSelectionParameters()
+                        .buildUpon()
+                        .setPreferredAudioLanguage(audioLang)
+                        .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
+                        .build());
+
         MediaItem.Builder mediaBuilder = new MediaItem.Builder().setUri(Uri.parse(url));
         if (title != null) {
             mediaBuilder.setMediaMetadata(

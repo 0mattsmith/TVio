@@ -58,6 +58,17 @@ body {
   margin-bottom: -0.25rem;
 }
 
+/* The navbar is fixed at full scale while content is zoomed on TV, so when
+   spatial nav scrolls a top-of-page element into view it lands UNDER the
+   navbar — which read as "won't scroll up / the top is cut off". scroll-margin
+   reserves room above (and a little below) each focus target when
+   scrollIntoView runs, so the highlight is never hidden by the navbar. The
+   value clears a 4rem navbar in the zoomed coordinate space. */
+[data-tv] .focusable {
+  scroll-margin-top: 7rem;
+  scroll-margin-bottom: 3rem;
+}
+
 @keyframes shimmer { 100% { transform: translateX(100%); } }
 .skeleton {
   position: relative;

@@ -48,6 +48,7 @@ public class NativePlayer extends Plugin {
         intent.putExtra("title", call.getString("title", ""));
         // getDouble avoids the int overflow a long runtime in ms could hit.
         intent.putExtra("startMs", (long) (double) call.getDouble("startMs", 0.0));
+        intent.putExtra("audioLang", call.getString("audioLang", "en"));
 
         // Subtitles arrive as [{ url, lang, label }]; flatten to parallel arrays
         // the Activity can read back out of the Intent.

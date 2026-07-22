@@ -72,6 +72,7 @@ export function Player() {
           url: streamUrl,
           title: streamName || data?.title || "",
           startMs: Math.floor(resumeSec * 1000),
+          audioLang: useAppStore.getState().preferredAudioLang || "en",
         });
         if (!cancelled && data && res.durationMs > 0) {
           setProgress(data, res.positionMs / 1000, res.durationMs / 1000);
