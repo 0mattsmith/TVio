@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Sparkles, X } from "lucide-react";
 import { useAppStore } from "../store/useAppStore";
 import { fetchReleaseNotes } from "../services/updater";
+import { useIsTV } from "../hooks/useDeviceProfile";
 
 /**
  * After an update lands, shows a compact "What's New" card with the release
@@ -12,6 +13,7 @@ export function WhatsNew() {
   const lastSeenVersion = useAppStore((s) => s.lastSeenVersion);
   const setLastSeenVersion = useAppStore((s) => s.setLastSeenVersion);
   const [notes, setNotes] = useState<string | null>(null);
+  const isTV = useIsTV();
 
   useEffect(() => {
     const current = __APP_VERSION__;
@@ -56,9 +58,12 @@ export function WhatsNew() {
             </div>
             <div className="mt-0.5 text-sm font-bold">TVio {__APP_VERSION__}</div>
           </div>
-          <button onClick={dismiss} className="focusable text-muted hover:text-white" aria-label="Dismiss">
-            <X size={16} />
-          </button>
+          {/* TV dismisses with the reachable "Got it" button below. */}
+          {!isTV && (
+            <button onClick={dismiss} className="focusable text-muted hover:text-white" aria-label="Dismiss">
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         <ul className="mt-2 space-y-1">

@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Download, X, Loader2 } from "lucide-react";
 import { checkAndroidUpdate, installApk, type UpdateInfo } from "../services/updater";
+import { useIsTV } from "../hooks/useDeviceProfile";
 
 // Android / Android TV only: downloads the APK in the background, then hands it
 // to Android's installer (which always shows its own confirmation for sideloaded
@@ -12,6 +13,7 @@ export function UpdateToast() {
   const [update, setUpdate] = useState<UpdateInfo | null>(null);
   const [progress, setProgress] = useState<number | null>(null);
   const [dismissed, setDismissed] = useState(false);
+  const isTV = useIsTV();
 
   useEffect(() => {
     let active = true;
@@ -54,9 +56,13 @@ export function UpdateToast() {
                 : "Confirm the install when Android asks."}
             </p>
           </div>
-          <button onClick={() => setDismissed(true)} className="focusable text-muted hover:text-white" aria-label="Dismiss">
-            <X size={16} />
-          </button>
+          {/* A corner X is a poor D-pad target; TV uses a reachable "Later"
+              button below instead. */}
+          {!isTV && (
+            <button onClick={() => setDismissed(true)} className="focusable text-muted hover:text-white" aria-label="Dismiss">
+              <X size={16} />
+            </button>
+          )}
         </div>
 
         {downloading ? (
@@ -69,12 +75,22 @@ export function UpdateToast() {
             </div>
           </div>
         ) : (
-          <button
-            onClick={() => update.apkUrl && installApk(update.apkUrl, setProgress)}
-            className="focusable mt-3 flex w-full items-center justify-center gap-2 rounded-lg bg-accent py-2.5 text-sm font-bold text-black"
-          >
-            <Download size={15} /> Install now
-          </button>
+          <div className="mt-3 flex gap-2">
+            <button
+              onClick={() => update.apkUrl && installApk(update.apkUrl, setProgress)}
+              className="focusable flex flex-1 items-center justify-center gap-2 rounded-lg bg-accent py-2.5 text-sm font-bold text-black"
+            >
+              <Download size={15} /> Install now
+            </button>
+            {isTV && (
+              <button
+                onClick={() => setDismissed(true)}
+                className="focusable rounded-lg bg-white/10 px-4 py-2.5 text-sm font-semibold hover:bg-white/20"
+              >
+                Later
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
