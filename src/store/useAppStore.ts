@@ -158,6 +158,11 @@ interface AppState {
   // Preferred audio language (ISO 639-1) for the native player's default track.
   preferredAudioLang: string;
   setPreferredAudioLang: (v: string) => void;
+  // Recent search queries (most-recent first), personal to this device.
+  searchHistory: string[];
+  addSearch: (q: string) => void;
+  removeSearch: (q: string) => void;
+  clearSearchHistory: () => void;
   // First-run onboarding (sign-in → TMDB key) completed / skipped
   onboardingDone: boolean;
   setOnboardingDone: (v: boolean) => void;
@@ -321,6 +326,17 @@ export const useAppStore = create<AppState>()(
       setTmdbRegion: (v) => set({ tmdbRegion: v.trim() }),
       preferredAudioLang: "en",
       setPreferredAudioLang: (v) => set({ preferredAudioLang: v }),
+      searchHistory: [],
+      addSearch: (q) =>
+        set((s) => {
+          const term = q.trim();
+          if (!term) return {};
+          // De-dupe (case-insensitive), newest first, capped.
+          const next = [term, ...s.searchHistory.filter((t) => t.toLowerCase() !== term.toLowerCase())].slice(0, 12);
+          return { searchHistory: next };
+        }),
+      removeSearch: (q) => set((s) => ({ searchHistory: s.searchHistory.filter((t) => t !== q) })),
+      clearSearchHistory: () => set({ searchHistory: [] }),
       onboardingDone: false,
       setOnboardingDone: (v) => set({ onboardingDone: v }),
       lastSeenVersion: "",
@@ -362,6 +378,7 @@ export const useAppStore = create<AppState>()(
         tmdbKey: s.tmdbKey,
         tmdbRegion: s.tmdbRegion,
         preferredAudioLang: s.preferredAudioLang,
+        searchHistory: s.searchHistory,
         onboardingDone: s.onboardingDone,
         lastSeenVersion: s.lastSeenVersion,
         iptvEnabled: s.iptvEnabled,
