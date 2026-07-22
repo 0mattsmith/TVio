@@ -36,6 +36,11 @@ export function Player() {
   const streamName = (location.state as { name?: string } | null)?.name;
   const params = new URLSearchParams(location.search);
   const epLabel = params.get("s") && params.get("e") ? `S${params.get("s")} · E${params.get("e")}` : "";
+  // Threaded into progress so Continue Watching can show which episode.
+  const epRef =
+    params.get("s") && params.get("e")
+      ? { season: Number(params.get("s")), episode: Number(params.get("e")) }
+      : undefined;
   const isTV = useIsTV();
 
   // Android: the whole player is a separate native activity, not the <video>
@@ -75,7 +80,7 @@ export function Player() {
           audioLang: useAppStore.getState().preferredAudioLang || "en",
         });
         if (!cancelled && data && res.durationMs > 0) {
-          setProgress(data, res.positionMs / 1000, res.durationMs / 1000);
+          setProgress(data, res.positionMs / 1000, res.durationMs / 1000, epRef);
         }
       } catch {
         /* nothing to fall back to on Android — just leave the player */
@@ -94,7 +99,7 @@ export function Player() {
     if (nativeVideo || !data || !duration) return;
     const iv = setInterval(() => {
       const v = videoRef.current;
-      if (v && !v.paused) setProgress(data, v.currentTime, duration);
+      if (v && !v.paused) setProgress(data, v.currentTime, duration, epRef);
     }, 5000);
     return () => clearInterval(iv);
   }, [data, duration, setProgress]);

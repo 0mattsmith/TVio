@@ -18,7 +18,9 @@ export function PosterCard({
   progress,
   fluid,
 }: {
-  item: MediaItem;
+  // Continue Watching passes progress entries, which carry the episode — shown
+  // on the poster so an in-progress series is distinguishable from a film.
+  item: MediaItem & { season?: number; episode?: number };
   progress?: number;
   fluid?: boolean;
 }) {
@@ -83,8 +85,14 @@ export function PosterCard({
         <div className="pointer-events-none absolute inset-0 flex flex-col justify-end bg-gradient-to-t from-black/90 via-black/10 to-transparent p-2 opacity-0 transition-opacity group-hover:opacity-100 group-focus:opacity-100">
           <div className="poster-title mb-1 line-clamp-2 text-xs font-bold">{item.title}</div>
           <div className="poster-meta flex items-center gap-1.5 text-[11px] text-muted">
-            <span className="text-accent">★ {item.rating || "—"}</span>
-            <span>{item.year}</span>
+            {item.season && item.episode ? (
+              <span className="font-bold text-accent">S{item.season} · E{item.episode}</span>
+            ) : (
+              <>
+                <span className="text-accent">★ {item.rating || "—"}</span>
+                <span>{item.year}</span>
+              </>
+            )}
           </div>
 
           {/* Hidden on TV (see index.css) — as focus stops inside every card

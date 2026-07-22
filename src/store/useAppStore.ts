@@ -10,6 +10,10 @@ export interface ProgressEntry extends MediaItem {
   positionSec: number;
   durationSec: number;
   updatedAt: number;
+  // Present for TV episodes, so Continue Watching can show "S1 · E2" and the
+  // next-episode logic knows where it left off. Absent for films.
+  season?: number;
+  episode?: number;
 }
 
 // Netflix-style profiles. The first profile created is the Master, which is the
@@ -21,7 +25,16 @@ export interface Profile {
   isMaster: boolean;
 }
 
-export const PROFILE_AVATARS = ["🍿", "🎬", "🎮", "🐱", "🚀", "🌊", "🔥", "⭐", "🦊", "🐼", "🎧", "🌙"];
+export const PROFILE_AVATARS = [
+  // Screen & sound
+  "🍿", "🎬", "🎮", "🎧", "🎸", "🎨", "👾",
+  // Sport
+  "⚽", "🏀", "🏈", "🎾", "🏉", "🏏", "🏐", "🎱", "🎯", "⛳", "🏆",
+  // Creatures
+  "🐱", "🦊", "🐼", "🐶", "🦁", "🐧", "🦄", "🐢",
+  // Odds & ends
+  "🚀", "🌊", "🔥", "⭐", "🌙", "🍕", "🌮", "💎",
+];
 
 /** A followed film series (TMDB collection) — e.g. Star Wars, Halloween. */
 export interface FavCollection {
@@ -114,7 +127,12 @@ interface AppState {
 
   // Continue watching
   progress: ProgressEntry[];
-  setProgress: (item: MediaItem, positionSec: number, durationSec: number) => void;
+  setProgress: (
+    item: MediaItem,
+    positionSec: number,
+    durationSec: number,
+    ep?: { season: number; episode: number }
+  ) => void;
 
   // Sources / addons (Plex, NAS, Stremio addons)
   addons: Addon[];
@@ -259,10 +277,17 @@ export const useAppStore = create<AppState>()(
         })),
 
       progress: [],
-      setProgress: (item, positionSec, durationSec) =>
+      setProgress: (item, positionSec, durationSec, ep) =>
         set((s) => ({
           progress: [
-            { ...item, positionSec, durationSec, updatedAt: Date.now() },
+            {
+              ...item,
+              positionSec,
+              durationSec,
+              updatedAt: Date.now(),
+              season: ep?.season,
+              episode: ep?.episode,
+            },
             ...s.progress.filter((p) => p.id !== item.id),
           ].slice(0, 20),
         })),
