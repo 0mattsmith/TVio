@@ -334,20 +334,22 @@ export function Settings() {
                     </div>
                   </div>
                   <div className="flex shrink-0 items-center gap-2">
+                    {/* Padded, backgrounded buttons so they're real D-pad
+                        targets on TV, not bare 16px icons. */}
                     <button
                       onClick={() => { setEditingProfile(p.id); setEditName(p.name); setEditAvatar(p.avatar); }}
-                      className="focusable text-muted hover:text-white"
+                      className="focusable rounded-lg bg-surface p-2.5 text-muted hover:text-white"
                       aria-label={`Edit ${p.name}`}
                     >
-                      <Pencil size={16} />
+                      <Pencil size={18} />
                     </button>
                     {!p.isMaster && (
                       <button
                         onClick={() => removeProfile(p.id)}
-                        className="focusable text-muted hover:text-red-400"
+                        className="focusable rounded-lg bg-surface p-2.5 text-muted hover:text-red-400"
                         aria-label={`Remove ${p.name}`}
                       >
-                        <Trash2 size={16} />
+                        <Trash2 size={18} />
                       </button>
                     )}
                   </div>

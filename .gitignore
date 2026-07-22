@@ -24,6 +24,9 @@ src-tauri/gen
 *.keystore
 *.jks
 
+# Generated icon source images (written by scripts/gen-android-assets.mjs in CI)
+/assets/
+
 # Misc
 *.apk
 *.msi

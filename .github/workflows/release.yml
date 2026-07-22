@@ -246,10 +246,14 @@ jobs:
         run: node scripts/android-updater-patch.mjs
       - name: Inject native ExoPlayer (Media3 plugin + activity)
         run: node scripts/android-exoplayer-patch.mjs
-      # NOT continue-on-error: a skipped run ships the stock Android robot icon,
-      # which looks like a product bug rather than a build warning.
-      - name: Generate branded launcher icons + TV banner
+      # Two steps: our script writes the source images (assets/icon-*.png +
+      # the TV banner), then Capacitor's own generator turns them into the exact
+      # launcher resources Android expects. Hand-writing those resources was what
+      # kept shipping the stock robot; the official tool removes the guesswork.
+      - name: Generate source icon assets + TV banner
         run: node scripts/gen-android-assets.mjs
+      - name: Generate Android launcher icons (@capacitor/assets)
+        run: npx @capacitor/assets generate --android --iconBackgroundColor '#0a0a0a' --iconBackgroundColorDark '#0a0a0a'
       - name: Build phone APK
         env:
           ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/tvio.keystore
@@ -276,15 +280,12 @@ jobs:
           echo "--- launcher resources inside tvio-mobile.apk ---"
           unzip -l tvio-mobile.apk | grep -Ei "ic_launcher|banner" || echo "  none found"
           echo
-          echo "--- does the packaged icon match the one we generated? ---"
-          src=$(md5sum android/app/src/main/res/mipmap-xxxhdpi/ic_launcher.png | cut -d' ' -f1)
-          pkg=$(unzip -p tvio-mobile.apk res/mipmap-xxxhdpi/ic_launcher.png 2>/dev/null | md5sum | cut -d' ' -f1)
-          echo "  generated: $src"
-          echo "  packaged:  $pkg"
-          if [ "$src" != "$pkg" ]; then
-            echo "::warning::The packaged launcher icon differs from the generated one — resource merging is overriding it."
+          # @capacitor/assets writes adaptive icons (mipmap-anydpi) + the raster
+          # densities. A total absence here means the generate step didn't run.
+          if unzip -l tvio-mobile.apk | grep -qi "mipmap-anydpi.*ic_launcher"; then
+            echo "  ✓ adaptive launcher icon present in the APK"
           else
-            echo "  match"
+            echo "::warning::No adaptive launcher icon in the APK — the app will show the stock icon."
           fi
 
       - name: Apply Android TV (leanback) manifest

@@ -57,10 +57,18 @@ const iconSvg = (n, round) => `<svg xmlns="http://www.w3.org/2000/svg" width="${
 
 /**
  * Adaptive foreground: transparent, and the mark must stay inside the middle
- * ~66% because launchers crop the rest to whatever shape they like.
+ * ~66% because launchers crop the rest to whatever shape they like. Kept a
+ * little larger here (@capacitor/assets adds its own safe-zone padding).
  */
 const foregroundSvg = (n) => `<svg xmlns="http://www.w3.org/2000/svg" width="${n}" height="${n}">
-    ${wordmark(n / 2, n / 2, n * 0.2)}
+    ${wordmark(n / 2, n / 2, n * 0.26)}
+  </svg>`;
+
+/** Adaptive background layer: the dark tile with its teal glow, no wordmark. */
+const backgroundSvg = (n) => `<svg xmlns="http://www.w3.org/2000/svg" width="${n}" height="${n}">
+    ${glow("g", n / 2, n * 0.34, n * 0.8)}
+    <rect width="${n}" height="${n}" fill="${BG}"/>
+    <rect width="${n}" height="${n}" fill="url(#g)"/>
   </svg>`;
 
 const bannerSvg = (w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
@@ -90,39 +98,21 @@ const DENSITIES = [
 ];
 
 async function main() {
-  console.log("Generating Android launcher icons…");
-  for (const [density, size] of DENSITIES) {
-    await png(iconSvg(size * SS, false), size, `${RES}/mipmap-${density}/ic_launcher.png`);
-    await png(iconSvg(size * SS, true), size, `${RES}/mipmap-${density}/ic_launcher_round.png`);
-    console.log(`  ✓ mipmap-${density} (${size}px)`);
-  }
+  // Write the SOURCE images that @capacitor/assets turns into the real launcher
+  // resources. Hand-writing the res/ files ourselves is what kept shipping the
+  // stock robot icon — the exact resource names, types and adaptive-icon XML
+  // Android expects are fiddly and version-specific. @capacitor/assets is
+  // Capacitor's own tool for exactly this, so it produces the correct set every
+  // time; the CI step that follows this one runs it.
+  console.log("Generating source icon assets for @capacitor/assets…");
+  await png(iconSvg(1024, false), 1024, "assets/icon-only.png");
+  await png(foregroundSvg(1024), 1024, "assets/icon-foreground.png");
+  await png(backgroundSvg(1024), 1024, "assets/icon-background.png");
+  console.log("  ✓ assets/icon-only, icon-foreground, icon-background (1024px)");
 
-  // Adaptive icon (Android 8+)
-  await png(foregroundSvg(432 * SS), 432, `${RES}/drawable/ic_launcher_foreground.png`);
-  mkdirSync(`${RES}/values`, { recursive: true });
-  writeFileSync(
-    `${RES}/values/ic_launcher_background.xml`,
-    `<?xml version="1.0" encoding="utf-8"?>\n<resources>\n    <color name="ic_launcher_background">${BG}</color>\n</resources>\n`
-  );
-  // Written to BOTH v26 and v33. Android 13 introduced themed icons and reads
-  // mipmap-anydpi-v33 in preference to -v26 — Capacitor's template ships one,
-  // so overwriting only v26 leaves every modern device using the stock icon
-  // while the files we generated sit there unused.
-  const adaptive = `<?xml version="1.0" encoding="utf-8"?>
-<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@color/ic_launcher_background"/>
-    <foreground android:drawable="@drawable/ic_launcher_foreground"/>
-    <monochrome android:drawable="@drawable/ic_launcher_foreground"/>
-</adaptive-icon>
-`;
-  for (const dir of ["mipmap-anydpi-v26", "mipmap-anydpi-v33"]) {
-    mkdirSync(`${RES}/${dir}`, { recursive: true });
-    writeFileSync(`${RES}/${dir}/ic_launcher.xml`, adaptive);
-    writeFileSync(`${RES}/${dir}/ic_launcher_round.xml`, adaptive);
-  }
-  console.log("  ✓ adaptive icon (v26 + v33, foreground + background + monochrome)");
-
-  // Android TV home-row banner
+  // The Android TV home-row banner isn't something @capacitor/assets makes, so
+  // it's still written straight into res/ (survives the generate step, which
+  // only touches icon/splash resources).
   mkdirSync(`${RES}/drawable-xhdpi`, { recursive: true });
   const banner = await sharp(Buffer.from(bannerSvg(320 * SS, 180 * SS)))
     .resize(320, 180, { kernel: sharp.kernel.lanczos3 })
@@ -138,16 +128,9 @@ async function main() {
  * stock green Android robot, which is easy to miss until the APK is installed.
  */
 const EXPECTED = [
-  ...DENSITIES.flatMap(([d]) => [
-    `${RES}/mipmap-${d}/ic_launcher.png`,
-    `${RES}/mipmap-${d}/ic_launcher_round.png`,
-  ]),
-  `${RES}/drawable/ic_launcher_foreground.png`,
-  `${RES}/mipmap-anydpi-v26/ic_launcher.xml`,
-  `${RES}/mipmap-anydpi-v26/ic_launcher_round.xml`,
-  `${RES}/mipmap-anydpi-v33/ic_launcher.xml`,
-  `${RES}/mipmap-anydpi-v33/ic_launcher_round.xml`,
-  `${RES}/values/ic_launcher_background.xml`,
+  "assets/icon-only.png",
+  "assets/icon-foreground.png",
+  "assets/icon-background.png",
   `${RES}/drawable-xhdpi/banner.png`,
 ];
 
