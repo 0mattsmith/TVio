@@ -140,6 +140,7 @@ interface AppState {
     durationSec: number,
     ep?: { season: number; episode: number }
   ) => void;
+  removeFromProgress: (id: number) => void;
 
   // Watched (of the ACTIVE profile) — finished films/series for the Home row,
   // plus the set of finished episodes (keyed "seriesId:season:episode").
@@ -313,6 +314,7 @@ export const useAppStore = create<AppState>()(
             ...s.progress.filter((p) => p.id !== item.id),
           ].slice(0, 20),
         })),
+      removeFromProgress: (id) => set((s) => ({ progress: s.progress.filter((p) => p.id !== id) })),
 
       watched: [],
       watchedEpisodes: [],
@@ -326,7 +328,16 @@ export const useAppStore = create<AppState>()(
             overview: item.overview, genreIds: item.genreIds,
           };
           const watched = [lean, ...s.watched.filter((w) => w.id !== item.id)].slice(0, 40);
-          if (!ep) return { watched }; // a film
+          if (!ep) {
+            // A finished film: pull it out of Continue Watching, and shuffle it to
+            // the back of the Watchlist (kept, but behind anything still unwatched).
+            const progress = s.progress.filter((p) => p.id !== item.id);
+            const wlItem = s.watchlist.find((w) => w.id === item.id);
+            const watchlist = wlItem
+              ? [...s.watchlist.filter((w) => w.id !== item.id), wlItem]
+              : s.watchlist;
+            return { watched, progress, watchlist };
+          }
           const key = `${item.id}:${ep.season}:${ep.episode}`;
           const watchedEpisodes = s.watchedEpisodes.includes(key)
             ? s.watchedEpisodes

@@ -8,11 +8,14 @@ export function Row({
   items,
   loading,
   progressFor,
+  context,
 }: {
   title: string;
   items?: MediaItem[];
   loading?: boolean;
   progressFor?: (item: MediaItem) => number | undefined;
+  /** Row identity, forwarded to each card's hold-OK menu (Remove options). */
+  context?: "continue" | "watchlist";
 }) {
   const scroller = useRef<HTMLDivElement>(null);
 
@@ -41,7 +44,7 @@ export function Row({
           {loading
             ? Array.from({ length: 8 }).map((_, i) => <PosterSkeleton key={i} />)
             : items!.map((item) => (
-                <PosterCard key={`${item.type}-${item.id}`} item={item} progress={progressFor?.(item)} />
+                <PosterCard key={`${item.type}-${item.id}`} item={item} progress={progressFor?.(item)} context={context} />
               ))}
         </div>
         <button

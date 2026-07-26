@@ -4,7 +4,7 @@ import { Layers } from "lucide-react";
 import { Hero } from "../components/Hero";
 import { Row } from "../components/Row";
 import { DemoBanner } from "../components/DemoBanner";
-import { trendingRow, popularRow, genreRow } from "../services/catalog";
+import { trendingRow, popularRow, recommendationsRow } from "../services/catalog";
 import { useAppStore } from "../store/useAppStore";
 import type { MediaItem } from "../services/types";
 
@@ -19,13 +19,13 @@ export function Home() {
   const trendTv = useQuery({ queryKey: ["home", "trend", "tv"], queryFn: () => trendingRow("tv") });
   const popMovies = useQuery({ queryKey: ["home", "pop", "movie"], queryFn: () => popularRow("movie") });
 
-  // "Because you've watched" — seed recommendations from a genre implied by
-  // the watchlist/progress. Falls back to trending drama.
-  const seed = [...progress, ...watchlist][0];
-  const becauseGenre = seed?.genreIds?.[0] ?? 18;
+  // "Because you watched X" — seed from the most recent thing you finished, then
+  // in-progress, then the watchlist, and use TMDB's per-title recommendations
+  // (kind/era/cast aware) rather than a single genre.
+  const seed = [...watched, ...progress, ...watchlist][0];
   const because = useQuery({
-    queryKey: ["home", "because", becauseGenre],
-    queryFn: () => genreRow("movie", becauseGenre),
+    queryKey: ["home", "because", seed?.type ?? "none", seed?.id ?? 0],
+    queryFn: () => (seed ? recommendationsRow(seed.type, seed.id) : trendingRow("movie")),
   });
 
   const heroItem = trendMovies.data?.[0];
@@ -43,9 +43,9 @@ export function Home() {
 
       <div className="relative z-10 pt-6">
         {progress.length > 0 && (
-          <Row title="Continue Watching…" items={progress} progressFor={progressLookup} />
+          <Row title="Continue Watching…" items={progress} progressFor={progressLookup} context="continue" />
         )}
-        {watchlist.length > 0 && <Row title="My Watchlist" items={watchlist} />}
+        {watchlist.length > 0 && <Row title="My Watchlist" items={watchlist} context="watchlist" />}
         {watched.length > 0 && <Row title="Watched" items={watched} />}
 
         {/* Followed film series — Star Wars, Halloween, Scream… */}

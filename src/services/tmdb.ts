@@ -155,6 +155,12 @@ export const trending = (type: MediaType | "all" = "all", window: "day" | "week"
 
 export const popular = (type: MediaType) => list(`/${type}/popular`, type);
 
+// TMDB's own "more like this" — factors in cast, era and audience overlap, so
+// it's far closer than a single-genre row (e.g. Frat Pack films for a Vaughn/
+// Wilson comedy). `similar` is the broader, genre/keyword fallback.
+export const recommendations = (type: MediaType, id: number) => list(`/${type}/${id}/recommendations`, type);
+export const similar = (type: MediaType, id: number) => list(`/${type}/${id}/similar`, type);
+
 export const search = (q: string) =>
   list("/search/multi", "movie", { query: q, include_adult: "false" });
 

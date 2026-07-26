@@ -205,8 +205,17 @@ export function installSpatialNav(): () => void {
     // Back, not by arrowing up or left off the edge of the content into it. Once
     // focus is actually in the navbar its own links stay navigable (so this only
     // filters when we're starting from content).
-    if (!overlay && !active?.closest("header")) {
-      candidates = candidates.filter((c) => !c.el.closest("header"));
+    if (!overlay) {
+      const inHeader = active?.closest("header");
+      if (!inHeader) {
+        // In content: the navbar is reached via Back/LEFT/UP, not by arrowing in.
+        candidates = candidates.filter((c) => !c.el.closest("header"));
+      } else if (dir === "left" || dir === "right") {
+        // In the navbar: LEFT/RIGHT move only among navbar items; DOWN drops into
+        // the page and Back leaves it — so RIGHT off "Movies" can't fall into a
+        // poster below instead of reaching the next link.
+        candidates = candidates.filter((c) => c.el.closest("header"));
+      }
     }
     if (candidates.length === 0) return;
 

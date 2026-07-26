@@ -61,7 +61,9 @@ export function SearchPage() {
 
   return (
     <div className="animate-fade-in px-4 pt-24 sm:px-8">
-      <div className="mx-auto flex max-w-2xl items-center gap-3 rounded-xl border border-white/10 bg-surface-2 px-4 py-3 transition-colors focus-within:border-accent">
+      {/* The glow lives on the whole field (focus-within), not the inner input,
+          so the highlight wraps the entire shape. */}
+      <div className="mx-auto flex max-w-2xl items-center gap-3 rounded-xl border border-white/10 bg-surface-2 px-4 py-3 transition-shadow focus-within:border-accent focus-within:shadow-[0_0_0_2px_#14b8a6,0_0_24px_rgba(20,184,166,0.35)]">
         <SearchIcon className="text-muted" size={20} />
         <input
           ref={inputRef}
@@ -69,7 +71,7 @@ export function SearchPage() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Search movies, TV series, people…"
-          className="focusable w-full bg-transparent text-lg text-white outline-none placeholder:text-muted"
+          className="w-full bg-transparent text-lg text-white outline-none placeholder:text-muted"
         />
         {q && (
           <button onClick={() => { setQ(""); inputRef.current?.focus(); }} className="focusable rounded-full p-1 text-muted hover:text-white" aria-label="Clear search">
@@ -94,11 +96,20 @@ export function SearchPage() {
               </div>
               <div className="flex flex-wrap gap-2">
                 {searchHistory.map((term) => (
-                  <span key={term} className="flex items-center overflow-hidden rounded-full border border-white/15 bg-surface-2">
-                    <button onClick={() => setQ(term)} className="focusable py-1.5 pl-3.5 pr-2 text-sm font-semibold text-white hover:text-accent">
+                  // Whole chip goes teal when either child is focused; the X turns
+                  // red only while it's the focused one. Grey again on leave.
+                  <span
+                    key={term}
+                    className="flex items-center overflow-hidden rounded-full border border-white/15 bg-surface-2 text-white transition-colors focus-within:border-accent focus-within:bg-accent focus-within:text-black"
+                  >
+                    <button onClick={() => setQ(term)} className="py-1.5 pl-3.5 pr-2 text-sm font-semibold outline-none">
                       {term}
                     </button>
-                    <button onClick={() => removeSearch(term)} className="focusable py-1.5 pr-2.5 text-muted hover:text-white" aria-label={`Remove ${term}`}>
+                    <button
+                      onClick={() => removeSearch(term)}
+                      className="py-1.5 pr-2.5 outline-none focus:text-red-500"
+                      aria-label={`Remove ${term}`}
+                    >
                       <X size={14} />
                     </button>
                   </span>

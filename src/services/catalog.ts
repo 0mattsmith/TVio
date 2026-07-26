@@ -1,6 +1,6 @@
 // Unified catalog layer: uses live TMDB when a key is present, otherwise
 // deterministic demo data so the whole app is browsable out of the box.
-import { hasTmdbKey, discover, trending, popular, detail, person, search, genres, tvSeason, collection, collectionDetail, titleLogo } from "./tmdb";
+import { hasTmdbKey, discover, trending, popular, recommendations, similar, detail, person, search, genres, tvSeason, collection, collectionDetail, titleLogo } from "./tmdb";
 import { demoRow, demoDetail, demoSeason } from "./demo";
 import type { MediaItem, MediaType, CollectionDetail } from "./types";
 
@@ -82,6 +82,24 @@ export async function popularRow(type: MediaType): Promise<MediaItem[]> {
 export async function genreRow(type: MediaType, genreId: number): Promise<MediaItem[]> {
   if (!hasTmdbKey()) return demoRow(type, genreId, 18);
   return discover(type, { genre: genreId, sort: "popularity.desc" });
+}
+
+/**
+ * "Because you watched X" — TMDB's recommendations for a specific title, topped
+ * up with its "similar" list so the row is never thin. Matches kind, era and
+ * cast far better than a single-genre fallback.
+ */
+export async function recommendationsRow(type: MediaType, id: number): Promise<MediaItem[]> {
+  if (!hasTmdbKey()) return demoRow(type, id, 18);
+  try {
+    const recs = await recommendations(type, id);
+    if (recs.length >= 8) return recs;
+    const sim = await similar(type, id);
+    const seen = new Set(recs.map((r) => r.id));
+    return [...recs, ...sim.filter((s) => !seen.has(s.id))];
+  } catch {
+    return [];
+  }
 }
 
 export async function getGenres(type: MediaType) {

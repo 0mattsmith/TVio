@@ -3,13 +3,18 @@ import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db, firebaseEnabled } from "./firebase";
 import { useAppStore } from "../store/useAppStore";
-import type { Addon, Profile, ProgressEntry } from "../store/useAppStore";
+import type { Addon, Profile, ProgressEntry, FavCollection } from "../store/useAppStore";
 import type { MediaItem } from "./types";
 
 // While applying a remote snapshot we must not echo it back up to Firestore.
 let applyingRemote = false;
 
 function unionById(primary: MediaItem[], extra: MediaItem[]): MediaItem[] {
+  const ids = new Set(primary.map((p) => p.id));
+  return [...primary, ...extra.filter((e) => !ids.has(e.id))];
+}
+
+function unionCollections(primary: FavCollection[], extra: FavCollection[]): FavCollection[] {
   const ids = new Set(primary.map((p) => p.id));
   return [...primary, ...extra.filter((e) => !ids.has(e.id))];
 }
@@ -73,16 +78,17 @@ export function FirebaseSync() {
         const remoteWatch: MediaItem[] = (data?.watchlist as MediaItem[]) || [];
 
         // Account-level settings that should travel across devices.
+        type Bucket = { watchlist: MediaItem[]; progress: ProgressEntry[]; collections?: FavCollection[] };
         const account: {
           tmdbKey?: string;
           tmdbRegion?: string;
           addons?: Addon[];
           profiles?: Profile[];
-          profileData?: Record<string, { watchlist: MediaItem[]; progress: ProgressEntry[] }>;
+          profileData?: Record<string, Bucket>;
         } = {};
         if (Array.isArray(data?.profiles)) account.profiles = data.profiles as Profile[];
         if (data?.profileData && typeof data.profileData === "object") {
-          account.profileData = data.profileData as Record<string, { watchlist: MediaItem[]; progress: ProgressEntry[] }>;
+          account.profileData = data.profileData as Record<string, Bucket>;
         }
         if (typeof data?.tmdbKey === "string") account.tmdbKey = data.tmdbKey;
         if (typeof data?.tmdbRegion === "string") account.tmdbRegion = data.tmdbRegion;
@@ -101,13 +107,17 @@ export function FirebaseSync() {
         const bucket = localActiveId ? account.profileData?.[localActiveId] : undefined;
         const activeWatch: MediaItem[] = bucket?.watchlist ?? remoteWatch;
         const activeProgress = bucket?.progress ?? data?.progress ?? useAppStore.getState().progress;
+        const remoteCollections: FavCollection[] =
+          bucket?.collections ?? (data?.collections as FavCollection[] | undefined) ?? [];
 
         applyingRemote = true;
         if (!ready) {
-          // First load: merge local (offline) items with remote, no toast.
+          // First load / sign-in: MERGE local (offline) items with remote so a
+          // list built on this device isn't wiped by another device's. No toast.
           const merged = unionById(activeWatch, useAppStore.getState().watchlist);
+          const mergedCollections = unionCollections(remoteCollections, useAppStore.getState().collections);
           prevWatchIds = new Set(merged.map((w) => w.id));
-          useAppStore.setState({ watchlist: merged, progress: activeProgress, ...account });
+          useAppStore.setState({ watchlist: merged, progress: activeProgress, collections: mergedCollections, ...account });
           ready = true;
         } else {
           const added = activeWatch.find((w) => !prevWatchIds.has(w.id));
@@ -115,6 +125,7 @@ export function FirebaseSync() {
           useAppStore.setState({
             watchlist: activeWatch,
             progress: activeProgress,
+            collections: remoteCollections,
             ...account,
             ...(added ? { lastWatchlistAdd: { item: added, at: Date.now() } } : {}),
           });
@@ -130,6 +141,7 @@ export function FirebaseSync() {
       const changed =
         s.watchlist !== prev.watchlist ||
         s.progress !== prev.progress ||
+        s.collections !== prev.collections ||
         s.tmdbKey !== prev.tmdbKey ||
         s.tmdbRegion !== prev.tmdbRegion ||
         s.addons !== prev.addons ||
@@ -145,12 +157,13 @@ export function FirebaseSync() {
           {
             watchlist: s.watchlist,
             progress: s.progress,
+            collections: s.collections,
             tmdbKey: s.tmdbKey,
             tmdbRegion: s.tmdbRegion,
             profiles: s.profiles,
             // Fold the active profile's live data into the per-profile buckets.
             profileData: s.activeProfileId
-              ? { ...s.profileData, [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress } }
+              ? { ...s.profileData, [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress, collections: s.collections } }
               : s.profileData,
             // Only sources the user opted to save to the account (default on).
             addons: s.addons.filter((a) => a.sync !== false && a.kind !== "builtin"),

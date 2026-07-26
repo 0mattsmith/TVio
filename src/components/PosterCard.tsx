@@ -17,12 +17,15 @@ export function PosterCard({
   item,
   progress,
   fluid,
+  context,
 }: {
   // Continue Watching passes progress entries, which carry the episode — shown
   // on the poster so an in-progress series is distinguishable from a film.
   item: MediaItem & { season?: number; episode?: number };
   progress?: number;
   fluid?: boolean;
+  /** Row this card sits in — passed to the hold-OK menu for its remove options. */
+  context?: "continue" | "watchlist";
 }) {
   const navigate = useNavigate();
   const play = usePlay();
@@ -132,7 +135,7 @@ export function PosterCard({
         </div>
       </div>
 
-      {actionsOpen && <PosterActions item={item} onClose={() => setActionsOpen(false)} />}
+      {actionsOpen && <PosterActions item={item} onClose={() => setActionsOpen(false)} context={context} />}
     </>
   );
 }

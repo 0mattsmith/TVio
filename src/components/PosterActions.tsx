@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { Play, Plus, Check, X } from "lucide-react";
+import { Play, Plus, Check, X, Trash2 } from "lucide-react";
 import { Button } from "./Button";
 import { usePlay } from "../hooks/usePlay";
 import { useOverlayBack } from "../hooks/useOverlayBack";
@@ -14,10 +14,20 @@ import type { MediaItem } from "../services/types";
  * on demand: the background dims and blurs, focus is locked to this dialog via
  * data-spatial-scope, and Back returns to exactly the poster you were on.
  */
-export function PosterActions({ item, onClose }: { item: MediaItem; onClose: () => void }) {
+export function PosterActions({
+  item,
+  onClose,
+  context,
+}: {
+  item: MediaItem;
+  onClose: () => void;
+  /** Which row opened this — decides whether Remove-from-CW / Watchlist shows. */
+  context?: "continue" | "watchlist";
+}) {
   const play = usePlay();
   const inList = useAppStore((s) => s.inWatchlist(item.id));
   const toggle = useAppStore((s) => s.toggleWatchlist);
+  const removeFromProgress = useAppStore((s) => s.removeFromProgress);
 
   // Only mounted while open, so Back always maps to closing this dialog.
   useOverlayBack(true, onClose);
@@ -69,17 +79,34 @@ export function PosterActions({ item, onClose }: { item: MediaItem; onClose: () 
           >
             <Play size={17} fill="currentColor" /> Play
           </Button>
-          <Button
-            variant="secondary"
-            className="w-full py-3"
-            onClick={() => {
-              toggle(item);
-              onClose();
-            }}
-          >
-            {inList ? <Check size={17} /> : <Plus size={17} />}
-            {inList ? "Remove from Watchlist" : "Add to Watchlist"}
-          </Button>
+          {/* Watchlist toggle — hidden only when opened from Continue Watching
+              and the title is already listed (Remove-from-CW takes its place). */}
+          {!(context === "continue" && inList) && (
+            <Button
+              variant="secondary"
+              className="w-full py-3"
+              onClick={() => {
+                toggle(item);
+                onClose();
+              }}
+            >
+              {inList ? <Check size={17} /> : <Plus size={17} />}
+              {inList ? "Remove from Watchlist" : "Add to Watchlist"}
+            </Button>
+          )}
+          {/* Remove from Continue Watching — only when opened from that row. */}
+          {context === "continue" && (
+            <Button
+              variant="secondary"
+              className="w-full py-3"
+              onClick={() => {
+                removeFromProgress(item.id);
+                onClose();
+              }}
+            >
+              <Trash2 size={16} /> Remove from Continue Watching
+            </Button>
+          )}
           <Button variant="ghost" className="w-full py-3" onClick={onClose}>
             <X size={16} /> Back
           </Button>

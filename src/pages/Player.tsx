@@ -3,7 +3,7 @@ import { CastButton } from "../components/CastButton";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Play, Pause, Volume2, VolumeX, Subtitles, Maximize, SkipForward, Loader2 } from "lucide-react";
-import { getDetail } from "../services/catalog";
+import { getDetail, getCollection } from "../services/catalog";
 import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { attachStream, classifyStream } from "../lib/playback";
@@ -130,6 +130,24 @@ export function Player() {
     return true;
   };
 
+  // A finished film: markWatched pulls it out of Continue Watching (and shuffles
+  // the Watchlist), and if it's part of a series the next film is queued at the
+  // front of Continue Watching so the series carries on.
+  const onMovieFinished = async () => {
+    const d = dataRef.current;
+    if (!d || type === "tv") return;
+    markWatched(d);
+    if (!d.collectionId) return;
+    try {
+      const films = await getCollection(d.collectionId); // release order
+      const idx = films.findIndex((f) => f.id === d.id);
+      const next = idx >= 0 ? films[idx + 1] : undefined;
+      if (next) setProgress(next, 0, 0);
+    } catch {
+      /* no next film queued */
+    }
+  };
+
   const toDetail = () => navigate(`/title/${type}/${id}`, { replace: true });
 
   const playNext = async () => {
@@ -183,7 +201,7 @@ export function Player() {
         // Finished an episode → advance Continue Watching and offer the next.
         if (finished) {
           if (onEpisodeFinished()) return; // prompt stays on screen
-          if (type !== "tv" && dataRef.current) markWatched(dataRef.current); // film finished → watched
+          if (type !== "tv") { onMovieFinished(); navigate(-1); return; } // film: out of CW, next queued
         }
         if (dataRef.current && res.durationMs > 0) {
           setProgress(dataRef.current, res.positionMs / 1000, res.durationMs / 1000, epRefRef.current);
@@ -349,8 +367,8 @@ export function Player() {
         }}
         onEnded={() => {
           if (onEpisodeFinished()) return; // tv episode: marked watched + advanced
-          if (type !== "tv" && data) markWatched(data); // film finished → watched
-          toDetail(); // no next episode → back to the show
+          if (type !== "tv") onMovieFinished(); // film: out of CW, next in series queued
+          toDetail();
         }}
         onError={(e) => {
           // Ignore aborts that happen while swapping the source.

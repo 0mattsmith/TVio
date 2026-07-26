@@ -2,7 +2,7 @@ import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom"
 import { useQuery } from "@tanstack/react-query";
 import { Play, Plus, Check, ArrowLeft, Star, Layers, Heart } from "lucide-react";
 import { getDetail, getCollection } from "../services/catalog";
-import type { MediaType, WatchProvider } from "../services/types";
+import type { MediaType } from "../services/types";
 import { Button } from "../components/Button";
 import { PosterCard } from "../components/PosterCard";
 import { SeasonBrowser } from "../components/SeasonBrowser";
@@ -31,7 +31,6 @@ export function Detail() {
 
   const inList = useAppStore((s) => s.inWatchlist(numId));
   const toggle = useAppStore((s) => s.toggleWatchlist);
-  const showOfficial = useAppStore((s) => s.showOfficialSources);
   const toggleCollection = useAppStore((s) => s.toggleCollection);
   const followingCollection = useAppStore((s) => (data?.collectionId ? s.inCollections(data.collectionId) : false));
 
@@ -47,9 +46,6 @@ export function Detail() {
   const trailer = useTrailer(data?.videos);
 
   if (isLoading || !data) return <div className="skeleton h-screen w-full" />;
-
-  const flatrate = data.providers.filter((p) => p.type === "flatrate" || p.type === "free" || p.type === "ads");
-  const buyRent = data.providers.filter((p) => p.type === "rent" || p.type === "buy");
 
   return (
     <div className="animate-fade-in">
@@ -75,7 +71,7 @@ export function Detail() {
       <div className={`relative z-10 -mt-40 px-4 sm:px-8 ${isTV ? "flex flex-col" : ""}`}>
         <div className="flex flex-col gap-6 md:flex-row">
           {data.poster && (
-            <img src={data.poster} alt={data.title} className="hidden w-48 shrink-0 rounded-xl shadow-card md:block" />
+            <img src={data.poster} alt={data.title} className="hidden w-60 shrink-0 rounded-xl shadow-card md:block" />
           )}
           <div className="flex-1">
             <h1 className="text-4xl font-black tracking-tight sm:text-5xl">{data.title}</h1>
@@ -106,25 +102,6 @@ export function Detail() {
               </Button>
             </div>
 
-            {/* Where it's available — shown under Play for a quick glance, but
-                NOT clickable. Pressing Play opens Quick Watch, which lists the
-                same services as real, selectable ways to watch. */}
-            {showOfficial && (flatrate.length > 0 || buyRent.length > 0) && (
-              <div className="mt-5 flex flex-wrap gap-x-8 gap-y-4">
-                {flatrate.length > 0 && (
-                  <div>
-                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">Available on</p>
-                    <ProviderTags items={flatrate} />
-                  </div>
-                )}
-                {buyRent.length > 0 && (
-                  <div>
-                    <p className="mb-1.5 text-[11px] font-bold uppercase tracking-wider text-muted">Rent or buy</p>
-                    <ProviderTags items={buyRent} />
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         </div>
 
@@ -229,27 +206,3 @@ export function Detail() {
   );
 }
 
-// Non-clickable availability icons (logo only; name in the tooltip). The
-// clickable, selectable versions live in Quick Watch, opened by the Play button.
-function ProviderTags({ items }: { items: WatchProvider[] }) {
-  return (
-    <div className="flex flex-wrap gap-2">
-      {items.map((p) => (
-        <div
-          key={p.providerId + p.name}
-          title={p.name}
-          aria-label={p.name}
-          className="h-9 w-9 overflow-hidden rounded-lg bg-surface-2"
-        >
-          {p.logo ? (
-            <img src={p.logo} alt={p.name} className="h-full w-full object-cover" />
-          ) : (
-            <span className="flex h-full w-full items-center justify-center text-[10px] font-bold text-muted">
-              {p.name.slice(0, 2)}
-            </span>
-          )}
-        </div>
-      ))}
-    </div>
-  );
-}
