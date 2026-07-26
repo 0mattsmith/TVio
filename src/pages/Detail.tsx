@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { Play, Plus, Check, ArrowLeft, Star, Layers, Heart } from "lucide-react";
@@ -44,6 +45,15 @@ export function Detail() {
   // the section can be hidden. Sits above the early return — hooks can't be
   // called conditionally.
   const trailer = useTrailer(data?.videos);
+
+  // On a TV, open on the Play button rather than the Back button (which is
+  // top-left and would otherwise be the first thing the D-pad lands on).
+  const playRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!isTV || !data) return;
+    const raf = requestAnimationFrame(() => playRef.current?.querySelector<HTMLElement>("button")?.focus());
+    return () => cancelAnimationFrame(raf);
+  }, [isTV, data]);
 
   if (isLoading || !data) return <div className="skeleton h-screen w-full" />;
 
@@ -93,7 +103,7 @@ export function Detail() {
 
             <p className="mt-5 max-w-3xl text-white/85">{data.overview}</p>
 
-            <div className="mt-6 flex flex-wrap gap-3">
+            <div ref={playRef} className="mt-6 flex flex-wrap gap-3">
               <Button onClick={() => play(data)}>
                 <Play size={18} fill="currentColor" /> Play
               </Button>

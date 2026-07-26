@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Play, Plus, Check, X, Trash2 } from "lucide-react";
 import { Button } from "./Button";
 import { usePlay } from "../hooks/usePlay";
@@ -29,8 +29,43 @@ export function PosterActions({
   const toggle = useAppStore((s) => s.toggleWatchlist);
   const removeFromProgress = useAppStore((s) => s.removeFromProgress);
 
+  const rootRef = useRef<HTMLDivElement>(null);
+
   // Only mounted while open, so Back always maps to closing this dialog.
   useOverlayBack(true, onClose);
+
+  // The OK that opened this was HELD (that's how the menu appears). If we accept
+  // input straight away, the still-held key's auto-repeat lands on the focused
+  // Play button and fires it. So swallow OK until it's released, then focus Play.
+  useEffect(() => {
+    let armed = false;
+    const focusPlay = () => rootRef.current?.querySelector<HTMLButtonElement>("button")?.focus();
+    const onUp = (e: KeyboardEvent) => {
+      if (armed || (e.key !== "Enter" && e.key !== " ")) return;
+      armed = true;
+      focusPlay();
+    };
+    const swallow = (e: KeyboardEvent) => {
+      if (!armed && (e.key === "Enter" || e.key === " ")) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+    window.addEventListener("keydown", swallow, true);
+    window.addEventListener("keyup", onUp, true);
+    // Opened by pointer/tap (no key to release): arm shortly after so it's usable.
+    const t = window.setTimeout(() => {
+      if (!armed) {
+        armed = true;
+        focusPlay();
+      }
+    }, 500);
+    return () => {
+      window.removeEventListener("keydown", swallow, true);
+      window.removeEventListener("keyup", onUp, true);
+      window.clearTimeout(t);
+    };
+  }, []);
 
   useEffect(() => {
     // Capture phase, so this closes the dialog before the global Back handler
@@ -68,9 +103,8 @@ export function PosterActions({
           </div>
         </div>
 
-        <div className="mt-6 space-y-2.5">
+        <div ref={rootRef} className="mt-6 space-y-2.5">
           <Button
-            autoFocus
             className="w-full py-3"
             onClick={() => {
               onClose();

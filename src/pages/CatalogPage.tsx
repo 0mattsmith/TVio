@@ -17,8 +17,10 @@ import { PosterGrid } from "../components/PosterGrid";
 import { SeasonGrid } from "../components/SeasonGrid";
 import { BrandLayout } from "../components/BrandLayout";
 import type { MediaType } from "../services/types";
+import { useLocation } from "react-router-dom";
 import { useAppStore } from "../store/useAppStore";
 import { useIsTV, useDeviceProfile } from "../hooks/useDeviceProfile";
+import { pendingFocusForPath } from "../platform/focusMemory";
 
 // One row = one service + one kind. Kept as its own component so each query
 // is independent and lazy.
@@ -61,6 +63,7 @@ export function CatalogPage({ type }: { type: MediaType }) {
   const [genre, setGenre] = useState<number | undefined>(undefined);
   const isTV = useIsTV();
   const isMobile = useDeviceProfile() === "mobile";
+  const location = useLocation();
   const [filtersOpen, setFiltersOpen] = useState(false);
 
   const genresQ = useQuery({ queryKey: ["genres", type], queryFn: () => getGenres(type) });
@@ -116,7 +119,9 @@ export function CatalogPage({ type }: { type: MediaType }) {
   // refetches the hero, and this effect would then rip focus out of the sidebar
   // back to the top — so it stayed put only if a spatial scope is on screen.
   useEffect(() => {
-    if (!isTV || document.querySelector("[data-spatial-scope]")) return;
+    // Don't grab the hero if a poster is reclaiming focus on the way Back, or a
+    // panel is open.
+    if (!isTV || document.querySelector("[data-spatial-scope]") || pendingFocusForPath(location.pathname)) return;
     window.scrollTo(0, 0);
     if (!heroQ.data?.[0]) return;
     const raf = requestAnimationFrame(() => {
@@ -124,7 +129,7 @@ export function CatalogPage({ type }: { type: MediaType }) {
       document.querySelector<HTMLElement>("main .focusable")?.focus({ preventScroll: false });
     });
     return () => cancelAnimationFrame(raf);
-  }, [isTV, type, heroQ.data]);
+  }, [isTV, type, heroQ.data, location.pathname]);
 
   // Visible confirmation of which layout is in play. Without it, "one service
   // selected but generic rows" is indistinguishable from "the build doesn't

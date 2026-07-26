@@ -414,6 +414,18 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "tvio-store",
+      version: 1,
+      // A newly-added service isn't in an existing install's saved list, so it
+      // would show up unticked. Switch each new one on once, without disturbing
+      // services the user has deliberately turned off. Fresh installs skip this
+      // — they already default to every service on.
+      migrate: (persisted, from) => {
+        const s = persisted as { enabledServices?: string[] };
+        if (from < 1 && s?.enabledServices && !s.enabledServices.includes("amc")) {
+          s.enabledServices = [...s.enabledServices, "amc"];
+        }
+        return s;
+      },
       // Don't persist transient UI (the Quick Watch sheet).
       partialize: (s) => ({
         user: s.user,

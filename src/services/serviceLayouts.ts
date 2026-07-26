@@ -63,7 +63,29 @@ const WWE_LAYOUT: BrandRowSpec[] = [
   { key: "docs", title: "Documentaries", discover: { mediaType: "tv", companies: [146598], genre: 99, sort: "popularity.desc", minVotes: 0 } },
   { key: "wcw", title: "WCW", seriesSeasons: 1837 },
   { key: "ecw", title: "ECW", seriesSeasons: 14774 },
+  // The syndicated B-shows of the Attitude/Ruthless-Aggression eras.
+  { key: "heat", title: "Sunday Night Heat", seriesSeasons: 30188 },
+  { key: "shotgun", title: "Shotgun Saturday Night", seriesSeasons: 13101 },
+  { key: "jakked", title: "Jakked / Metal", seriesSeasons: 11063 },
   { key: "classic", title: "Classic Programming", discover: { mediaType: "tv", companies: [146598], sort: "first_air_date.asc", minVotes: 0 } },
+];
+
+// AEW — its weekly shows as season rows plus every PLE/PPV as films (the AEW
+// company, 119828, verified live against TMDB). Sits under Prime Video.
+const AEW_LAYOUT: BrandRowSpec[] = [
+  { key: "dynamite", title: "AEW Dynamite", seriesSeasons: 91555 },
+  { key: "collision", title: "AEW Collision", seriesSeasons: 226687 },
+  { key: "dark", title: "AEW Dark", seriesSeasons: 108847 },
+  { key: "elevation", title: "AEW Dark: Elevation", seriesSeasons: 120691 },
+  { key: "ple", title: "Pay-Per-Views & PLEs", discover: { mediaType: "movie", companies: [119828], sort: "primary_release_date.desc" } },
+];
+
+// TNA — iMPACT!/Xplosion as season rows plus its PPVs as films (the TNA
+// company, 13927, verified live). Sits under AMC+.
+const TNA_LAYOUT: BrandRowSpec[] = [
+  { key: "impact", title: "TNA iMPACT!", seriesSeasons: 4638 },
+  { key: "xplosion", title: "TNA Xplosion", seriesSeasons: 628 },
+  { key: "ppv", title: "Pay-Per-Views", discover: { mediaType: "movie", companies: [13927], sort: "primary_release_date.desc" } },
 ];
 
 /**
@@ -146,6 +168,8 @@ const LAYOUTS: Record<string, Layout> = {
     ],
   },
   prime: {
+    // AEW as a text tile — its own home of weekly shows, PPVs and PLEs.
+    brands: [{ key: "aew", name: "AEW", layout: AEW_LAYOUT }],
     rows: [
       { kind: "trending", title: "Trending Now" },
       { kind: "originals", title: "Amazon Originals" },
@@ -201,6 +225,18 @@ const LAYOUTS: Record<string, Layout> = {
       { kind: "new", title: "New on Peacock" },
       { kind: "genre", title: "Comedy", genre: "Comedy" },
       { kind: "genre", title: "Reality", genre: "Reality" },
+    ],
+  },
+  amc: {
+    // TNA as a text tile — the promotion airs on the AMC network in TMDB's data.
+    brands: [{ key: "tna", name: "TNA", layout: TNA_LAYOUT }],
+    rows: [
+      { kind: "trending", title: "Trending Now" },
+      { kind: "originals", title: "AMC Originals" },
+      { kind: "new", title: "New on AMC+" },
+      { kind: "toprated", title: "Critically Acclaimed" },
+      { kind: "genre", title: "Drama", genre: "Drama" },
+      { kind: "genre", title: "Horror", genre: "Horror" },
     ],
   },
 };

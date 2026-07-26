@@ -19,6 +19,10 @@ export const SERVICES: StreamService[] = [
   { key: "paramount", name: "Paramount+", color: "#0064ff", providerId: 531, networkId: 4330 },
   { key: "apple", name: "Apple TV+", color: "#ffffff", providerId: 350, networkId: 2552 },
   { key: "peacock", name: "Peacock", color: "#ffce00", providerId: 386, networkId: 3353 },
+  // AMC+ (streaming). networkId 174 is the AMC TV network (Breaking Bad, The
+  // Walking Dead…) — and, per TMDB's own data, TNA iMPACT! airs on it, which is
+  // why TNA lives under this service.
+  { key: "amc", name: "AMC+", color: "#d4232f", providerId: 526, networkId: 174 },
   // NOW (formerly NOW TV) — the streaming home of Sky content in the UK/IE.
   // TMDB watch-provider id 39. No single TMDB network maps to it (Sky content
   // airs across Sky Atlantic, Sky Max, etc.), so it has no "Originals" row.

@@ -71,11 +71,16 @@ const backgroundSvg = (n) => `<svg xmlns="http://www.w3.org/2000/svg" width="${n
     <rect width="${n}" height="${n}" fill="url(#g)"/>
   </svg>`;
 
+// Android TV / Fire TV home-row banner. Google TV shows the round adaptive icon
+// instead, but the Shield and Fire TV rows use this 16:9 banner, so give the
+// wordmark real presence with a tagline underneath.
 const bannerSvg = (w, h) => `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
     <rect width="${w}" height="${h}" fill="${BG}"/>
-    ${glow("g", w * 0.5, h * 0.4, w * 0.7)}<rect width="${w}" height="${h}" fill="url(#g)"/>
-    ${wordmark(w / 2, h * 0.46, h * 0.34)}
-    <rect x="0" y="${h - 4}" width="${w}" height="4" fill="${ACCENT}"/>
+    ${glow("g", w * 0.5, h * 0.36, w * 0.75)}<rect width="${w}" height="${h}" fill="url(#g)"/>
+    ${wordmark(w / 2, h * 0.42, h * 0.42)}
+    <text x="${w / 2}" y="${h * 0.74}" text-anchor="middle" font-family="${FONT}"
+      font-weight="600" font-size="${h * 0.1}" letter-spacing="${h * 0.02}" fill="#c9d4d3">FILMS · SERIES · LIVE TV</text>
+    <rect x="0" y="${h - 5}" width="${w}" height="5" fill="${ACCENT}"/>
   </svg>`;
 
 // Supersample everything (draw at 4x, downsample) for clean edges at small sizes.

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Crown, LogOut, Check } from "lucide-react";
 import { Logo } from "../components/Logo";
@@ -38,6 +38,18 @@ export function Profiles() {
     switchProfile(p.id);
     navigate("/", { replace: true });
   };
+
+  // Land on the Master profile's avatar so OK signs straight in — no hunting.
+  const gridRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (firstRun) return; // the create form focuses its Name input instead
+    const raf = requestAnimationFrame(() => {
+      const grid = gridRef.current;
+      const target = grid?.querySelector<HTMLElement>("button[data-master]") ?? grid?.querySelector<HTMLElement>("button");
+      target?.focus();
+    });
+    return () => cancelAnimationFrame(raf);
+  }, [firstRun, profiles.length]);
 
   return (
     <div className="relative flex min-h-screen flex-col items-center justify-center bg-bg px-6 py-12">
@@ -81,12 +93,19 @@ export function Profiles() {
             <h1 className="text-3xl font-black tracking-tight sm:text-4xl">Who's watching?</h1>
             <p className="mt-2 text-sm text-muted">Each profile keeps its own watchlist and continue-watching.</p>
 
-            <div className="mt-10 flex flex-wrap items-start justify-center gap-6">
+            <div ref={gridRef} className="mt-10 flex flex-wrap items-start justify-center gap-6">
               {profiles.map((p) => (
-                <button key={p.id} onClick={() => choose(p)} className="w-28 focusable rounded-xl">
+                // The highlight sits on the avatar only (not the name), and the
+                // button carries no ring of its own — cleaner than one big box.
+                <button
+                  key={p.id}
+                  data-master={p.isMaster || undefined}
+                  onClick={() => choose(p)}
+                  className="group w-28 rounded-xl text-center outline-none"
+                >
                   <span
-                    className={`relative flex h-28 w-28 items-center justify-center rounded-xl bg-surface-2 text-5xl transition-transform hover:scale-105 ${
-                      p.id === activeProfileId ? "ring-2 ring-accent" : ""
+                    className={`relative flex h-28 w-28 items-center justify-center rounded-xl bg-surface-2 text-5xl transition-all group-hover:scale-105 group-focus-visible:scale-105 group-focus-visible:shadow-[0_0_0_3px_#14b8a6,0_0_24px_rgba(20,184,166,0.35)] ${
+                      p.id === activeProfileId ? "ring-2 ring-accent/40" : ""
                     }`}
                   >
                     {p.avatar}

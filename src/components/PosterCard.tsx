@@ -1,9 +1,11 @@
-import { useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useEffect, useRef, useState } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Play, Plus, Check } from "lucide-react";
 import type { MediaItem } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
 import { usePlay } from "../hooks/usePlay";
+import { useIsTV } from "../hooks/useDeviceProfile";
+import { rememberPosterFocus, claimPosterFocus } from "../platform/focusMemory";
 import { PosterActions } from "./PosterActions";
 
 /** Hold OK this long to bring up the actions dialog instead of opening the page. */
@@ -28,6 +30,8 @@ export function PosterCard({
   context?: "continue" | "watchlist";
 }) {
   const navigate = useNavigate();
+  const location = useLocation();
+  const isTV = useIsTV();
   const play = usePlay();
   const inList = useAppStore((s) => s.inWatchlist(item.id));
   const toggle = useAppStore((s) => s.toggleWatchlist);
@@ -35,9 +39,24 @@ export function PosterCard({
   const watchedMovie = useAppStore((s) => (item.type === "movie" ? s.isWatched(item.id) : false));
   const [actionsOpen, setActionsOpen] = useState(false);
 
+  const cardRef = useRef<HTMLDivElement>(null);
   const holdTimer = useRef<number>();
   const opened = useRef(false);
-  const open = () => navigate(`/title/${item.type}/${item.id}`);
+  const focusKey = `${item.type}-${item.id}`;
+  const open = () => {
+    // Remember this poster so Back returns focus here, not the top of the page.
+    rememberPosterFocus(location.pathname, focusKey);
+    navigate(`/title/${item.type}/${item.id}`);
+  };
+
+  // On the way back, the originating page remounts and the matching card grabs
+  // focus again (TV only — a mouse/desktop user hasn't lost their place).
+  useEffect(() => {
+    if (isTV && claimPosterFocus(location.pathname, focusKey)) {
+      requestAnimationFrame(() => cardRef.current?.focus());
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.pathname]);
 
   // A tap of OK opens the title; holding it opens the quick actions. Split
   // across keydown/keyup because key repeat fires keydown continuously, so the
@@ -61,6 +80,7 @@ export function PosterCard({
   return (
     <>
       <div
+        ref={cardRef}
         role="button"
         tabIndex={0}
         onClick={open}

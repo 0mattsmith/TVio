@@ -108,10 +108,15 @@ export function pickBest<T extends { box: Box }>(from: Box, candidates: T[], dir
     }
   }
 
-  // Prefer an aligned candidate — UNLESS an offset one sits in a clearly nearer
-  // row (much less travel). Without this a lone offset poster one row away is
-  // skipped in favour of an aligned poster two rows away, so a short row (e.g.
-  // a single "My Film Series" tile) gets jumped clean over.
+  // Horizontal moves stay within the row: only aligned (same row band) count, so
+  // LEFT/RIGHT never hop to another row — RIGHT at a row's end simply stops
+  // rather than diving into the row below at the same index.
+  if (dir === "left" || dir === "right") return aligned;
+
+  // Vertical: prefer an aligned candidate — UNLESS an offset one sits in a
+  // clearly nearer row (much less travel). Without this a lone offset poster one
+  // row away is skipped for an aligned poster two rows away, so a short row
+  // (e.g. a single "My Film Series" tile) gets jumped clean over.
   if (aligned && offset && offsetTravel < alignedTravel * 0.5) return offset;
   return aligned ?? offset;
 }

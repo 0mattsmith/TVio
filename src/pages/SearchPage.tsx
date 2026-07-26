@@ -90,7 +90,7 @@ export function SearchPage() {
                 <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-muted">
                   <Clock size={15} /> Recent searches
                 </h2>
-                <button onClick={clearSearchHistory} className="focusable text-xs font-semibold text-accent hover:underline">
+                <button onClick={clearSearchHistory} className="focusable rounded-lg px-2.5 py-1 text-xs font-semibold text-accent hover:underline">
                   Clear all
                 </button>
               </div>

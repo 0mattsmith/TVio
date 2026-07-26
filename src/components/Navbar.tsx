@@ -49,7 +49,9 @@ export function Navbar() {
           {activeBrand && (
             <>
               <span className="h-5 w-px shrink-0 bg-white/25" />
-              <span className="whitespace-nowrap text-base font-black uppercase tracking-tight text-accent sm:text-lg">
+              {/* Bold italic teal wordmark — the WWE-logo look, teal in place of
+                  its red, sitting beside the TVio mark. */}
+              <span className="whitespace-nowrap text-lg font-black uppercase italic tracking-tighter text-accent sm:text-xl">
                 {activeBrand.name}
               </span>
             </>

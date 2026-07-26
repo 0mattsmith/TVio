@@ -259,52 +259,50 @@ export function QuickWatch() {
           )}
         </div>
 
-        {/* Official services (deep-links) */}
-        <div className="mt-6">
-          <div className="mb-2 flex items-center justify-between">
-            <p className="text-xs font-bold uppercase tracking-wider text-muted">Available on</p>
-            {!showOfficial ? (
-              <button onClick={goSettings} className="focusable text-xs text-accent hover:underline">Show official options</button>
-            ) : !isTV && (flatrate.length > 0 || buyRent.length > 0) ? (
-              // On TV the icon/label choice lives only in Settings, to keep the
-              // number of D-pad focus targets in this sheet to a minimum.
-              <button
-                onClick={() => setCompact(!compact)}
-                aria-pressed={compact}
-                title={compact ? "Show names" : "Show icons only"}
-                className="focusable flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted hover:text-white"
-              >
-                {compact ? <Tag size={14} /> : <LayoutGrid size={14} />}
-                {compact ? "Names" : "Icons"}
-              </button>
-            ) : null}
-          </div>
-
-          {!showOfficial ? (
-            <p className="rounded-lg bg-surface-2/50 px-4 py-3 text-xs text-muted">
-              Official streaming options are hidden. Enable them in Settings.
-            </p>
-          ) : isLoading ? (
-            <div className="flex gap-2">
-              {Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton h-10 w-28 rounded-lg" />)}
+        {/* Official services (deep-links) — hidden entirely when the user has
+            turned Official Streaming Options off; your own sources above are the
+            point then. */}
+        {showOfficial && (
+          <div className="mt-6">
+            <div className="mb-2 flex items-center justify-between">
+              <p className="text-xs font-bold uppercase tracking-wider text-muted">Available on</p>
+              {!isTV && (flatrate.length > 0 || buyRent.length > 0) ? (
+                // On TV the icon/label choice lives only in Settings, to keep the
+                // number of D-pad focus targets in this sheet to a minimum.
+                <button
+                  onClick={() => setCompact(!compact)}
+                  aria-pressed={compact}
+                  title={compact ? "Show names" : "Show icons only"}
+                  className="focusable flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted hover:text-white"
+                >
+                  {compact ? <Tag size={14} /> : <LayoutGrid size={14} />}
+                  {compact ? "Names" : "Icons"}
+                </button>
+              ) : null}
             </div>
-          ) : flatrate.length === 0 && buyRent.length === 0 ? (
-            <p className="text-sm text-muted">No official streaming availability found for your region.</p>
-          ) : (
-            <>
-              {flatrate.length > 0 && (
-                <ProviderChips items={flatrate} watchLink={data?.watchLink || null} compact={compact} />
-              )}
-              {buyRent.length > 0 && (
-                <div className="mt-2">
-                  <p className="mb-1.5 text-[11px] uppercase tracking-wider text-muted">Rent or buy</p>
-                  <ProviderChips items={buyRent} watchLink={data?.watchLink || null} small compact={compact} />
-                </div>
-              )}
-              <p className="mt-2 text-[11px] text-muted">Opens the service so you can sign in and watch.</p>
-            </>
-          )}
-        </div>
+
+            {isLoading ? (
+              <div className="flex gap-2">
+                {Array.from({ length: 3 }).map((_, i) => <div key={i} className="skeleton h-10 w-28 rounded-lg" />)}
+              </div>
+            ) : flatrate.length === 0 && buyRent.length === 0 ? (
+              <p className="text-sm text-muted">No official streaming availability found for your region.</p>
+            ) : (
+              <>
+                {flatrate.length > 0 && (
+                  <ProviderChips items={flatrate} watchLink={data?.watchLink || null} compact={compact} />
+                )}
+                {buyRent.length > 0 && (
+                  <div className="mt-2">
+                    <p className="mb-1.5 text-[11px] uppercase tracking-wider text-muted">Rent or buy</p>
+                    <ProviderChips items={buyRent} watchLink={data?.watchLink || null} small compact={compact} />
+                  </div>
+                )}
+                <p className="mt-2 text-[11px] text-muted">Opens the service so you can sign in and watch.</p>
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
     {isMobile && playOnOpen && (

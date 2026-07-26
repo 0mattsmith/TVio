@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Heart, Layers, Play } from "lucide-react";
 import { getCollectionDetail } from "../services/catalog";
@@ -8,6 +8,7 @@ import { Button } from "../components/Button";
 import { useAppStore } from "../store/useAppStore";
 import { usePlay } from "../hooks/usePlay";
 import { useIsTV } from "../hooks/useDeviceProfile";
+import { pendingFocusForPath } from "../platform/focusMemory";
 
 /** A film series (Star Wars, Halloween, Scream…) listed in release order. */
 export function CollectionPage() {
@@ -27,12 +28,14 @@ export function CollectionPage() {
   // On a TV, land on the first film rather than the Back button when the page
   // opens — the films are the point of a series page.
   const isTV = useIsTV();
+  const location = useLocation();
   const filmsRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    if (!isTV || !data) return;
+    // Skip if a poster is reclaiming focus on the way Back.
+    if (!isTV || !data || pendingFocusForPath(location.pathname)) return;
     const raf = requestAnimationFrame(() => filmsRef.current?.querySelector<HTMLElement>(".focusable")?.focus());
     return () => cancelAnimationFrame(raf);
-  }, [isTV, data]);
+  }, [isTV, data, location.pathname]);
 
   if (isLoading || !data) return <div className="skeleton h-screen w-full" />;
 
