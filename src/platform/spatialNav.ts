@@ -247,10 +247,12 @@ export function installSpatialNav(): () => void {
     if (!next) {
       // At the top/left edge of the content, UP or LEFT rises to the navbar —
       // the natural "go to the menu" gesture on a TV (Back reaches it too; this
-      // just makes the D-pad do the obvious thing at the edge).
-      if ((dir === "up" || dir === "left") && !active.closest("header") && focusNavbar()) return;
+      // just makes the D-pad do the obvious thing at the edge). NOT while an
+      // overlay is open: its focus is trapped inside and you leave it with Back,
+      // so the D-pad must never climb out to the navbar behind it.
+      if (!overlay && (dir === "up" || dir === "left") && !active.closest("header") && focusNavbar()) return;
       // No navbar to rise to (or already in it): at least snap fully to the top.
-      if (dir === "up") window.scrollTo({ top: 0, behavior: "smooth" });
+      if (!overlay && dir === "up") window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
     next.el.focus({ preventScroll: true });

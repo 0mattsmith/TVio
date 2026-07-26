@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { X } from "lucide-react";
 import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
 import { useAppStore } from "../store/useAppStore";
@@ -44,6 +44,18 @@ export function FilterPanel({
     };
   }, [open, onClose]);
 
+  // Move the remote onto the first service (Netflix) the moment the panel opens
+  // — otherwise focus lingers on the "Filters" button behind it and the first
+  // D-pad press does nothing visible.
+  const servicesRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!open || !isTV) return;
+    const raf = requestAnimationFrame(() =>
+      servicesRef.current?.querySelector<HTMLButtonElement>("button")?.focus()
+    );
+    return () => cancelAnimationFrame(raf);
+  }, [open, isTV]);
+
   if (!open) return null;
 
   return (
@@ -75,7 +87,7 @@ export function FilterPanel({
                 {allOn ? "Clear all" : "Select all"}
               </button>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div ref={servicesRef} className="flex flex-wrap gap-2">
               {services.map((s) => (
                 <Chip key={s.key} label={s.name} color={s.color} active={enabled.includes(s.key)} onClick={() => toggle(s.key)} />
               ))}
