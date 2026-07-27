@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Search, Home, Clapperboard, Tv, Settings, Users, Radio, Gamepad2 } from "lucide-react";
 import { Logo } from "./Logo";
+import wweTeal from "../assets/wwe-teal.png";
 import { useAppStore } from "../store/useAppStore";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
 
@@ -49,11 +50,15 @@ export function Navbar() {
           {activeBrand && (
             <>
               <span className="h-5 w-px shrink-0 bg-white/25" />
-              {/* Bold italic teal wordmark — the WWE-logo look, teal in place of
-                  its red, sitting beside the TVio mark. */}
-              <span className="whitespace-nowrap text-lg font-black uppercase italic tracking-tighter text-accent sm:text-xl">
-                {activeBrand.name}
-              </span>
+              {activeBrand.key === "wwe" ? (
+                // The real WWE mark, recoloured to the TVio palette.
+                <img src={wweTeal} alt="WWE" className="h-8 w-auto shrink-0 sm:h-9" />
+              ) : (
+                // Brands without their own mark: a bold italic teal wordmark.
+                <span className="whitespace-nowrap text-lg font-black uppercase italic tracking-tighter text-accent sm:text-xl">
+                  {activeBrand.name}
+                </span>
+              )}
             </>
           )}
         </div>

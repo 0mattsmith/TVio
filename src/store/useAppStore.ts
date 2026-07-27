@@ -147,6 +147,7 @@ interface AppState {
   watched: MediaItem[];
   watchedEpisodes: string[];
   markWatched: (item: MediaItem, ep?: { season: number; episode: number }) => void;
+  removeWatched: (id: number) => void;
   isWatched: (id: number) => boolean;
   isEpisodeWatched: (seriesId: number, season: number, episode: number) => boolean;
 
@@ -320,30 +321,34 @@ export const useAppStore = create<AppState>()(
       watchedEpisodes: [],
       markWatched: (item, ep) =>
         set((s) => {
-          // Store a lean MediaItem (the caller often passes a full detail with
-          // cast/videos/providers, which we don't want bloating localStorage).
+          if (ep) {
+            // A finished EPISODE only ticks that episode (green tick in the
+            // browser). The series itself doesn't enter the Watched row here — it
+            // graduates there once the WHOLE show is finished, at which point the
+            // player calls this again with no episode (the branch below).
+            const key = `${item.id}:${ep.season}:${ep.episode}`;
+            if (s.watchedEpisodes.includes(key)) return {};
+            return { watchedEpisodes: [key, ...s.watchedEpisodes].slice(0, 2000) };
+          }
+          // A finished FILM, or a whole SHOW being marked watched: store a lean
+          // MediaItem (the caller often passes a full detail with
+          // cast/videos/providers we don't want bloating localStorage), pull it
+          // out of Continue Watching, and shuffle it to the back of the Watchlist
+          // (kept, but behind anything still unwatched).
           const lean: MediaItem = {
             id: item.id, type: item.type, title: item.title, poster: item.poster,
             backdrop: item.backdrop, year: item.year, rating: item.rating,
             overview: item.overview, genreIds: item.genreIds,
           };
           const watched = [lean, ...s.watched.filter((w) => w.id !== item.id)].slice(0, 40);
-          if (!ep) {
-            // A finished film: pull it out of Continue Watching, and shuffle it to
-            // the back of the Watchlist (kept, but behind anything still unwatched).
-            const progress = s.progress.filter((p) => p.id !== item.id);
-            const wlItem = s.watchlist.find((w) => w.id === item.id);
-            const watchlist = wlItem
-              ? [...s.watchlist.filter((w) => w.id !== item.id), wlItem]
-              : s.watchlist;
-            return { watched, progress, watchlist };
-          }
-          const key = `${item.id}:${ep.season}:${ep.episode}`;
-          const watchedEpisodes = s.watchedEpisodes.includes(key)
-            ? s.watchedEpisodes
-            : [key, ...s.watchedEpisodes].slice(0, 2000);
-          return { watched, watchedEpisodes };
+          const progress = s.progress.filter((p) => p.id !== item.id);
+          const wlItem = s.watchlist.find((w) => w.id === item.id);
+          const watchlist = wlItem
+            ? [...s.watchlist.filter((w) => w.id !== item.id), wlItem]
+            : s.watchlist;
+          return { watched, progress, watchlist };
         }),
+      removeWatched: (id) => set((s) => ({ watched: s.watched.filter((w) => w.id !== id) })),
       isWatched: (id) => get().watched.some((w) => w.id === id),
       isEpisodeWatched: (seriesId, season, episode) =>
         get().watchedEpisodes.includes(`${seriesId}:${season}:${episode}`),

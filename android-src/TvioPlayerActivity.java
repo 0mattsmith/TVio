@@ -3,12 +3,15 @@ package app.tvio.mobile;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.res.ColorStateList;
+import android.graphics.drawable.GradientDrawable;
 import android.net.Uri;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Gravity;
 import android.view.View;
+import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.widget.FrameLayout;
 import android.widget.ImageButton;
@@ -51,6 +54,9 @@ public class TvioPlayerActivity extends Activity {
     private PlayerView playerView;
     private long startMs;
     private LinearLayout overlayControls;
+    private ImageButton settingsButton;
+    private boolean controlsStyled = false;
+    private boolean confirmingExit = false;
     private String sourceTitle;
     private String sourceFilename;
     private long sourceSize;
@@ -188,26 +194,79 @@ public class TvioPlayerActivity extends Activity {
 
         // One settings gear rather than a row of icons — it opens a menu with
         // Speed, Audio and Info, which is where players usually put these.
-        overlayControls.addView(iconButton(android.R.drawable.ic_menu_preferences, v -> showSettingsMenu()));
+        settingsButton = iconButton(android.R.drawable.ic_menu_preferences, v -> showSettingsMenu());
+        overlayControls.addView(settingsButton);
         overlay.addView(overlayControls);
 
-        // Hide/show the row in lockstep with the player controls.
+        // Hide/show the row in lockstep with the player controls, and the first
+        // time the controls appear, restyle them (see styleControls).
         playerView.setControllerVisibilityListener(
-                (PlayerView.ControllerVisibilityListener) visibility ->
-                        overlayControls.setVisibility(visibility));
+                (PlayerView.ControllerVisibilityListener) visibility -> {
+                    overlayControls.setVisibility(visibility);
+                    if (visibility == View.VISIBLE) styleControls();
+                });
+        // Controls auto-show on start, so try once straight away too.
+        playerView.post(this::styleControls);
     }
 
     private ImageButton iconButton(int icon, View.OnClickListener onClick) {
         ImageButton b = new ImageButton(this);
         b.setImageResource(icon);
-        b.setBackgroundColor(0x66000000);
-        b.setColorFilter(0xFFFFFFFF);
+        // A soft rounded plate (not a hard square) so the gear stays legible over
+        // bright scenes; focus is shown by the teal tint, not a box.
+        GradientDrawable plate = new GradientDrawable();
+        plate.setColor(0x66000000);
+        plate.setCornerRadius(px(24));
+        b.setBackground(plate);
+        b.setImageTintList(tealFocus());
         int s = px(48);
         LinearLayout.LayoutParams lp = new LinearLayout.LayoutParams(s, s);
         lp.setMarginStart(px(8));
         b.setLayoutParams(lp);
         b.setOnClickListener(onClick);
         return b;
+    }
+
+    /**
+     * Teal when focused/pressed/selected, white otherwise — so a focused control
+     * reads as a teal icon rather than the platform's square focus box.
+     */
+    private ColorStateList tealFocus() {
+        int teal = 0xFF14B8A6, white = 0xFFFFFFFF;
+        int[][] states = {
+                new int[]{android.R.attr.state_focused},
+                new int[]{android.R.attr.state_pressed},
+                new int[]{android.R.attr.state_selected},
+                new int[]{}
+        };
+        int[] colors = {teal, teal, teal, white};
+        return new ColorStateList(states, colors);
+    }
+
+    /**
+     * Media3's default control buttons draw a square selectable background that
+     * shows as a box on a TV when focused. Strip it off every control button and
+     * let the teal tint be the only focus cue. Runs once, after Media3 inflates
+     * its controller (the settings gear keeps its own rounded plate).
+     */
+    private void styleControls() {
+        if (controlsStyled || playerView == null) return;
+        styleButtonsIn(playerView);
+        controlsStyled = true;
+    }
+
+    private void styleButtonsIn(View v) {
+        if (v == settingsButton) return;
+        if (v instanceof ImageButton) {
+            ImageButton b = (ImageButton) v;
+            b.setBackground(null);
+            b.setImageTintList(tealFocus());
+            return;
+        }
+        if (v instanceof ViewGroup) {
+            ViewGroup g = (ViewGroup) v;
+            for (int i = 0; i < g.getChildCount(); i++) styleButtonsIn(g.getChildAt(i));
+        }
     }
 
     private int px(int dp) {
@@ -330,7 +389,29 @@ public class TvioPlayerActivity extends Activity {
 
     @Override
     public void onBackPressed() {
-        reportAndFinish(false);
+        // Controls visible → just hide them; a stray Back mustn't dump the user
+        // out of the stream.
+        if (playerView != null && playerView.isControllerFullyVisible()) {
+            playerView.hideController();
+            return;
+        }
+        // Controls already hidden → pause and confirm before leaving, so it
+        // takes a deliberate second Back (then Exit) to quit.
+        if (confirmingExit) return;
+        confirmingExit = true;
+        if (player != null) player.setPlayWhenReady(false);
+        new AlertDialog.Builder(this)
+                .setTitle("Stop watching?")
+                .setMessage("Are you sure you want to exit the player?")
+                .setPositiveButton("Exit", (d, w) -> reportAndFinish(false))
+                .setNegativeButton("Keep watching", (d, w) -> resumeFromConfirm())
+                .setOnCancelListener(d -> resumeFromConfirm())
+                .show();
+    }
+
+    private void resumeFromConfirm() {
+        confirmingExit = false;
+        if (player != null) player.setPlayWhenReady(true);
     }
 
     @Override

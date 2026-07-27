@@ -36,7 +36,14 @@ const glow = (id, cx, cy, r) =>
 /** "TV" with a smaller "io" pulled in so it overlaps slightly. */
 const wordmark = (cx, cy, size) => {
   const io = size * 0.52;
-  return `<text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central"
+  // Place the baseline explicitly instead of via dominant-baseline: librsvg
+  // (sharp's renderer) doesn't honour dominant-baseline, which left the mark
+  // sitting low and looking off-centre on Android TV. The small leftward nudge
+  // offsets the smaller "io", whose shorter advance pulls the anchored centre
+  // to the right.
+  const y = cy + size * 0.32;
+  const x = cx - size * 0.03;
+  return `<text x="${x}" y="${y}" text-anchor="middle"
       font-family="${FONT}" font-weight="900" font-size="${size}" letter-spacing="${-size * 0.04}">
       <tspan fill="#ffffff">TV</tspan><tspan fill="${ACCENT}" font-size="${io}" dx="${-io * 0.14}">io</tspan>
     </text>`;
@@ -52,7 +59,7 @@ const iconSvg = (n, round) => `<svg xmlns="http://www.w3.org/2000/svg" width="${
         : `<rect width="${n}" height="${n}" rx="${n * 0.2}" fill="${BG}"/>
            <rect width="${n}" height="${n}" rx="${n * 0.2}" fill="url(#g)"/>`
     }
-    ${wordmark(n / 2, n / 2, n * (round ? 0.3 : 0.32))}
+    ${wordmark(n / 2, n / 2, n * (round ? 0.34 : 0.38))}
   </svg>`;
 
 /**
@@ -61,7 +68,7 @@ const iconSvg = (n, round) => `<svg xmlns="http://www.w3.org/2000/svg" width="${
  * little larger here (@capacitor/assets adds its own safe-zone padding).
  */
 const foregroundSvg = (n) => `<svg xmlns="http://www.w3.org/2000/svg" width="${n}" height="${n}">
-    ${wordmark(n / 2, n / 2, n * 0.26)}
+    ${wordmark(n / 2, n / 2, n * 0.38)}
   </svg>`;
 
 /** Adaptive background layer: the dark tile with its teal glow, no wordmark. */

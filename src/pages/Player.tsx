@@ -33,6 +33,7 @@ export function Player() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const setProgress = useAppStore((s) => s.setProgress);
   const markWatched = useAppStore((s) => s.markWatched);
+  const removeFromProgress = useAppStore((s) => s.removeFromProgress);
   const openQuickWatch = useAppStore((s) => s.openQuickWatch);
 
   // A resolved stream URL passed from Quick Watch (via router state).
@@ -120,10 +121,33 @@ export function Player() {
     const d = dataRef.current;
     const ep = epRefRef.current;
     if (!d || !ep || type !== "tv") return false;
-    // The episode that just finished is now watched (green tick in the browser).
+    // Tick the episode (green tick in the browser) — not the whole show yet.
     markWatched(d, ep);
+
+    // Whole show finished? Then it graduates to the Watched row and leaves
+    // Continue Watching. Specials (season 0) don't count towards completion.
+    const seasons = (d.seasonsList ?? []).filter((s) => s.seasonNumber >= 1 && s.episodeCount > 0);
+    const done = new Set(useAppStore.getState().watchedEpisodes);
+    done.add(`${d.id}:${ep.season}:${ep.episode}`);
+    const showComplete =
+      seasons.length > 0 &&
+      seasons.every((s) =>
+        Array.from({ length: s.episodeCount }, (_, i) => i + 1).every((e) =>
+          done.has(`${d.id}:${s.seasonNumber}:${e}`)
+        )
+      );
+    if (showComplete) {
+      markWatched(d); // whole show → Watched row, out of Continue Watching
+      return false;
+    }
+
     const next = computeNextEpisode(d.seasonsList, ep.season, ep.episode);
-    if (!next) return false;
+    if (!next) {
+      // Caught up to what's aired — drop it from Continue Watching rather than
+      // leaving the finished episode sitting there.
+      removeFromProgress(d.id);
+      return false;
+    }
     // Advance the Continue Watching entry to the next episode, ready to watch.
     setProgress(d, 0, 0, next);
     setPendingNext(next);
@@ -198,10 +222,17 @@ export function Player() {
         // Native player gave up buffering → offer a fresh source list.
         if (res.stalled) return tryAnotherSource();
         const finished = res.durationMs > 0 && res.positionMs >= res.durationMs * 0.9;
-        // Finished an episode → advance Continue Watching and offer the next.
+        // Finished → advance Continue Watching / roll up to Watched. Crucially,
+        // don't fall through to the progress-save below, which would re-add the
+        // finished episode we just advanced past.
         if (finished) {
-          if (onEpisodeFinished()) return; // prompt stays on screen
-          if (type !== "tv") { onMovieFinished(); navigate(-1); return; } // film: out of CW, next queued
+          if (type === "tv") {
+            if (onEpisodeFinished()) return; // next queued → stay for the "Up next" prompt
+            navigate(-1); return;            // show complete / caught up → state already set
+          }
+          onMovieFinished(); // film: out of CW, next in series queued
+          navigate(-1);
+          return;
         }
         if (dataRef.current && res.durationMs > 0) {
           setProgress(dataRef.current, res.positionMs / 1000, res.durationMs / 1000, epRefRef.current);

@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import { Play, Plus, Check, X, Trash2 } from "lucide-react";
+import { Play, Plus, Check, X, Trash2, Eye } from "lucide-react";
 import { Button } from "./Button";
 import { usePlay } from "../hooks/usePlay";
 import { useOverlayBack } from "../hooks/useOverlayBack";
@@ -28,6 +28,9 @@ export function PosterActions({
   const inList = useAppStore((s) => s.inWatchlist(item.id));
   const toggle = useAppStore((s) => s.toggleWatchlist);
   const removeFromProgress = useAppStore((s) => s.removeFromProgress);
+  const watched = useAppStore((s) => s.isWatched(item.id));
+  const markWatched = useAppStore((s) => s.markWatched);
+  const removeWatched = useAppStore((s) => s.removeWatched);
 
   const rootRef = useRef<HTMLDivElement>(null);
 
@@ -128,6 +131,20 @@ export function PosterActions({
               {inList ? "Remove from Watchlist" : "Add to Watchlist"}
             </Button>
           )}
+          {/* Mark the whole title watched (or undo). Lets you backfill shows
+              you've already seen so they leave "keep watching" suggestions. */}
+          <Button
+            variant="secondary"
+            className="w-full py-3"
+            onClick={() => {
+              if (watched) removeWatched(item.id);
+              else markWatched(item);
+              onClose();
+            }}
+          >
+            {watched ? <Check size={17} /> : <Eye size={17} />}
+            {watched ? "Remove from Watched" : "Mark as watched"}
+          </Button>
           {/* Remove from Continue Watching — only when opened from that row. */}
           {context === "continue" && (
             <Button
