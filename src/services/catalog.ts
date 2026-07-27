@@ -44,6 +44,7 @@ export interface DiscoverRowOpts {
   genre?: number;
   sort?: "popularity.desc" | "vote_average.desc" | "primary_release_date.desc" | "first_air_date.desc" | "first_air_date.asc";
   minVotes?: number;
+  year?: number;
 }
 
 /** A general discover row (used by custom brand layouts like WWE). */
@@ -54,6 +55,7 @@ export async function discoverRow(type: MediaType, opts: DiscoverRowOpts): Promi
     genre: opts.genre,
     sort: opts.sort ?? "popularity.desc",
     minVotes: opts.minVotes,
+    year: opts.year,
   });
 }
 

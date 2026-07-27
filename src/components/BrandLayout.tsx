@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Row } from "./Row";
 import { SeasonGrid } from "./SeasonGrid";
+import { YearBrowser } from "./YearBrowser";
 import { discoverRow } from "../services/catalog";
 import type { BrandRowSpec } from "../services/serviceLayouts";
 
@@ -29,7 +30,9 @@ export function BrandLayout({ layout }: { layout: BrandRowSpec[] }) {
   return (
     <>
       {layout.map((row) =>
-        row.seriesSeasons != null ? (
+        row.yearBrowser ? (
+          <YearBrowser key={row.key} spec={row.yearBrowser} />
+        ) : row.seriesSeasons != null ? (
           <SeasonGrid key={row.key} seriesId={row.seriesSeasons} title={row.title} variant="row" />
         ) : row.discover ? (
           <DiscoverRow key={row.key} rowKey={row.key} title={row.title} spec={row.discover} />

@@ -130,6 +130,8 @@ export function discover(type: MediaType, opts: {
   /** TV originals for a given service's own network. */
   networks?: number[];
   minVotes?: number;
+  /** Restrict to a single calendar year (used by the WWE year browser). */
+  year?: number;
 }) {
   const params: Record<string, string | number | undefined> = {
     include_adult: "false",
@@ -146,6 +148,10 @@ export function discover(type: MediaType, opts: {
     const since = new Date(Date.now() - opts.newerThanDays * 86400000).toISOString().slice(0, 10);
     if (type === "movie") params["primary_release_date.gte"] = since;
     else params["first_air_date.gte"] = since;
+  }
+  if (opts.year) {
+    if (type === "movie") params["primary_release_year"] = opts.year;
+    else params["first_air_date_year"] = opts.year;
   }
   return list(`/discover/${type}`, type, params);
 }

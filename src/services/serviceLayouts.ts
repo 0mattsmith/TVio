@@ -50,12 +50,46 @@ export interface BrandRowSpec {
   seriesSeasons?: number;
   /** A discover row of a fixed media type (films or shows). */
   discover?: { mediaType: MediaType } & DiscoverRowOpts;
+  /** A "pick a year" block that breaks the promotion's shows out by year. */
+  yearBrowser?: YearBrowserSpec;
+}
+
+/**
+ * The WWE "browse by year" block: pick a year and see that year's episodes of
+ * each weekly show (Raw, the opposing Nitro, SmackDown, the B-shows…) plus the
+ * events (PPVs/PLEs) held that year. Shows with no season for a year are hidden.
+ */
+export interface YearBrowserSpec {
+  /** Earliest selectable year (Raw's debut). */
+  fromYear: number;
+  /** Weekly shows, in display order, whose per-year seasons are broken out. */
+  shows: { id: number; label: string }[];
+  /** Events company — its films are filtered to the chosen year. */
+  ppvCompany?: number;
 }
 
 // The WWE homescreen when you pick the WWE tile: the weekly/flagship shows as
 // season rows, the events as films, plus documentaries and the classics — all
 // via TMDB (series ids and the WWE company, 146598, verified live).
 const WWE_LAYOUT: BrandRowSpec[] = [
+  {
+    key: "byyear",
+    title: "Browse by Year",
+    yearBrowser: {
+      fromYear: 1993,
+      shows: [
+        { id: 4656, label: "Monday Night Raw" },
+        { id: 1837, label: "WCW Monday Nitro" },
+        { id: 1549, label: "Friday Night SmackDown" },
+        { id: 31991, label: "WWE NXT" },
+        { id: 30188, label: "Sunday Night Heat" },
+        { id: 13101, label: "Shotgun Saturday Night" },
+        { id: 11063, label: "Jakked / Metal" },
+        { id: 14774, label: "ECW" },
+      ],
+      ppvCompany: 146598,
+    },
+  },
   { key: "raw", title: "Monday Night Raw", seriesSeasons: 4656 },
   { key: "smackdown", title: "Friday Night SmackDown", seriesSeasons: 1549 },
   { key: "nxt", title: "WWE NXT", seriesSeasons: 31991 },
