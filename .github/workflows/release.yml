@@ -246,6 +246,8 @@ jobs:
         run: node scripts/android-updater-patch.mjs
       - name: Inject native ExoPlayer (Media3 plugin + activity)
         run: node scripts/android-exoplayer-patch.mjs
+      - name: Inject native TV browser (WebView activity + plugin)
+        run: node scripts/android-browser-patch.mjs
       # Two steps: our script writes the source images (assets/icon-*.png +
       # the TV banner), then Capacitor's own generator turns them into the exact
       # launcher resources Android expects. Hand-writing those resources was what

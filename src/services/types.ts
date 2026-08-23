@@ -12,6 +12,16 @@ export interface MediaItem {
   genreIds: number[];
 }
 
+/**
+ * An entry in the Watched row. Films and whole shows have no `season`; a
+ * completed single season carries its number (and a "… — Season N" title) so it
+ * can sit alongside other seasons of the same series until the whole show is
+ * finished and they collapse into one show entry.
+ */
+export interface WatchedItem extends MediaItem {
+  season?: number;
+}
+
 export interface CastMember {
   id: number;
   name: string;

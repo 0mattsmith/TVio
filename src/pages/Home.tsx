@@ -6,10 +6,13 @@ import { Row } from "../components/Row";
 import { DemoBanner } from "../components/DemoBanner";
 import { trendingRow, popularRow, recommendationsRow } from "../services/catalog";
 import { useAppStore } from "../store/useAppStore";
+import { useReconcileProgress } from "../hooks/useReconcileProgress";
 import type { MediaItem } from "../services/types";
 
 export function Home() {
   const navigate = useNavigate();
+  // Tidy up any Continue Watching entries left on a finished episode by an old build.
+  useReconcileProgress();
   const watchlist = useAppStore((s) => s.watchlist);
   const progress = useAppStore((s) => s.progress);
   const collections = useAppStore((s) => s.collections);

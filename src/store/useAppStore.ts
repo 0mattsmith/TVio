@@ -4,7 +4,7 @@ import { signOut as fbSignOut } from "firebase/auth";
 import { ALL_SERVICE_KEYS } from "../services/services";
 import { auth, firebaseEnabled } from "../services/firebase";
 import { configureTmdb } from "../services/tmdb";
-import type { MediaItem } from "../services/types";
+import type { MediaItem, WatchedItem } from "../services/types";
 
 export interface ProgressEntry extends MediaItem {
   positionSec: number;
@@ -93,6 +93,18 @@ export interface IptvSource {
   url: string;
 }
 
+export interface Bookmark {
+  id: string;
+  title: string;
+  url: string;
+}
+
+export interface BrowserHistoryEntry {
+  url: string;
+  title: string;
+  at: number;
+}
+
 interface AppState {
   // Auth (local stub until Firebase is configured)
   user: { email: string; name: string } | null;
@@ -144,9 +156,11 @@ interface AppState {
 
   // Watched (of the ACTIVE profile) — finished films/series for the Home row,
   // plus the set of finished episodes (keyed "seriesId:season:episode").
-  watched: MediaItem[];
+  watched: WatchedItem[];
   watchedEpisodes: string[];
   markWatched: (item: MediaItem, ep?: { season: number; episode: number }) => void;
+  /** A whole finished season → its own Watched entry (collapses once the show is done). */
+  markSeasonWatched: (item: MediaItem, season: number, poster?: string | null) => void;
   removeWatched: (id: number) => void;
   isWatched: (id: number) => boolean;
   isEpisodeWatched: (seriesId: number, season: number, episode: number) => boolean;
@@ -196,6 +210,17 @@ interface AppState {
   removeIptvPlaylist: (id: string) => void;
   addIptvEpg: (name: string, url: string) => void;
   removeIptvEpg: (id: string) => void;
+
+  // In-app web browser. Native WebView on Android (TvioBrowserActivity); on
+  // web/desktop the page acts as a home/bookmarks launcher that opens out.
+  browserEnabled: boolean;
+  setBrowserEnabled: (v: boolean) => void;
+  bookmarks: Bookmark[];
+  addBookmark: (b: { title: string; url: string }) => void;
+  removeBookmark: (id: string) => void;
+  browserHistory: BrowserHistoryEntry[];
+  addHistory: (e: { title: string; url: string }) => void;
+  clearHistory: () => void;
 
   // Quick Watch sheet (not persisted)
   quickWatchItem: MediaItem | null;
@@ -340,6 +365,8 @@ export const useAppStore = create<AppState>()(
             backdrop: item.backdrop, year: item.year, rating: item.rating,
             overview: item.overview, genreIds: item.genreIds,
           };
+          // A whole-show entry carries no season and, sharing the series id,
+          // replaces any per-season entries for that show (they collapse into it).
           const watched = [lean, ...s.watched.filter((w) => w.id !== item.id)].slice(0, 40);
           const progress = s.progress.filter((p) => p.id !== item.id);
           const wlItem = s.watchlist.find((w) => w.id === item.id);
@@ -348,8 +375,22 @@ export const useAppStore = create<AppState>()(
             : s.watchlist;
           return { watched, progress, watchlist };
         }),
+      markSeasonWatched: (item, season, poster) =>
+        set((s) => {
+          // A finished season sits in the Watched row as "… — Season N", keyed by
+          // series id + season so other seasons of the same show coexist until
+          // the whole show is done and markWatched collapses them.
+          const entry: WatchedItem = {
+            id: item.id, type: item.type, title: `${item.title} — Season ${season}`,
+            poster: poster ?? item.poster, backdrop: item.backdrop, year: item.year,
+            rating: item.rating, overview: item.overview, genreIds: item.genreIds, season,
+          };
+          const watched = [entry, ...s.watched.filter((w) => !(w.id === item.id && w.season === season))].slice(0, 40);
+          return { watched };
+        }),
       removeWatched: (id) => set((s) => ({ watched: s.watched.filter((w) => w.id !== id) })),
-      isWatched: (id) => get().watched.some((w) => w.id === id),
+      // "Watched" = the whole title is done (film or full show), not a lone season.
+      isWatched: (id) => get().watched.some((w) => w.id === id && w.season == null),
       isEpisodeWatched: (seriesId, season, episode) =>
         get().watchedEpisodes.includes(`${seriesId}:${season}:${episode}`),
 
@@ -412,6 +453,26 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ iptvEpgUrls: [...s.iptvEpgUrls, { id: crypto.randomUUID(), name: name.trim() || "EPG", url: url.trim() }] })),
       removeIptvEpg: (id) => set((s) => ({ iptvEpgUrls: s.iptvEpgUrls.filter((u) => u.id !== id) })),
 
+      browserEnabled: true,
+      setBrowserEnabled: (v) => set({ browserEnabled: v }),
+      bookmarks: [],
+      addBookmark: ({ title, url }) =>
+        set((s) => {
+          const clean = url.trim();
+          if (!clean || s.bookmarks.some((b) => b.url === clean)) return {};
+          return { bookmarks: [{ id: crypto.randomUUID(), title: title.trim() || clean, url: clean }, ...s.bookmarks] };
+        }),
+      removeBookmark: (id) => set((s) => ({ bookmarks: s.bookmarks.filter((b) => b.id !== id) })),
+      browserHistory: [],
+      addHistory: ({ title, url }) =>
+        set((s) => {
+          const clean = url.trim();
+          if (!clean) return {};
+          const rest = s.browserHistory.filter((h) => h.url !== clean);
+          return { browserHistory: [{ url: clean, title: title.trim() || clean, at: Date.now() }, ...rest].slice(0, 100) };
+        }),
+      clearHistory: () => set({ browserHistory: [] }),
+
       quickWatchItem: null,
       quickWatchEpisode: null,
       openQuickWatch: (item, episode) => set({ quickWatchItem: item, quickWatchEpisode: episode ?? null }),
@@ -457,6 +518,9 @@ export const useAppStore = create<AppState>()(
         iptvEnabled: s.iptvEnabled,
         iptvPlaylists: s.iptvPlaylists,
         iptvEpgUrls: s.iptvEpgUrls,
+        browserEnabled: s.browserEnabled,
+        bookmarks: s.bookmarks,
+        browserHistory: s.browserHistory,
       }),
     }
   )

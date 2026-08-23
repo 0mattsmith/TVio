@@ -42,7 +42,7 @@ export function PosterCard({
   const cardRef = useRef<HTMLDivElement>(null);
   const holdTimer = useRef<number>();
   const opened = useRef(false);
-  const focusKey = `${item.type}-${item.id}`;
+  const focusKey = `${item.type}-${item.id}-${item.season ?? ""}`;
   const open = () => {
     // Remember this poster so Back returns focus here, not the top of the page.
     rememberPosterFocus(location.pathname, focusKey);

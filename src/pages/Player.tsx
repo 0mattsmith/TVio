@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { CastButton } from "../components/CastButton";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Play, Pause, Volume2, VolumeX, Subtitles, Maximize, SkipForward, Loader2 } from "lucide-react";
+import { ArrowLeft, Play, Pause, Volume2, VolumeX, Subtitles, Maximize, SkipForward, Loader2, RotateCcw } from "lucide-react";
 import { getDetail, getCollection } from "../services/catalog";
 import type { MediaType } from "../services/types";
 import { useAppStore } from "../store/useAppStore";
@@ -11,7 +11,7 @@ import { useIsTV } from "../hooks/useDeviceProfile";
 import { hasNativePlayback } from "../platform/capabilities";
 import { exoPlayerAvailable, playNative } from "../services/exoPlayer";
 import { registerBackInterceptor } from "../platform/backButton";
-import { computeNextEpisode, resolveEpisodeStream, type EpisodeRef } from "../services/nextEpisode";
+import { computeNextEpisode, resolveEpisodeStreams, type EpisodeRef } from "../services/nextEpisode";
 import { isHttpAddon } from "../addons/manager";
 import { prepareStream, stopStream, waitForPlaylist } from "../services/nativePlayer";
 
@@ -33,13 +33,20 @@ export function Player() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const setProgress = useAppStore((s) => s.setProgress);
   const markWatched = useAppStore((s) => s.markWatched);
+  const markSeasonWatched = useAppStore((s) => s.markSeasonWatched);
   const removeFromProgress = useAppStore((s) => s.removeFromProgress);
   const openQuickWatch = useAppStore((s) => s.openQuickWatch);
 
-  // A resolved stream URL passed from Quick Watch (via router state).
-  const st = location.state as { url?: string; name?: string; filename?: string; size?: number } | null;
+  // A resolved stream URL passed from Quick Watch (via router state). `queue`
+  // holds the remaining auto-play-next candidates to fall through on failure;
+  // `auto` marks a stream that started from autoplay-next (so a total failure
+  // opens the source list rather than a dead-end error).
+  const st = location.state as
+    | { url?: string; name?: string; filename?: string; size?: number; queue?: { url: string; name: string }[]; auto?: boolean }
+    | null;
   const streamUrl = st?.url;
   const streamName = st?.name;
+  const queue = st?.queue ?? [];
   const params = new URLSearchParams(location.search);
   const epLabel = params.get("s") && params.get("e") ? `S${params.get("s")} · E${params.get("e")}` : "";
   // Threaded into progress so Continue Watching can show which episode.
@@ -63,6 +70,29 @@ export function Player() {
   const [error, setError] = useState(false);
   // "" = not preparing; "copy" = remuxing (fast); "transcode" = re-encoding.
   const [preparing, setPreparing] = useState<"" | "copy" | "transcode">("");
+
+  // Resume vs. start-over. When there's a meaningful saved position for exactly
+  // this title/episode (and it isn't basically finished), ask before playing
+  // instead of silently resuming. Autoplay-next streams always just play.
+  const computeResumeSec = () => {
+    if (st?.auto) return 0;
+    const p = useAppStore.getState().progress.find((x) => x.id === Number(id));
+    if (!p || p.positionSec < 30) return 0;
+    if (p.durationSec && p.positionSec > p.durationSec * 0.95) return 0; // basically done
+    if (type === "tv" && epRef && (p.season !== epRef.season || p.episode !== epRef.episode)) return 0;
+    return Math.floor(p.positionSec);
+  };
+  const [resumeSec, setResumeSec] = useState(computeResumeSec);
+  const [resumeChoice, setResumeChoice] = useState<"pending" | "resume" | "restart">(() =>
+    computeResumeSec() > 0 ? "pending" : "resume"
+  );
+  // Re-decide when the target title/episode changes (e.g. autoplay-next).
+  useEffect(() => {
+    const sec = computeResumeSec();
+    setResumeSec(sec);
+    setResumeChoice(sec > 0 ? "pending" : "resume");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, epRef?.season, epRef?.episode, st?.auto]);
 
   const { data } = useQuery({
     queryKey: ["detail", type, id],
@@ -141,6 +171,19 @@ export function Player() {
       return false;
     }
 
+    // Season finished (but not the whole show)? It graduates to the Watched row
+    // as "… — Season N"; when the last season completes, markWatched above
+    // collapses them all into a single show entry.
+    const cur = seasons.find((s) => s.seasonNumber === ep.season);
+    if (
+      cur &&
+      Array.from({ length: cur.episodeCount }, (_, i) => i + 1).every((e) =>
+        done.has(`${d.id}:${ep.season}:${e}`)
+      )
+    ) {
+      markSeasonWatched(d, ep.season, cur.poster);
+    }
+
     const next = computeNextEpisode(d.seasonsList, ep.season, ep.episode);
     if (!next) {
       // Caught up to what's aired — drop it from Continue Watching rather than
@@ -174,53 +217,90 @@ export function Player() {
 
   const toDetail = () => navigate(`/title/${type}/${id}`, { replace: true });
 
+  // Open the source list (Quick Watch) over the player so the user can pick a
+  // stream for the given episode themselves.
+  const openSourceList = (ep: EpisodeRef | null) => {
+    if (data && ep) openQuickWatch(data, ep);
+    else toDetail();
+  };
+
   const playNext = async () => {
-    if (!pendingNext || !data?.imdbId) return toDetail();
+    if (!pendingNext || !data?.imdbId) return openSourceList(pendingNext);
     setLoadingNext(true);
     const addons = useAppStore
       .getState()
       .addons.filter((a) => a.enabled && isHttpAddon(a.url));
-    const found = await resolveEpisodeStream({
+    // Up to five acceptable (English / no foreign-only audio) candidates in rank
+    // order. Play the first; the rest ride along as a queue so the player can
+    // fall through them on failure before giving up.
+    const found = await resolveEpisodeStreams({
       addons,
       imdbId: data.imdbId,
       ref: pendingNext,
-      expect: { title: data.title, year: data.year ? Number(data.year) : undefined },
+      expect: {
+        title: data.title,
+        year: data.year ? Number(data.year) : undefined,
+        runtimeMin: data.runtime ?? undefined,
+        preferredLang: useAppStore.getState().preferredAudioLang || "en",
+      },
       native: nativeVideo || hasNativePlayback(),
+      limit: 5,
     });
     setLoadingNext(false);
-    if (found) {
+    if (found.length > 0) {
       navigate(`/watch/${type}/${id}?s=${pendingNext.season}&e=${pendingNext.episode}`, {
-        state: { url: found.url, name: found.name },
+        state: { url: found[0].url, name: found[0].name, queue: found.slice(1), auto: true },
         replace: true,
       });
     } else {
-      // Nothing clean found for the next episode — drop the user on the show
-      // page to choose a source themselves rather than autoplay a wrong file.
-      toDetail();
+      // Nothing resolved automatically — hand over the full source list to pick
+      // from, right over the player.
+      openSourceList(pendingNext);
     }
+  };
+
+  // A stream started by autoplay-next failed. Try the next queued candidate; if
+  // the queue is exhausted, open the source list so the user can choose.
+  const onAutoStreamFailed = (): boolean => {
+    if (queue.length > 0) {
+      navigate(`/watch/${type}/${id}${location.search}`, {
+        state: { url: queue[0].url, name: queue[0].name, queue: queue.slice(1), auto: true },
+        replace: true,
+      });
+      return true;
+    }
+    if (st?.auto) {
+      openSourceList(epRefRef.current ?? null);
+      return true;
+    }
+    return false;
   };
 
   // Android native playback: hand the stream to the ExoPlayer activity, which
   // decodes AC3/HEVC/MKV the WebView can't, then save the returned position and
   // go back. Replaces the <video> path entirely on Android.
   useEffect(() => {
-    if (!nativeVideo || !streamUrl) return;
+    if (!nativeVideo || !streamUrl || resumeChoice === "pending") return; // wait for Continue / Start over
     let cancelled = false;
     (async () => {
-      const resumeSec =
-        useAppStore.getState().progress.find((p) => p.id === Number(id))?.positionSec ?? 0;
+      const startSec = resumeChoice === "restart" ? 0 : resumeSec;
       try {
         const res = await playNative({
           url: streamUrl,
           title: streamName || data?.title || "",
-          startMs: Math.floor(resumeSec * 1000),
+          startMs: Math.floor(startSec * 1000),
           audioLang: useAppStore.getState().preferredAudioLang || "en",
           filename: st?.filename,
           sizeBytes: st?.size,
         });
         if (cancelled) return;
-        // Native player gave up buffering → offer a fresh source list.
-        if (res.stalled) return tryAnotherSource();
+        // Native player gave up buffering. If this was an autoplay-next stream,
+        // fall through to the next candidate / source list; otherwise offer a
+        // fresh source list.
+        if (res.stalled) {
+          if (onAutoStreamFailed()) return;
+          return tryAnotherSource();
+        }
         const finished = res.durationMs > 0 && res.positionMs >= res.durationMs * 0.9;
         // Finished → advance Continue Watching / roll up to Watched. Crucially,
         // don't fall through to the progress-save below, which would re-add the
@@ -239,14 +319,16 @@ export function Player() {
         }
         navigate(-1);
       } catch {
-        if (!cancelled) navigate(-1); // nothing to fall back to on Android
+        if (cancelled) return;
+        if (onAutoStreamFailed()) return; // try the next queued candidate / list
+        navigate(-1); // nothing to fall back to on Android
       }
     })();
     return () => {
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nativeVideo, streamUrl, data]);
+  }, [nativeVideo, streamUrl, data, resumeChoice, resumeSec]);
 
   // persist progress to Continue Watching (web/desktop <video> only)
   useEffect(() => {
@@ -311,7 +393,7 @@ export function Player() {
   // WebView can't decode are routed through the desktop ffmpeg sidecar.
   useEffect(() => {
     const v = videoRef.current;
-    if (!v || nativeVideo) return; // Android uses the native activity instead
+    if (!v || nativeVideo || resumeChoice === "pending") return; // wait for Continue / Start over
     setError(false);
     setPreparing("");
     if (!streamUrl) {
@@ -355,6 +437,12 @@ export function Player() {
       const r = await attachStream(v, playable);
       if (!active) return r.cleanup();
       cleanup = r.cleanup;
+      // Resume from the saved position when the user chose Continue.
+      if (resumeChoice === "resume" && resumeSec > 0) {
+        const seek = () => { try { v.currentTime = resumeSec; } catch { /* not seekable yet */ } };
+        if (v.readyState >= 1) seek();
+        else v.addEventListener("loadedmetadata", seek, { once: true });
+      }
       v.play?.().catch(() => {});
     })();
 
@@ -363,7 +451,8 @@ export function Player() {
       cleanup();
       stopStream(); // don't leave ffmpeg running after we navigate away
     };
-  }, [streamUrl]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [streamUrl, resumeChoice, resumeSec]);
 
   const toggle = () => {
     const v = videoRef.current;
@@ -405,6 +494,7 @@ export function Player() {
           // Ignore aborts that happen while swapping the source.
           const err = e.currentTarget.error;
           if (err && err.code === err.MEDIA_ERR_ABORTED) return;
+          if (onAutoStreamFailed()) return; // autoplay-next: try next candidate / list
           if (streamUrl) setError(true);
         }}
         onClick={toggle}
@@ -593,6 +683,36 @@ export function Player() {
         <div className="absolute bottom-6 right-6 z-30 animate-row-in rounded-xl border border-white/15 bg-black/85 px-4 py-3 text-sm shadow-card backdrop-blur">
           <span className="font-semibold">Press Back again to exit</span>
           <span className="ml-1 text-muted">— or wait to keep watching.</span>
+        </div>
+      )}
+
+      {/* Resume vs. start over — gates playback until the user chooses. */}
+      {resumeChoice === "pending" && (
+        <div className="absolute inset-0 z-50 flex flex-col items-center justify-center gap-5 bg-black/85 p-6 text-center">
+          <div>
+            <div className="text-xs font-bold uppercase tracking-wider text-accent">
+              {[epLabel, data?.title].filter(Boolean).join("  ·  ") || "Resume"}
+            </div>
+            <h2 className="mt-1 text-2xl font-black">Resume from {fmt(resumeSec)}?</h2>
+            <p className="mt-1 text-sm text-white/70">
+              You were partway through this {type === "tv" ? "episode" : "film"}.
+            </p>
+          </div>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              onClick={() => setResumeChoice("resume")}
+              autoFocus
+              className="focusable flex items-center gap-2 rounded-lg bg-accent px-6 py-3 font-bold text-black"
+            >
+              <Play size={18} fill="currentColor" /> Continue
+            </button>
+            <button
+              onClick={() => setResumeChoice("restart")}
+              className="focusable flex items-center gap-2 rounded-lg bg-white/10 px-6 py-3 font-semibold hover:bg-white/20"
+            >
+              <RotateCcw size={18} /> Watch from start
+            </button>
+          </div>
         </div>
       )}
     </div>

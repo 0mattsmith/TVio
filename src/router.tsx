@@ -13,6 +13,7 @@ import { CollectionPage } from "./pages/CollectionPage";
 import { Person } from "./pages/Person";
 import { Player } from "./pages/Player";
 import { SearchPage } from "./pages/SearchPage";
+import { Browser } from "./pages/Browser";
 import { Settings } from "./pages/Settings";
 import { LiveTV } from "./pages/LiveTV";
 import { LivePlayer } from "./pages/LivePlayer";
@@ -35,6 +36,7 @@ export const router = createHashRouter([
       { path: "/series", element: <Series /> },
       { path: "/live", element: <LiveTV /> },
       { path: "/search", element: <SearchPage /> },
+      { path: "/browser", element: <Browser /> },
       { path: "/remote", element: <RemotePage /> },
       { path: "/settings", element: <Settings /> },
       { path: "/title/:type/:id", element: <Detail /> },

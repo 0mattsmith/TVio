@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Search, Home, Clapperboard, Tv, Settings, Users, Radio, Gamepad2 } from "lucide-react";
+import { Search, Home, Clapperboard, Tv, Settings, Users, Radio, Gamepad2, Globe } from "lucide-react";
 import { Logo } from "./Logo";
 import wweTeal from "../assets/wwe-teal.png";
 import { useAppStore } from "../store/useAppStore";
@@ -16,6 +16,7 @@ export function Navbar() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
   const iptvEnabled = useAppStore((s) => s.iptvEnabled);
+  const browserEnabled = useAppStore((s) => s.browserEnabled);
   const activeBrand = useAppStore((s) => s.activeBrand);
   const profiles = useAppStore((s) => s.profiles);
   const activeProfileId = useAppStore((s) => s.activeProfileId);
@@ -105,6 +106,17 @@ export function Navbar() {
               aria-label="Companion remote"
             >
               <Gamepad2 size={20} />
+            </NavLink>
+          )}
+          {browserEnabled && (
+            <NavLink
+              to="/browser"
+              className={({ isActive }) =>
+                `focusable flex h-10 w-10 items-center justify-center rounded-full ${isActive ? "text-accent" : "text-white/85 hover:text-white"}`
+              }
+              aria-label="Web browser"
+            >
+              <Globe size={20} />
             </NavLink>
           )}
           <NavLink

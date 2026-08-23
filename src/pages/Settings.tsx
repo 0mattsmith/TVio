@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X } from "lucide-react";
+import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe } from "lucide-react";
 import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
 import { hasTmdbKey, currentRegion, usingBuiltInKey } from "../services/tmdb";
 import { firebaseEnabled } from "../services/firebase";
@@ -69,6 +69,7 @@ export function Settings() {
     platformOverride, setPlatformOverride,
     iptvEnabled, setIptvEnabled,
     iptvPlaylists, iptvEpgUrls, addIptvPlaylist, removeIptvPlaylist, addIptvEpg, removeIptvEpg,
+    browserEnabled, setBrowserEnabled,
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
     preferredAudioLang, setPreferredAudioLang,
     profiles, activeProfileId, addProfile, updateProfile, removeProfile, profileData, watchlist,
@@ -647,6 +648,20 @@ export function Settings() {
             </p>
           </div>
         )}
+      </section>
+
+      {/* Web Browser */}
+      <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
+        <div className="flex items-center justify-between gap-4">
+          <div>
+            <h2 className="flex items-center gap-2 text-lg font-bold"><Globe size={18} /> Web Browser</h2>
+            <p className="mt-1 text-sm text-muted">
+              Adds a globe to the top bar for a remote-friendly web browser. On the Android / TV app you can press Play on any
+              video to watch it full-screen in the TVio player; on the web build, links open in your system browser.
+            </p>
+          </div>
+          <Toggle on={browserEnabled} onClick={() => setBrowserEnabled(!browserEnabled)} label="Enable Web Browser" />
+        </div>
       </section>
 
       {/* Data & API */}

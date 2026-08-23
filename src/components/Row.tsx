@@ -44,7 +44,12 @@ export function Row({
           {loading
             ? Array.from({ length: 8 }).map((_, i) => <PosterSkeleton key={i} />)
             : items!.map((item) => (
-                <PosterCard key={`${item.type}-${item.id}`} item={item} progress={progressFor?.(item)} context={context} />
+                <PosterCard
+                  key={`${item.type}-${item.id}-${(item as { season?: number }).season ?? ""}`}
+                  item={item}
+                  progress={progressFor?.(item)}
+                  context={context}
+                />
               ))}
         </div>
         <button

@@ -80,3 +80,48 @@ export async function resolveEpisodeStream(opts: {
   }
   return null;
 }
+
+/**
+ * Like resolveEpisodeStream, but returns up to `limit` acceptable candidates in
+ * rank order rather than a single best. "Acceptable" = not a definite mismatch,
+ * which (because the expectation carries preferredLang) already excludes
+ * foreign-only-audio releases: an English tag or no language tag passes, a
+ * foreign tag with no English is dropped. The player tries these in turn and,
+ * if they all fail, hands the user the full source list to choose from.
+ */
+export async function resolveEpisodeStreams(opts: {
+  addons: { url: string }[];
+  imdbId: string;
+  ref: EpisodeRef;
+  expect: StreamExpectation;
+  native: boolean;
+  limit?: number;
+}): Promise<{ url: string; name: string }[]> {
+  const { addons, imdbId, ref, expect, native } = opts;
+  const limit = opts.limit ?? 5;
+  const out: { url: string; name: string }[] = [];
+  for (const addon of addons) {
+    if (!isHttpAddon(addon.url)) continue;
+    let streams;
+    try {
+      streams = await fetchStreams(addon.url, "tv", imdbId, ref.season, ref.episode);
+    } catch {
+      continue;
+    }
+    const playable = (native ? streams : streams.filter(isWebPlayable)).filter((s) => s.url);
+    if (playable.length === 0) continue;
+
+    const ranked = rankByTitleMatch(
+      playable,
+      (s) => streamTitle(s),
+      { ...expect, season: ref.season, episode: ref.episode },
+      (s) => s.behaviorHints?.videoSize
+    );
+    for (const r of ranked) {
+      if (r.verdict === "mismatch") continue; // wrong title/episode/year or foreign-only
+      out.push({ url: r.item.url!, name: streamTitle(r.item) });
+      if (out.length >= limit) return out;
+    }
+  }
+  return out;
+}
