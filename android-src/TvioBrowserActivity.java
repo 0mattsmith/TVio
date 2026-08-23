@@ -1,9 +1,12 @@
 package app.tvio.mobile;
 
 import android.app.Activity;
+import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.KeyEvent;
@@ -49,6 +52,14 @@ public class TvioBrowserActivity extends Activity {
     private View customView;
     private WebChromeClient.CustomViewCallback customViewCallback;
     private volatile String lastMediaUrl = null;
+
+    private LinearLayout topBar;
+    private boolean autoPromptDone = false;
+    private boolean firstLoad = true;
+    private long lastBackAt = 0;
+    private Runnable pendingSingleBack;
+    private final Handler uiHandler = new Handler(Looper.getMainLooper());
+    private static final long DOUBLE_BACK_MS = 400;
 
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -138,10 +149,11 @@ public class TvioBrowserActivity extends Activity {
         bar.addView(urlBar);
 
         bar.addView(barButton("Go", v -> navigateFromBar()));
-        Button play = barButton("▶ Play", v -> playDetectedVideo());
+        Button play = barButton("▶ Play", v -> manualCheck());
         play.setTextColor(ACCENT);
         bar.addView(play);
-        bar.addView(barButton("✕", v -> finish()));
+        bar.addView(barButton("✕", v -> confirmQuit()));
+        topBar = bar;
         return bar;
     }
 
@@ -209,12 +221,17 @@ public class TvioBrowserActivity extends Activity {
             @Override
             public void onPageStarted(WebView view, String url, android.graphics.Bitmap favicon) {
                 lastMediaUrl = null;
+                autoPromptDone = false;
                 if (urlBar != null && !urlBar.hasFocus()) urlBar.setText(url);
             }
 
             @Override
             public void onPageFinished(WebView view, String url) {
                 if (urlBar != null && !urlBar.hasFocus()) urlBar.setText(url);
+                // Start the user in the page content, not stuck in the toolbar.
+                if (firstLoad) { firstLoad = false; webView.requestFocus(); }
+                // Give a late-loading player a moment, then offer to play, once.
+                uiHandler.postDelayed(() -> maybeAutoPrompt(), 1500);
             }
         });
 
@@ -260,24 +277,51 @@ public class TvioBrowserActivity extends Activity {
         }
     }
 
-    /** Detect the page's playing video and hand it to the native TVio player. */
-    private void playDetectedVideo() {
-        if (webView == null) return;
+    /** Resolve the page's playable video URL (JS currentSrc, else sniffed media), or null. */
+    private void resolveVideo(android.webkit.ValueCallback<String> cb) {
+        if (webView == null) { cb.onReceiveValue(null); return; }
         webView.evaluateJavascript(
             "(function(){var v=document.querySelector('video');return v?(v.currentSrc||v.src||''):'';})()",
             value -> {
                 String src = unquote(value);
                 String target = (src != null && src.startsWith("http")) ? src : lastMediaUrl;
-                if (target == null || target.isEmpty()) {
-                    Toast.makeText(this, "No playable video detected on this page.", Toast.LENGTH_SHORT).show();
-                    return;
-                }
-                Intent i = new Intent(this, TvioPlayerActivity.class);
-                i.putExtra("url", target);
-                i.putExtra("title", webView.getTitle() != null ? webView.getTitle() : "");
-                i.putExtra("audioLang", "en");
-                startActivity(i);
+                cb.onReceiveValue(target != null && !target.isEmpty() ? target : null);
             });
+    }
+
+    /** Toolbar "Play" / remote Play key: check the page for a video and offer it. */
+    private void manualCheck() {
+        resolveVideo(target -> {
+            if (target == null) Toast.makeText(this, "No playable video detected on this page.", Toast.LENGTH_SHORT).show();
+            else promptPlay(target);
+        });
+    }
+
+    /** On page load: if a video is present, offer once to play it in our player. */
+    private void maybeAutoPrompt() {
+        if (autoPromptDone || isFinishing()) return;
+        resolveVideo(target -> {
+            if (target == null || autoPromptDone || isFinishing()) return;
+            autoPromptDone = true;
+            promptPlay(target);
+        });
+    }
+
+    private void promptPlay(String target) {
+        new AlertDialog.Builder(this)
+            .setTitle("Play in TVio?")
+            .setMessage("A video was found on this page. Play it in the TVio player?")
+            .setPositiveButton("OK", (d, w) -> playTarget(target))
+            .setNegativeButton("Cancel", null)
+            .show();
+    }
+
+    private void playTarget(String target) {
+        Intent i = new Intent(this, TvioPlayerActivity.class);
+        i.putExtra("url", target);
+        i.putExtra("title", webView != null && webView.getTitle() != null ? webView.getTitle() : "");
+        i.putExtra("audioLang", "en");
+        startActivity(i);
     }
 
     private String unquote(String jsonString) {
@@ -310,18 +354,57 @@ public class TvioBrowserActivity extends Activity {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int k = event.getKeyCode();
             if (k == KeyEvent.KEYCODE_MEDIA_PLAY || k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
-                playDetectedVideo();
+                manualCheck();
                 return true;
             }
         }
         return super.dispatchKeyEvent(event);
     }
 
+    // Back is a focus/exit control here (web history lives on the ‹ › buttons):
+    //   single Back        → drop focus into the page content (never stuck in a
+    //                        site's own nav or the toolbar)
+    //   double Back        → step up a level: content → toolbar, toolbar → quit
+    // A fullscreen HTML5 video collapses first, before any of this.
     @Override
     public void onBackPressed() {
         if (customView != null) { hideCustomView(); return; }
-        if (webView != null && webView.canGoBack()) { webView.goBack(); return; }
-        super.onBackPressed();
+        long now = System.currentTimeMillis();
+        if (now - lastBackAt < DOUBLE_BACK_MS) {
+            lastBackAt = 0;
+            if (pendingSingleBack != null) { uiHandler.removeCallbacks(pendingSingleBack); pendingSingleBack = null; }
+            handleDoubleBack();
+            return;
+        }
+        lastBackAt = now;
+        pendingSingleBack = () -> { pendingSingleBack = null; focusContent(); };
+        uiHandler.postDelayed(pendingSingleBack, DOUBLE_BACK_MS);
+    }
+
+    private void handleDoubleBack() {
+        if (isToolbarFocused()) confirmQuit();
+        else focusToolbar();
+    }
+
+    private boolean isToolbarFocused() {
+        return topBar != null && topBar.findFocus() != null;
+    }
+
+    private void focusContent() {
+        if (webView != null) webView.requestFocus();
+    }
+
+    private void focusToolbar() {
+        if (topBar != null && topBar.getChildCount() > 0) topBar.getChildAt(0).requestFocus();
+    }
+
+    private void confirmQuit() {
+        new AlertDialog.Builder(this)
+            .setTitle("Close the browser?")
+            .setMessage("Return to TVio?")
+            .setPositiveButton("Close", (d, w) -> finish())
+            .setNegativeButton("Keep browsing", (d, w) -> focusContent())
+            .show();
     }
 
     @Override
