@@ -59,7 +59,7 @@ public class TvioBrowserActivity extends Activity {
     private long lastBackAt = 0;
     private Runnable pendingSingleBack;
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
-    private static final long DOUBLE_BACK_MS = 400;
+    private static final long DOUBLE_BACK_MS = 500;
 
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -353,6 +353,13 @@ public class TvioBrowserActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int k = event.getKeyCode();
+            // Press Up at the very top of the page to reach the toolbar — the
+            // convention TV browsers use, so the address bar is always a nudge away.
+            if (k == KeyEvent.KEYCODE_DPAD_UP && webView != null && webView.hasFocus()
+                    && webView.getScrollY() == 0 && !isToolbarFocused()) {
+                focusToolbar();
+                return true;
+            }
             if (k == KeyEvent.KEYCODE_MEDIA_PLAY || k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
                 manualCheck();
                 return true;
