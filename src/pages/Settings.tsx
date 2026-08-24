@@ -69,6 +69,7 @@ export function Settings() {
     platformOverride, setPlatformOverride,
     iptvEnabled, setIptvEnabled,
     iptvPlaylists, iptvEpgUrls, addIptvPlaylist, removeIptvPlaylist, addIptvEpg, removeIptvEpg,
+    liveTvEnabled, setLiveTvEnabled, liveChannels, addLiveChannel, removeLiveChannel,
     browserEnabled, setBrowserEnabled,
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
     preferredAudioLang, setPreferredAudioLang,
@@ -133,6 +134,8 @@ export function Settings() {
   const [plUrl, setPlUrl] = useState("");
   const [epgName, setEpgName] = useState("");
   const [epgUrl, setEpgUrl] = useState("");
+  const [lcName, setLcName] = useState("");
+  const [lcUrl, setLcUrl] = useState("");
   const hasAiostreams = addons.some((a) => a.kind === "aiostreams");
   const installAiostreams = async () => {
     const k = aioKey.trim();
@@ -589,16 +592,26 @@ export function Settings() {
       <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
         <div className="flex items-center justify-between gap-4">
           <div>
-            <h2 className="flex items-center gap-2 text-lg font-bold"><Radio size={18} /> Live TV (IPTV)</h2>
+            <h2 className="flex items-center gap-2 text-lg font-bold"><Radio size={18} /> Live TV</h2>
             <p className="mt-1 text-sm text-muted">
-              Add M3U playlists and XMLTV EPG guides to unlock the Live TV tab with a full TV guide.
+              Adds a Live TV menu to the top bar. Turn on IPTV for an M3U / EPG TV guide, and add your own web channels — a website link or an .html page — that open in the TVio browser.
             </p>
           </div>
-          <Toggle on={iptvEnabled} onClick={() => setIptvEnabled(!iptvEnabled)} label="Enable Live TV" />
+          <Toggle on={liveTvEnabled} onClick={() => setLiveTvEnabled(!liveTvEnabled)} label="Enable Live TV" />
         </div>
 
-        {iptvEnabled && (
-          <div className="mt-6 space-y-6">
+        {liveTvEnabled && (
+          <div className="mt-6 space-y-8">
+          <div>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-bold"><ListVideo size={16} className="text-accent" /> IPTV (M3U + EPG)</h3>
+                <p className="mt-0.5 text-xs text-muted">A full TV guide from your M3U playlists and XMLTV EPG sources.</p>
+              </div>
+              <Toggle on={iptvEnabled} onClick={() => setIptvEnabled(!iptvEnabled)} label="Enable IPTV" />
+            </div>
+            {iptvEnabled && (
+              <div className="mt-5 space-y-6">
             {/* Playlists */}
             <div>
               <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><ListVideo size={16} className="text-accent" /> M3U Playlists</div>
@@ -643,9 +656,37 @@ export function Settings() {
               </ul>
             </div>
 
-            <p className="text-xs text-muted">
-              Note: some IPTV/EPG servers block browser (CORS) requests. If a source won't load in the web app it will still work in the Android / desktop builds.
+                <p className="text-xs text-muted">
+                  Note: some IPTV/EPG servers block browser (CORS) requests. If a source won't load in the web app it will still work in the Android / desktop builds.
+                </p>
+              </div>
+            )}
+          </div>
+
+          {/* User-added web channels — a link or .html page each. */}
+          <div>
+            <div className="mb-1 flex items-center gap-2 text-sm font-bold"><Globe size={16} className="text-accent" /> Web channels</div>
+            <p className="mb-2 text-xs text-muted">
+              Add a page by name — a website link, or a link to your own .html. It appears in the Live TV menu and opens in the TVio browser; if the page has a video, our player picks it up.
             </p>
+            <div className="flex flex-col gap-2 sm:flex-row">
+              <input value={lcName} onChange={(e) => setLcName(e.target.value)} placeholder="Name" className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent sm:w-40" />
+              <input value={lcUrl} onChange={(e) => setLcUrl(e.target.value)} placeholder="https://…  (or a link to your .html)" className="focusable min-w-0 flex-1 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent" />
+              <Button onClick={() => { if (lcUrl.trim()) { addLiveChannel(lcName, lcUrl); setLcName(""); setLcUrl(""); } }}><Plus size={16} /> Add</Button>
+            </div>
+            <ul className="mt-3 space-y-2">
+              {liveChannels.map((c) => (
+                <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-4 py-3">
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">{c.name}</div>
+                    <div className="break-all text-xs text-muted">{c.url}</div>
+                  </div>
+                  <button onClick={() => removeLiveChannel(c.id)} className="focusable shrink-0 text-muted hover:text-red-400" aria-label="Remove"><Trash2 size={16} /></button>
+                </li>
+              ))}
+              {liveChannels.length === 0 && <li className="text-xs text-muted">No web channels added yet.</li>}
+            </ul>
+          </div>
           </div>
         )}
       </section>

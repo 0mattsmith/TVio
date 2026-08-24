@@ -211,6 +211,15 @@ interface AppState {
   addIptvEpg: (name: string, url: string) => void;
   removeIptvEpg: (id: string) => void;
 
+  // Live TV section master switch (IPTV is one capability under it). Web
+  // "channels" are user-added pages (a link or .html) that open in the browser;
+  // if a page has a video, the browser's Play hand-off catches it.
+  liveTvEnabled: boolean;
+  setLiveTvEnabled: (v: boolean) => void;
+  liveChannels: IptvSource[];
+  addLiveChannel: (name: string, url: string) => void;
+  removeLiveChannel: (id: string) => void;
+
   // In-app web browser. Native WebView on Android (TvioBrowserActivity); on
   // web/desktop the page acts as a home/bookmarks launcher that opens out.
   browserEnabled: boolean;
@@ -453,6 +462,13 @@ export const useAppStore = create<AppState>()(
         set((s) => ({ iptvEpgUrls: [...s.iptvEpgUrls, { id: crypto.randomUUID(), name: name.trim() || "EPG", url: url.trim() }] })),
       removeIptvEpg: (id) => set((s) => ({ iptvEpgUrls: s.iptvEpgUrls.filter((u) => u.id !== id) })),
 
+      liveTvEnabled: false,
+      setLiveTvEnabled: (v) => set({ liveTvEnabled: v }),
+      liveChannels: [],
+      addLiveChannel: (name, url) =>
+        set((s) => ({ liveChannels: [...s.liveChannels, { id: crypto.randomUUID(), name: name.trim() || "Channel", url: url.trim() }] })),
+      removeLiveChannel: (id) => set((s) => ({ liveChannels: s.liveChannels.filter((c) => c.id !== id) })),
+
       browserEnabled: true,
       setBrowserEnabled: (v) => set({ browserEnabled: v }),
       bookmarks: [],
@@ -480,15 +496,20 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "tvio-store",
-      version: 1,
-      // A newly-added service isn't in an existing install's saved list, so it
-      // would show up unticked. Switch each new one on once, without disturbing
-      // services the user has deliberately turned off. Fresh installs skip this
-      // — they already default to every service on.
+      version: 2,
+      // One-time fix-ups for existing installs. Fresh installs skip these — their
+      // defaults are already right.
       migrate: (persisted, from) => {
-        const s = persisted as { enabledServices?: string[] };
+        const s = persisted as { enabledServices?: string[]; iptvEnabled?: boolean; liveTvEnabled?: boolean };
+        // v1: AMC+ added as a service — switch it on once (without disturbing
+        // services the user deliberately turned off).
         if (from < 1 && s?.enabledServices && !s.enabledServices.includes("amc")) {
           s.enabledServices = [...s.enabledServices, "amc"];
+        }
+        // v2: Live TV split out from IPTV. Keep Live TV visible for anyone who
+        // already had IPTV on.
+        if (from < 2 && s && s.liveTvEnabled === undefined) {
+          s.liveTvEnabled = !!s.iptvEnabled;
         }
         return s;
       },
@@ -518,6 +539,8 @@ export const useAppStore = create<AppState>()(
         iptvEnabled: s.iptvEnabled,
         iptvPlaylists: s.iptvPlaylists,
         iptvEpgUrls: s.iptvEpgUrls,
+        liveTvEnabled: s.liveTvEnabled,
+        liveChannels: s.liveChannels,
         browserEnabled: s.browserEnabled,
         bookmarks: s.bookmarks,
         browserHistory: s.browserHistory,

@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Search, Home, Clapperboard, Tv, Settings, Users, Radio, Gamepad2, Globe } from "lucide-react";
+import { Search, Home, Clapperboard, Tv, Settings, Users, Gamepad2, Globe } from "lucide-react";
 import { Logo } from "./Logo";
+import { LiveTvMenu } from "./LiveTvMenu";
 import wweTeal from "../assets/wwe-teal.png";
 import { useAppStore } from "../store/useAppStore";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
@@ -15,7 +16,7 @@ const BASE_TABS = [
 export function Navbar() {
   const navigate = useNavigate();
   const [scrolled, setScrolled] = useState(false);
-  const iptvEnabled = useAppStore((s) => s.iptvEnabled);
+  const liveTvEnabled = useAppStore((s) => s.liveTvEnabled);
   const browserEnabled = useAppStore((s) => s.browserEnabled);
   const activeBrand = useAppStore((s) => s.activeBrand);
   const profiles = useAppStore((s) => s.profiles);
@@ -23,10 +24,7 @@ export function Navbar() {
   const activeProfile = profiles.find((p) => p.id === activeProfileId);
   const isMobile = useDeviceProfile() === "mobile";
 
-  // Live TV joins the centered tabs only when IPTV is enabled in Settings.
-  const TABS = iptvEnabled
-    ? [...BASE_TABS, { to: "/live", label: "Live TV", icon: Radio, end: false }]
-    : BASE_TABS;
+  const TABS = BASE_TABS;
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 20);
@@ -93,6 +91,7 @@ export function Navbar() {
               <span className="sm:hidden sr-only">{label}</span>
             </NavLink>
           ))}
+          {liveTvEnabled && <LiveTvMenu />}
         </div>
 
         {/* Right: remote (mobile) + settings + switch user */}
