@@ -665,11 +665,13 @@ export function Settings() {
 
           {/* User-added web channels — a link or .html page each. */}
           <div>
-            <div className="mb-1 flex items-center gap-2 text-sm font-bold"><Globe size={16} className="text-accent" /> Web channels</div>
-            <p className="mb-2 text-xs text-muted">
-              Add a page by name — a website link, or a link to your own .html. It appears in the Live TV menu and opens in the TVio browser; if the page has a video, our player picks it up.
-            </p>
-            <Button variant="secondary" onClick={() => setShowAddChannel(true)}><Plus size={16} /> Add channel</Button>
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-bold"><Globe size={16} className="text-accent" /> Web channels</h3>
+                <p className="mt-0.5 text-xs text-muted">A page by name — a website link or a local .html. It appears in the Live TV menu and opens in the TVio browser.</p>
+              </div>
+              <Button variant="secondary" onClick={() => setShowAddChannel(true)}><Plus size={16} /> Add</Button>
+            </div>
             <ul className="mt-3 space-y-2">
               {liveChannels.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-4 py-3">

@@ -56,6 +56,7 @@ export function LiveTvMenu() {
     </>
   );
 
+  // Nothing configured yet → link to the Live TV page, which prompts setup.
   if (dests.length === 0) {
     return (
       <NavLink to="/live" className={({ isActive }) => linkCls(isActive)}>
@@ -64,14 +65,8 @@ export function LiveTvMenu() {
     );
   }
 
-  if (dests.length === 1) {
-    return (
-      <button onClick={dests[0].run} className={linkCls(false)} aria-label="Live TV">
-        {label}
-      </button>
-    );
-  }
-
+  // Otherwise always drop a submenu listing every destination — even a single
+  // web channel shows in the Live TV menu.
   return (
     <div className="relative">
       <button onClick={() => setOpen((v) => !v)} aria-expanded={open} aria-label="Live TV" className={linkCls(open)}>
