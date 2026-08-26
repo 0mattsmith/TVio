@@ -93,6 +93,15 @@ export interface IptvSource {
   url: string;
 }
 
+/** A user-added Live TV "web channel". `isolate` strips the page to just its
+ *  player when opened (for pages built around a single media player). */
+export interface LiveChannel {
+  id: string;
+  name: string;
+  url: string;
+  isolate?: boolean;
+}
+
 export interface Bookmark {
   id: string;
   title: string;
@@ -216,8 +225,8 @@ interface AppState {
   // if a page has a video, the browser's Play hand-off catches it.
   liveTvEnabled: boolean;
   setLiveTvEnabled: (v: boolean) => void;
-  liveChannels: IptvSource[];
-  addLiveChannel: (name: string, url: string) => void;
+  liveChannels: LiveChannel[];
+  addLiveChannel: (name: string, url: string, isolate?: boolean) => void;
   removeLiveChannel: (id: string) => void;
 
   // In-app web browser. Native WebView on Android (TvioBrowserActivity); on
@@ -465,8 +474,8 @@ export const useAppStore = create<AppState>()(
       liveTvEnabled: false,
       setLiveTvEnabled: (v) => set({ liveTvEnabled: v }),
       liveChannels: [],
-      addLiveChannel: (name, url) =>
-        set((s) => ({ liveChannels: [...s.liveChannels, { id: crypto.randomUUID(), name: name.trim() || "Channel", url: url.trim() }] })),
+      addLiveChannel: (name, url, isolate) =>
+        set((s) => ({ liveChannels: [...s.liveChannels, { id: crypto.randomUUID(), name: name.trim() || "Channel", url: url.trim(), isolate: !!isolate }] })),
       removeLiveChannel: (id) => set((s) => ({ liveChannels: s.liveChannels.filter((c) => c.id !== id) })),
 
       browserEnabled: true,

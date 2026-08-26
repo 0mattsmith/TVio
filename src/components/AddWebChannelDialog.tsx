@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, FolderOpen, X } from "lucide-react";
+import { Plus, FolderOpen, X, Check } from "lucide-react";
 import { Button } from "./Button";
 import { useOverlayBack } from "../hooks/useOverlayBack";
 import { pickLocalHtml, nativeBrowserAvailable } from "../services/tvioBrowser";
@@ -14,10 +14,11 @@ export function AddWebChannelDialog({
   onAdd,
 }: {
   onClose: () => void;
-  onAdd: (name: string, url: string) => void;
+  onAdd: (name: string, url: string, isolate: boolean) => void;
 }) {
   const [name, setName] = useState("");
   const [url, setUrl] = useState("");
+  const [isolate, setIsolate] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useOverlayBack(true, onClose);
@@ -41,7 +42,7 @@ export function AddWebChannelDialog({
 
   const submit = () => {
     if (!url.trim()) return;
-    onAdd(name, url);
+    onAdd(name, url, isolate);
     onClose();
   };
 
@@ -93,6 +94,21 @@ export function AddWebChannelDialog({
             )}
           </div>
           <p className="text-[11px] text-muted">A local file picked with Browse stays a local file — no https:// is added to it.</p>
+
+          <button
+            type="button"
+            onClick={() => setIsolate((v) => !v)}
+            aria-pressed={isolate}
+            className="focusable flex w-full items-start gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-left"
+          >
+            <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isolate ? "border-accent bg-accent text-black" : "border-white/30"}`}>
+              {isolate && <Check size={14} strokeWidth={3} />}
+            </span>
+            <span className="min-w-0">
+              <span className="text-sm font-semibold">Player only</span>
+              <span className="block text-[11px] text-muted">If the page has a single media player, hide everything else and fit it to the screen.</span>
+            </span>
+          </button>
         </div>
 
         <div className="mt-6 flex gap-2.5">

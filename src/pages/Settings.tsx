@@ -674,7 +674,10 @@ export function Settings() {
               {liveChannels.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-4 py-3">
                   <div className="min-w-0">
-                    <div className="text-sm font-semibold">{c.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-sm font-semibold">{c.name}</span>
+                      {c.isolate && <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">Player only</span>}
+                    </div>
                     <div className="break-all text-xs text-muted">{c.url}</div>
                   </div>
                   <button onClick={() => removeLiveChannel(c.id)} className="focusable shrink-0 text-muted hover:text-red-400" aria-label="Remove"><Trash2 size={16} /></button>
@@ -683,7 +686,7 @@ export function Settings() {
               {liveChannels.length === 0 && <li className="text-xs text-muted">No web channels added yet.</li>}
             </ul>
             {showAddChannel && (
-              <AddWebChannelDialog onClose={() => setShowAddChannel(false)} onAdd={(n, u) => addLiveChannel(n, u)} />
+              <AddWebChannelDialog onClose={() => setShowAddChannel(false)} onAdd={(n, u, iso) => addLiveChannel(n, u, iso)} />
             )}
           </div>
           </div>

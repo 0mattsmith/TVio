@@ -42,6 +42,7 @@ public class TvioBrowser extends Plugin {
         }
         Intent intent = new Intent(getContext(), TvioBrowserActivity.class);
         intent.putExtra("url", url);
+        intent.putExtra("isolate", Boolean.TRUE.equals(call.getBoolean("isolate", false)));
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getContext().startActivity(intent);
         call.resolve();

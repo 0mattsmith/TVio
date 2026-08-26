@@ -72,6 +72,20 @@ public class TvioBrowserActivity extends Activity {
     private boolean cursorMode = false;
     private boolean cursorInit = false;
 
+    // "Player only": strip a single-player page down to just its player.
+    private boolean isolate = false;
+    private static final String ISOLATE_JS =
+        "(function(){try{" +
+        "var v=[].slice.call(document.querySelectorAll('video'));var t=null;" +
+        "if(v.length===1){t=v[0];}else if(v.length>1){v.sort(function(a,b){return b.offsetWidth*b.offsetHeight-a.offsetWidth*a.offsetHeight;});t=v[0];}" +
+        "else{var f=[].slice.call(document.querySelectorAll('iframe')).filter(function(x){return x.offsetWidth>200&&x.offsetHeight>150;});if(f.length>=1){f.sort(function(a,b){return b.offsetWidth*b.offsetHeight-a.offsetWidth*a.offsetHeight;});t=f[0];}}" +
+        "if(!t)return 'none';" +
+        "if(!document.getElementById('tvio-iso-style')){var s=document.createElement('style');s.id='tvio-iso-style';s.textContent='html,body{margin:0!important;padding:0!important;background:#000!important;overflow:hidden!important;height:100%!important;width:100%!important;}';(document.head||document.documentElement).appendChild(s);}" +
+        "var n=t;while(n&&n.parentElement){var p=n.parentElement;var k=p.children;for(var i=0;i<k.length;i++){if(k[i]!==n&&k[i].id!=='tvio-iso-style'){k[i].style.setProperty('display','none','important');}}if(p===document.body||p===document.documentElement)break;p.style.setProperty('display','block','important');p.style.setProperty('width','100%','important');p.style.setProperty('height','100%','important');p.style.setProperty('margin','0','important');p.style.setProperty('padding','0','important');n=p;}" +
+        "t.style.setProperty('position','fixed','important');t.style.setProperty('top','0','important');t.style.setProperty('left','0','important');t.style.setProperty('width','100vw','important');t.style.setProperty('height','100vh','important');t.style.setProperty('margin','0','important');t.style.setProperty('z-index','2147483646','important');t.style.setProperty('background','#000','important');" +
+        "if(t.tagName==='VIDEO'){t.style.setProperty('object-fit','contain','important');}" +
+        "return 'ok';}catch(e){return 'err';}})();";
+
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
     private static final int ACCENT = 0xFF14B8A6;
@@ -129,6 +143,7 @@ public class TvioBrowserActivity extends Activity {
             else exitCursorMode();
         });
 
+        isolate = getIntent().getBooleanExtra("isolate", false);
         String url = getIntent().getStringExtra("url");
         if (url == null || url.isEmpty()) url = "https://duckduckgo.com";
         urlBar.setText(url);
@@ -253,6 +268,12 @@ public class TvioBrowserActivity extends Activity {
                 if (firstLoad) { firstLoad = false; webView.requestFocus(); }
                 // Give a late-loading player a moment, then offer to play, once.
                 uiHandler.postDelayed(() -> maybeAutoPrompt(), 1500);
+                // "Player only" channels: strip the page to its player (twice, to
+                // catch a player that mounts a beat after load).
+                if (isolate) {
+                    uiHandler.postDelayed(() -> applyIsolate(), 800);
+                    uiHandler.postDelayed(() -> applyIsolate(), 2500);
+                }
             }
         });
 
@@ -343,6 +364,11 @@ public class TvioBrowserActivity extends Activity {
         i.putExtra("title", webView != null && webView.getTitle() != null ? webView.getTitle() : "");
         i.putExtra("audioLang", "en");
         startActivity(i);
+    }
+
+    /** "Player only": collapse a single-player page down to just its player. */
+    private void applyIsolate() {
+        if (isolate && webView != null) webView.evaluateJavascript(ISOLATE_JS, null);
     }
 
     private String unquote(String jsonString) {
