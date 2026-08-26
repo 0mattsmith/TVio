@@ -4,12 +4,15 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
 import android.graphics.Color;
+import android.graphics.drawable.GradientDrawable;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.SystemClock;
 import android.text.InputType;
 import android.view.Gravity;
 import android.view.KeyEvent;
+import android.view.MotionEvent;
 import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
@@ -61,6 +64,14 @@ public class TvioBrowserActivity extends Activity {
     private final Handler uiHandler = new Handler(Looper.getMainLooper());
     private static final long DOUBLE_BACK_MS = 500;
 
+    // D-pad cursor (BrowseHere-style). Active while the WebView holds focus;
+    // driving it up to the top hands control back to the toolbar.
+    private FrameLayout outer;
+    private View cursorView;
+    private float cursorX, cursorY;
+    private boolean cursorMode = false;
+    private boolean cursorInit = false;
+
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
     private static final int ACCENT = 0xFF14B8A6;
@@ -106,10 +117,17 @@ public class TvioBrowserActivity extends Activity {
         customViewContainer.setBackgroundColor(Color.BLACK);
         customViewContainer.setVisibility(View.GONE);
 
-        FrameLayout outer = new FrameLayout(this);
+        outer = new FrameLayout(this);
         outer.addView(root);
         outer.addView(customViewContainer, new FrameLayout.LayoutParams(MATCH, MATCH));
         setContentView(outer);
+
+        createCursor();
+        // Cursor is shown exactly while the page (WebView) has focus.
+        webView.setOnFocusChangeListener((v, hasFocus) -> {
+            if (hasFocus) enterCursorMode();
+            else exitCursorMode();
+        });
 
         String url = getIntent().getStringExtra("url");
         if (url == null || url.isEmpty()) url = "https://duckduckgo.com";
@@ -181,7 +199,7 @@ public class TvioBrowserActivity extends Activity {
 
     /** Mirror of the web toUrl(): an address → https, else a DuckDuckGo search. */
     private String toUrl(String q) {
-        if (q.matches("(?i)^https?://.*")) return q;
+        if (q.matches("(?i)^(https?|file|content)://.*") || q.startsWith("data:")) return q;
         if (q.matches("^[^\\s]+\\.[^\\s]{2,}(/.*)?$")) return "https://" + q;
         return "https://duckduckgo.com/?q=" + android.net.Uri.encode(q);
     }
@@ -198,6 +216,9 @@ public class TvioBrowserActivity extends Activity {
         s.setJavaScriptCanOpenWindowsAutomatically(false);
         s.setSupportMultipleWindows(false);
         s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
+        // Allow opening a user-picked local page (file:// / content://).
+        s.setAllowFileAccess(true);
+        s.setAllowContentAccess(true);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override
@@ -353,19 +374,103 @@ public class TvioBrowserActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (event.getAction() == KeyEvent.ACTION_DOWN) {
             int k = event.getKeyCode();
-            // Press Up at the very top of the page to reach the toolbar — the
-            // convention TV browsers use, so the address bar is always a nudge away.
-            if (k == KeyEvent.KEYCODE_DPAD_UP && webView != null && webView.hasFocus()
-                    && webView.getScrollY() == 0 && !isToolbarFocused()) {
-                focusToolbar();
-                return true;
-            }
             if (k == KeyEvent.KEYCODE_MEDIA_PLAY || k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
                 manualCheck();
                 return true;
             }
+            // From the toolbar, Down drops back into the page and its cursor.
+            if (k == KeyEvent.KEYCODE_DPAD_DOWN && isToolbarFocused()) {
+                focusContent();
+                return true;
+            }
+            // Cursor mode (the page has focus): the D-pad drives the pointer and
+            // OK clicks under it. Driving up past the top hands off to the toolbar.
+            if (cursorMode) {
+                if (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN
+                        || k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                    moveCursor(k);
+                    return true;
+                }
+                if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER) {
+                    clickAtCursor();
+                    return true;
+                }
+            }
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    private void createCursor() {
+        cursorView = new View(this);
+        int size = px(22);
+        GradientDrawable dot = new GradientDrawable();
+        dot.setShape(GradientDrawable.OVAL);
+        dot.setColor(0xFFFFFFFF);
+        dot.setStroke(px(2), ACCENT);
+        cursorView.setBackground(dot);
+        cursorView.setElevation(px(8));
+        cursorView.setLayoutParams(new FrameLayout.LayoutParams(size, size));
+        cursorView.setVisibility(View.GONE);
+        outer.addView(cursorView);
+    }
+
+    private void enterCursorMode() {
+        cursorMode = true;
+        if (cursorView == null) return;
+        if (!cursorInit && webView.getWidth() > 0) {
+            cursorX = webView.getWidth() / 2f;
+            cursorY = webView.getHeight() / 2f;
+            cursorInit = true;
+        }
+        cursorView.setVisibility(View.VISIBLE);
+        positionCursor();
+    }
+
+    private void exitCursorMode() {
+        cursorMode = false;
+        if (cursorView != null) cursorView.setVisibility(View.GONE);
+    }
+
+    private void moveCursor(int k) {
+        float step = px(48);
+        int w = webView.getWidth(), h = webView.getHeight();
+        if (k == KeyEvent.KEYCODE_DPAD_LEFT) {
+            cursorX = Math.max(0, cursorX - step);
+        } else if (k == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            cursorX = Math.min(w, cursorX + step);
+        } else if (k == KeyEvent.KEYCODE_DPAD_DOWN) {
+            cursorY += step;
+            if (cursorY > h) { cursorY = h; webView.scrollBy(0, (int) step); }
+        } else if (k == KeyEvent.KEYCODE_DPAD_UP) {
+            cursorY -= step;
+            if (cursorY <= 0) {
+                cursorY = 0;
+                if (webView.getScrollY() > 0) {
+                    webView.scrollBy(0, -(int) step); // more page above — scroll up
+                } else {
+                    focusToolbar(); // at the very top → hand off to the address bar
+                    return;
+                }
+            }
+        }
+        positionCursor();
+    }
+
+    private void positionCursor() {
+        if (cursorView == null || webView == null) return;
+        cursorView.setX(cursorX - cursorView.getWidth() / 2f);
+        cursorView.setY(webView.getTop() + cursorY - cursorView.getHeight() / 2f);
+    }
+
+    private void clickAtCursor() {
+        if (webView == null) return;
+        long t = SystemClock.uptimeMillis();
+        MotionEvent down = MotionEvent.obtain(t, t, MotionEvent.ACTION_DOWN, cursorX, cursorY, 0);
+        MotionEvent up = MotionEvent.obtain(t, t + 60, MotionEvent.ACTION_UP, cursorX, cursorY, 0);
+        webView.dispatchTouchEvent(down);
+        webView.dispatchTouchEvent(up);
+        down.recycle();
+        up.recycle();
     }
 
     // Back is a focus/exit control here (web history lives on the ‹ › buttons):

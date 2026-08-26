@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe } from "lucide-react";
+import { AddWebChannelDialog } from "../components/AddWebChannelDialog";
 import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
 import { hasTmdbKey, currentRegion, usingBuiltInKey } from "../services/tmdb";
 import { firebaseEnabled } from "../services/firebase";
@@ -134,8 +135,7 @@ export function Settings() {
   const [plUrl, setPlUrl] = useState("");
   const [epgName, setEpgName] = useState("");
   const [epgUrl, setEpgUrl] = useState("");
-  const [lcName, setLcName] = useState("");
-  const [lcUrl, setLcUrl] = useState("");
+  const [showAddChannel, setShowAddChannel] = useState(false);
   const hasAiostreams = addons.some((a) => a.kind === "aiostreams");
   const installAiostreams = async () => {
     const k = aioKey.trim();
@@ -669,11 +669,7 @@ export function Settings() {
             <p className="mb-2 text-xs text-muted">
               Add a page by name — a website link, or a link to your own .html. It appears in the Live TV menu and opens in the TVio browser; if the page has a video, our player picks it up.
             </p>
-            <div className="flex flex-col gap-2 sm:flex-row">
-              <input value={lcName} onChange={(e) => setLcName(e.target.value)} placeholder="Name" className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent sm:w-40" />
-              <input value={lcUrl} onChange={(e) => setLcUrl(e.target.value)} placeholder="https://…  (or a link to your .html)" className="focusable min-w-0 flex-1 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent" />
-              <Button onClick={() => { if (lcUrl.trim()) { addLiveChannel(lcName, lcUrl); setLcName(""); setLcUrl(""); } }}><Plus size={16} /> Add</Button>
-            </div>
+            <Button variant="secondary" onClick={() => setShowAddChannel(true)}><Plus size={16} /> Add channel</Button>
             <ul className="mt-3 space-y-2">
               {liveChannels.map((c) => (
                 <li key={c.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-4 py-3">
@@ -686,6 +682,9 @@ export function Settings() {
               ))}
               {liveChannels.length === 0 && <li className="text-xs text-muted">No web channels added yet.</li>}
             </ul>
+            {showAddChannel && (
+              <AddWebChannelDialog onClose={() => setShowAddChannel(false)} onAdd={(n, u) => addLiveChannel(n, u)} />
+            )}
           </div>
           </div>
         )}

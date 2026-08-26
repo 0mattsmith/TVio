@@ -8,6 +8,7 @@
 
 interface TvioBrowserPlugin {
   open(opts: { url: string }): Promise<void>;
+  pickFile(): Promise<{ url?: string; name?: string }>;
 }
 
 interface CapacitorGlobal {
@@ -35,7 +36,13 @@ export function nativeBrowserAvailable(): boolean {
 export function toUrl(input: string): string {
   const q = input.trim();
   if (!q) return "";
-  if (/^https?:\/\//i.test(q)) return q;
+  // Already an absolute address or a local resource — leave it untouched, so a
+  // local file is never turned into an https:// address or a web search.
+  if (/^(https?|file|content|data):/i.test(q)) return q;
+  // A local filesystem path → open it as a file:// URL:
+  //   Windows drive path (C:\… or C:/…), or a POSIX path to an .html/.htm file.
+  if (/^[a-zA-Z]:[\\/]/.test(q)) return "file:///" + q.replace(/\\/g, "/");
+  if (/^\//.test(q) && /\.html?($|[?#])/i.test(q)) return "file://" + q;
   // A domain-like token (has a dot, no spaces) is treated as a site.
   if (/^[^\s]+\.[^\s]{2,}(\/.*)?$/.test(q)) return `https://${q}`;
   return `https://duckduckgo.com/?q=${encodeURIComponent(q)}`;
@@ -48,4 +55,20 @@ export async function openBrowser(rawUrl: string): Promise<void> {
   const plugin = cap()?.Plugins?.TvioBrowser;
   if (plugin) await plugin.open({ url });
   else window.open(url, "_blank", "noopener,noreferrer");
+}
+
+/**
+ * Native document picker for a local .html file (Android). Returns the picked
+ * file's content:// URI (with a persisted read grant) and display name, or null
+ * if unavailable or cancelled — so a local page can be a Live TV web channel.
+ */
+export async function pickLocalHtml(): Promise<{ url: string; name: string } | null> {
+  const plugin = cap()?.Plugins?.TvioBrowser;
+  if (!plugin?.pickFile) return null;
+  try {
+    const r = await plugin.pickFile();
+    return r?.url ? { url: r.url, name: r.name || "Local page" } : null;
+  } catch {
+    return null;
+  }
 }
