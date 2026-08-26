@@ -75,9 +75,13 @@ export function Browser() {
   const history = useAppStore((s) => s.browserHistory);
   const addHistory = useAppStore((s) => s.addHistory);
   const clearHistory = useAppStore((s) => s.clearHistory);
+  const hiddenQuickLinks = useAppStore((s) => s.hiddenQuickLinks);
+  const hideQuickLink = useAppStore((s) => s.hideQuickLink);
 
   const [addr, setAddr] = useState("");
   const [editing, setEditing] = useState(false);
+  const [editingQuick, setEditingQuick] = useState(false);
+  const visibleQuickLinks = QUICK_LINKS.filter((q) => !hiddenQuickLinks.includes(q.url));
   const isNative = nativeBrowserAvailable();
 
   const go = (raw: string) => {
@@ -94,8 +98,10 @@ export function Browser() {
 
   return (
     <div className="animate-fade-in pb-16 pt-24">
-      {/* Hero header + big central search — BrowseHere-style, TVio-branded. */}
-      <div className="mb-8 flex flex-col items-center px-4 text-center sm:px-8">
+      {/* Header + search — left-aligned so its column band covers column 1 of
+          the tile rows, so pressing Down lands on the first tile (even a lone
+          bookmark) rather than skipping into the middle of the next row. */}
+      <div className="mb-8 px-4 sm:px-8">
         <div className="mb-4 flex items-center gap-2.5">
           <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-accent-soft">
             <Globe className="text-accent" size={24} />
@@ -174,15 +180,34 @@ export function Browser() {
         )}
       </section>
 
-      {/* Quick links */}
-      <section className="mb-8">
-        <SectionHeader icon={<Globe size={15} />} title="Quick links" />
-        <TileRow>
-          {QUICK_LINKS.map((q) => (
-            <Tile key={q.url} title={q.title} url={q.url} onClick={() => go(q.url)} />
-          ))}
-        </TileRow>
-      </section>
+      {/* Quick links — editable (removable) just like bookmarks. */}
+      {visibleQuickLinks.length > 0 && (
+        <section className="mb-8">
+          <SectionHeader
+            icon={<Globe size={15} />}
+            title="Quick links"
+            action={
+              <button
+                onClick={() => setEditingQuick((v) => !v)}
+                className="focusable flex items-center gap-1.5 rounded-lg px-2.5 py-1 text-xs font-semibold text-muted hover:text-white"
+              >
+                {editingQuick ? <><Check size={13} /> Done</> : <><Pencil size={13} /> Edit</>}
+              </button>
+            }
+          />
+          <TileRow>
+            {visibleQuickLinks.map((q) => (
+              <Tile
+                key={q.url}
+                title={editingQuick ? "Remove" : q.title}
+                url={q.url}
+                remove={editingQuick}
+                onClick={() => (editingQuick ? hideQuickLink(q.url) : go(q.url))}
+              />
+            ))}
+          </TileRow>
+        </section>
+      )}
 
       {/* Recent */}
       {history.length > 0 && (

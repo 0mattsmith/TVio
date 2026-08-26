@@ -670,7 +670,7 @@ export function Settings() {
                 <h3 className="flex items-center gap-2 text-sm font-bold"><Globe size={16} className="text-accent" /> Web channels</h3>
                 <p className="mt-0.5 text-xs text-muted">A page by name — a website link or a local .html. It appears in the Live TV menu and opens in the TVio browser.</p>
               </div>
-              <Button variant="secondary" onClick={() => setShowAddChannel(true)}><Plus size={16} /> Add</Button>
+              <Button variant="secondary" id="add-channel-btn" onClick={() => setShowAddChannel(true)}><Plus size={16} /> Add</Button>
             </div>
             <ul className="mt-3 space-y-2">
               {liveChannels.map((c) => (
@@ -682,7 +682,14 @@ export function Settings() {
                     </div>
                     <div className="break-all text-xs text-muted">{c.url}</div>
                   </div>
-                  <button onClick={() => removeLiveChannel(c.id)} className="focusable shrink-0 text-muted hover:text-red-400" aria-label="Remove"><Trash2 size={16} /></button>
+                  <button
+                    onClick={() => {
+                      removeLiveChannel(c.id);
+                      requestAnimationFrame(() => document.getElementById("add-channel-btn")?.focus());
+                    }}
+                    className="focusable shrink-0 text-muted hover:text-red-400"
+                    aria-label="Remove"
+                  ><Trash2 size={16} /></button>
                 </li>
               ))}
               {liveChannels.length === 0 && <li className="text-xs text-muted">No web channels added yet.</li>}

@@ -27,6 +27,7 @@ import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.exoplayer.ExoPlayer;
 import androidx.media3.ui.PlayerView;
+import androidx.media3.ui.TrackNameProvider;
 import androidx.media3.ui.TrackSelectionDialogBuilder;
 
 import java.util.Locale;
@@ -103,6 +104,8 @@ public class TvioPlayerActivity extends Activity {
                 player.getTrackSelectionParameters()
                         .buildUpon()
                         .setPreferredAudioLanguage(audioLang)
+                        // Prefer the main programme audio over commentary/description tracks.
+                        .setPreferredAudioRoleFlags(C.ROLE_FLAG_MAIN)
                         .setTrackTypeDisabled(C.TRACK_TYPE_AUDIO, false)
                         .build());
 
@@ -309,8 +312,42 @@ public class TvioPlayerActivity extends Activity {
         if (player == null) return;
         new TrackSelectionDialogBuilder(this, "Audio", player, C.TRACK_TYPE_AUDIO)
                 .setAllowAdaptiveSelections(false)
+                .setTrackNameProvider(this::audioTrackName)
                 .build()
                 .show();
+    }
+
+    /**
+     * A distinct, informative label per audio track. Media3's default names come
+     * from the container's metadata, so tracks with no language/label collapse to
+     * the same generic name — this adds language, role (main vs commentary),
+     * channels, codec and bitrate so each is identifiable.
+     */
+    private String audioTrackName(Format f) {
+        StringBuilder sb = new StringBuilder();
+        if (f.language != null && !f.language.isEmpty() && !f.language.equals("und")) {
+            sb.append(f.language.toUpperCase(Locale.US));
+        } else {
+            sb.append("Audio");
+        }
+        if ((f.roleFlags & C.ROLE_FLAG_COMMENTARY) != 0) sb.append(" · Commentary");
+        else if ((f.roleFlags & C.ROLE_FLAG_MAIN) != 0) sb.append(" · Main");
+        if (f.channelCount > 0) sb.append(" · ").append(channelDesc(f.channelCount));
+        if (f.sampleMimeType != null) sb.append(" · ").append(f.sampleMimeType.replace("audio/", "").toUpperCase(Locale.US));
+        int b = bitrate(f);
+        if (b > 0) sb.append(" · ").append(b / 1000).append(" kbps");
+        if (f.label != null && !f.label.isEmpty()) sb.append(" (").append(f.label).append(")");
+        return sb.toString();
+    }
+
+    private String channelDesc(int ch) {
+        switch (ch) {
+            case 1: return "Mono";
+            case 2: return "Stereo";
+            case 6: return "5.1";
+            case 8: return "7.1";
+            default: return ch + "ch";
+        }
     }
 
     /** Everything we can tell the user about what's actually playing. */

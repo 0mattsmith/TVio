@@ -17,6 +17,7 @@ import android.view.View;
 import android.view.ViewGroup;
 import android.view.WindowManager;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.InputMethodManager;
 import android.webkit.WebChromeClient;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebResourceResponse;
@@ -85,6 +86,20 @@ public class TvioBrowserActivity extends Activity {
         "t.style.setProperty('position','fixed','important');t.style.setProperty('top','0','important');t.style.setProperty('left','0','important');t.style.setProperty('width','100vw','important');t.style.setProperty('height','100vh','important');t.style.setProperty('margin','0','important');t.style.setProperty('z-index','2147483646','important');t.style.setProperty('background','#000','important');" +
         "if(t.tagName==='VIDEO'){t.style.setProperty('object-fit','contain','important');}" +
         "return 'ok';}catch(e){return 'err';}})();";
+
+    // Address bar edits only after you press OK on it; a held direction glides
+    // the cursor with an accelerating (steep) ramp.
+    private boolean urlEditing = false;
+    private int heldKey = 0;
+    private long heldStart = 0;
+    private final Runnable cursorTick = new Runnable() {
+        @Override
+        public void run() {
+            if (heldKey == 0 || !cursorMode) return;
+            stepCursor(heldKey, cursorSpeed(SystemClock.uptimeMillis() - heldStart));
+            uiHandler.postDelayed(this, 16);
+        }
+    };
 
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
@@ -172,6 +187,9 @@ public class TvioBrowserActivity extends Activity {
         urlBar.setTextSize(14);
         urlBar.setBackgroundColor(0xFF23262B);
         urlBar.setPadding(px(12), px(10), px(12), px(10));
+        urlBar.setCursorVisible(false);
+        urlBar.setShowSoftInputOnFocus(false); // no keyboard merely from D-pad focus
+        urlBar.setOnFocusChangeListener((v, hasFocus) -> { if (!hasFocus && urlEditing) exitUrlEdit(); });
         LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(0, WRAP, 1f);
         ulp.setMargins(px(6), 0, px(6), 0);
         urlBar.setLayoutParams(ulp);
@@ -398,32 +416,109 @@ public class TvioBrowserActivity extends Activity {
 
     @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
-        if (event.getAction() == KeyEvent.ACTION_DOWN) {
-            int k = event.getKeyCode();
-            if (k == KeyEvent.KEYCODE_MEDIA_PLAY || k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE) {
-                manualCheck();
+        int k = event.getKeyCode();
+        boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+
+        if (down && (k == KeyEvent.KEYCODE_MEDIA_PLAY || k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)) {
+            manualCheck();
+            return true;
+        }
+
+        // While typing an address, Back leaves edit mode (not the browser);
+        // everything else goes to the field as normal.
+        if (urlEditing) {
+            if (k == KeyEvent.KEYCODE_BACK) { if (down) exitUrlEdit(); return true; }
+            return super.dispatchKeyEvent(event);
+        }
+
+        // The address bar is highlightable like a button until you click into it:
+        // Left/Right hop between toolbar items, OK starts editing, Down drops into
+        // the page. Never let a mere focus move the caret or raise the keyboard.
+        if (urlBar != null && urlBar.hasFocus()) {
+            if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER) {
+                if (down) enterUrlEdit();
                 return true;
             }
-            // From the toolbar, Down drops back into the page and its cursor.
-            if (k == KeyEvent.KEYCODE_DPAD_DOWN && isToolbarFocused()) {
-                focusContent();
+            if (isDpad(k)) {
+                if (down) {
+                    if (k == KeyEvent.KEYCODE_DPAD_DOWN) focusContent();
+                    else if (k == KeyEvent.KEYCODE_DPAD_LEFT) moveFocus(View.FOCUS_LEFT);
+                    else if (k == KeyEvent.KEYCODE_DPAD_RIGHT) moveFocus(View.FOCUS_RIGHT);
+                    // Up: stay on the address bar.
+                }
                 return true;
             }
-            // Cursor mode (the page has focus): the D-pad drives the pointer and
-            // OK clicks under it. Driving up past the top hands off to the toolbar.
-            if (cursorMode) {
-                if (k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN
-                        || k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                    moveCursor(k);
-                    return true;
+        }
+
+        // From the toolbar, Down drops back into the page and its cursor.
+        if (down && k == KeyEvent.KEYCODE_DPAD_DOWN && isToolbarFocused()) {
+            focusContent();
+            return true;
+        }
+
+        // Cursor mode: hold a direction to glide (accelerating); OK clicks under it.
+        if (cursorMode) {
+            if (isDpad(k)) {
+                if (down) {
+                    if (heldKey != k) {
+                        heldKey = k;
+                        heldStart = SystemClock.uptimeMillis();
+                        stepCursor(k, px(14)); // a tiny nudge, so a tap barely moves
+                        uiHandler.removeCallbacks(cursorTick);
+                        uiHandler.postDelayed(cursorTick, 350); // glide kicks in when held
+                    }
+                } else if (heldKey == k) {
+                    stopCursorHold();
                 }
-                if (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER) {
-                    clickAtCursor();
-                    return true;
-                }
+                return true;
+            }
+            if (down && (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER)) {
+                clickAtCursor();
+                return true;
             }
         }
         return super.dispatchKeyEvent(event);
+    }
+
+    private boolean isDpad(int k) {
+        return k == KeyEvent.KEYCODE_DPAD_UP || k == KeyEvent.KEYCODE_DPAD_DOWN
+                || k == KeyEvent.KEYCODE_DPAD_LEFT || k == KeyEvent.KEYCODE_DPAD_RIGHT;
+    }
+
+    private void moveFocus(int direction) {
+        if (urlBar == null) return;
+        View next = urlBar.focusSearch(direction);
+        if (next != null) next.requestFocus();
+    }
+
+    private void stopCursorHold() {
+        heldKey = 0;
+        uiHandler.removeCallbacks(cursorTick);
+    }
+
+    /** Pixels-per-frame for the cursor: small at first, then a steep ramp. */
+    private float cursorSpeed(long heldMs) {
+        float t = Math.max(0f, (heldMs - 350) / 1000f); // seconds held beyond the tap
+        // Cubic ramp: very gentle at first (fine control), then climbs steeply.
+        return Math.min(px(44), px(3) + px(120) * t * t * t);
+    }
+
+    private void enterUrlEdit() {
+        urlEditing = true;
+        urlBar.setCursorVisible(true);
+        urlBar.selectAll();
+        InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+        if (imm != null) imm.showSoftInput(urlBar, InputMethodManager.SHOW_IMPLICIT);
+    }
+
+    private void exitUrlEdit() {
+        urlEditing = false;
+        if (urlBar != null) {
+            urlBar.setCursorVisible(false);
+            urlBar.setSelection(0);
+            InputMethodManager imm = (InputMethodManager) getSystemService(INPUT_METHOD_SERVICE);
+            if (imm != null) imm.hideSoftInputFromWindow(urlBar.getWindowToken(), 0);
+        }
     }
 
     private void createCursor() {
@@ -454,26 +549,28 @@ public class TvioBrowserActivity extends Activity {
 
     private void exitCursorMode() {
         cursorMode = false;
+        stopCursorHold();
         if (cursorView != null) cursorView.setVisibility(View.GONE);
     }
 
-    private void moveCursor(int k) {
-        float step = px(48);
+    private void stepCursor(int k, float speed) {
+        if (webView == null) return;
         int w = webView.getWidth(), h = webView.getHeight();
         if (k == KeyEvent.KEYCODE_DPAD_LEFT) {
-            cursorX = Math.max(0, cursorX - step);
+            cursorX = Math.max(0, cursorX - speed);
         } else if (k == KeyEvent.KEYCODE_DPAD_RIGHT) {
-            cursorX = Math.min(w, cursorX + step);
+            cursorX = Math.min(w, cursorX + speed);
         } else if (k == KeyEvent.KEYCODE_DPAD_DOWN) {
-            cursorY += step;
-            if (cursorY > h) { cursorY = h; webView.scrollBy(0, (int) step); }
+            cursorY += speed;
+            if (cursorY > h) { cursorY = h; webView.scrollBy(0, (int) speed); }
         } else if (k == KeyEvent.KEYCODE_DPAD_UP) {
-            cursorY -= step;
+            cursorY -= speed;
             if (cursorY <= 0) {
                 cursorY = 0;
                 if (webView.getScrollY() > 0) {
-                    webView.scrollBy(0, -(int) step); // more page above — scroll up
+                    webView.scrollBy(0, -(int) speed); // more page above — scroll up
                 } else {
+                    stopCursorHold();
                     focusToolbar(); // at the very top → hand off to the address bar
                     return;
                 }

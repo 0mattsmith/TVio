@@ -173,6 +173,7 @@ interface AppState {
   removeWatched: (id: number) => void;
   isWatched: (id: number) => boolean;
   isEpisodeWatched: (seriesId: number, season: number, episode: number) => boolean;
+  removeEpisodeWatched: (seriesId: number, season: number, episode: number) => void;
 
   // Sources / addons (Plex, NAS, Stremio addons)
   addons: Addon[];
@@ -239,6 +240,9 @@ interface AppState {
   browserHistory: BrowserHistoryEntry[];
   addHistory: (e: { title: string; url: string }) => void;
   clearHistory: () => void;
+  /** Default quick-links the user has removed from the browser home. */
+  hiddenQuickLinks: string[];
+  hideQuickLink: (url: string) => void;
 
   // Quick Watch sheet (not persisted)
   quickWatchItem: MediaItem | null;
@@ -411,6 +415,8 @@ export const useAppStore = create<AppState>()(
       isWatched: (id) => get().watched.some((w) => w.id === id && w.season == null),
       isEpisodeWatched: (seriesId, season, episode) =>
         get().watchedEpisodes.includes(`${seriesId}:${season}:${episode}`),
+      removeEpisodeWatched: (seriesId, season, episode) =>
+        set((s) => ({ watchedEpisodes: s.watchedEpisodes.filter((k) => k !== `${seriesId}:${season}:${episode}`) })),
 
       activeBrand: null,
       setActiveBrand: (b) => set({ activeBrand: b }),
@@ -497,6 +503,9 @@ export const useAppStore = create<AppState>()(
           return { browserHistory: [{ url: clean, title: title.trim() || clean, at: Date.now() }, ...rest].slice(0, 100) };
         }),
       clearHistory: () => set({ browserHistory: [] }),
+      hiddenQuickLinks: [],
+      hideQuickLink: (url) =>
+        set((s) => (s.hiddenQuickLinks.includes(url) ? {} : { hiddenQuickLinks: [...s.hiddenQuickLinks, url] })),
 
       quickWatchItem: null,
       quickWatchEpisode: null,
@@ -553,6 +562,7 @@ export const useAppStore = create<AppState>()(
         browserEnabled: s.browserEnabled,
         bookmarks: s.bookmarks,
         browserHistory: s.browserHistory,
+        hiddenQuickLinks: s.hiddenQuickLinks,
       }),
     }
   )

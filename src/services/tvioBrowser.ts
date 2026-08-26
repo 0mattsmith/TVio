@@ -60,17 +60,24 @@ export async function openBrowser(rawUrl: string, opts?: { isolate?: boolean }):
   else window.open(url, "_blank", "noopener,noreferrer");
 }
 
+/** "south-park.html" → "South Park": drop the extension, split on -/_, Title Case. */
+export function prettyTitle(filename: string): string {
+  const base = filename.replace(/\.[a-z0-9]+$/i, "");
+  const words = base.replace(/[-_]+/g, " ").replace(/\s+/g, " ").trim().split(" ");
+  return words.map((w) => (w ? w.charAt(0).toUpperCase() + w.slice(1) : w)).join(" ") || "Local page";
+}
+
 /**
  * Native document picker for a local .html file (Android). Returns the picked
- * file's content:// URI (with a persisted read grant) and display name, or null
- * if unavailable or cancelled — so a local page can be a Live TV web channel.
+ * file's content:// URI (with a persisted read grant) and a tidied display name,
+ * or null if unavailable or cancelled — so a local page can be a web channel.
  */
 export async function pickLocalHtml(): Promise<{ url: string; name: string } | null> {
   const plugin = cap()?.Plugins?.TvioBrowser;
   if (!plugin?.pickFile) return null;
   try {
     const r = await plugin.pickFile();
-    return r?.url ? { url: r.url, name: r.name || "Local page" } : null;
+    return r?.url ? { url: r.url, name: prettyTitle(r.name || "Local page") } : null;
   } catch {
     return null;
   }
