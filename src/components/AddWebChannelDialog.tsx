@@ -3,29 +3,51 @@ import { Plus, FolderOpen, X, Check } from "lucide-react";
 import { Button } from "./Button";
 import { useOverlayBack } from "../hooks/useOverlayBack";
 import { pickLocalHtml, nativeBrowserAvailable } from "../services/tvioBrowser";
+import type { LiveChannel } from "../store/useAppStore";
+
+function CheckRow({ on, onToggle, title, desc }: { on: boolean; onToggle: () => void; title: string; desc: string }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-pressed={on}
+      className="focusable flex w-full items-start gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-left"
+    >
+      <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${on ? "border-accent bg-accent text-black" : "border-white/30"}`}>
+        {on && <Check size={14} strokeWidth={3} />}
+      </span>
+      <span className="min-w-0">
+        <span className="text-sm font-semibold">{title}</span>
+        <span className="block text-[11px] text-muted">{desc}</span>
+      </span>
+    </button>
+  );
+}
 
 /**
- * Add a Live TV "web channel" from a contained dialog — focus is locked inside
- * it (data-spatial-scope) so a stray D-pad press can't wander off into Settings,
- * mirroring the add-profile popup.
+ * Add or edit a Live TV "web channel" from a focus-locked dialog (data-spatial-
+ * scope), like the add-profile popup — so a stray D-pad press can't wander off
+ * into Settings.
  */
 export function AddWebChannelDialog({
+  initial,
   onClose,
-  onAdd,
+  onSave,
 }: {
+  initial?: LiveChannel;
   onClose: () => void;
-  onAdd: (name: string, url: string, isolate: boolean) => void;
+  onSave: (v: { name: string; url: string; isolate: boolean; hideChrome: boolean }) => void;
 }) {
-  const [name, setName] = useState("");
-  const [url, setUrl] = useState("");
-  const [isolate, setIsolate] = useState(false);
+  const [name, setName] = useState(initial?.name ?? "");
+  const [url, setUrl] = useState(initial?.url ?? "");
+  const [isolate, setIsolate] = useState(!!initial?.isolate);
+  const [hideChrome, setHideChrome] = useState(!!initial?.hideChrome);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useOverlayBack(true, onClose);
 
   useEffect(() => {
     const raf = requestAnimationFrame(() => rootRef.current?.querySelector<HTMLInputElement>("input")?.focus());
-    // Capture, so Back closes the dialog before the global handler sends focus off.
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape" || e.key === "Backspace") {
         e.preventDefault();
@@ -42,7 +64,7 @@ export function AddWebChannelDialog({
 
   const submit = () => {
     if (!url.trim()) return;
-    onAdd(name, url, isolate);
+    onSave({ name, url, isolate, hideChrome });
     onClose();
   };
 
@@ -59,7 +81,7 @@ export function AddWebChannelDialog({
       >
         <div className="flex items-start justify-between gap-3">
           <div>
-            <h2 className="text-lg font-bold">Add a web channel</h2>
+            <h2 className="text-lg font-bold">{initial ? "Edit web channel" : "Add a web channel"}</h2>
             <p className="mt-1 text-sm text-muted">A website link, or a local .html page. It opens in the TVio browser.</p>
           </div>
           <button onClick={onClose} className="focusable rounded-full p-1 text-muted hover:text-white" aria-label="Close">
@@ -93,26 +115,23 @@ export function AddWebChannelDialog({
               </Button>
             )}
           </div>
-          <p className="text-[11px] text-muted">A local file picked with Browse stays a local file — no https:// is added to it.</p>
 
-          <button
-            type="button"
-            onClick={() => setIsolate((v) => !v)}
-            aria-pressed={isolate}
-            className="focusable flex w-full items-start gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-left"
-          >
-            <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded border ${isolate ? "border-accent bg-accent text-black" : "border-white/30"}`}>
-              {isolate && <Check size={14} strokeWidth={3} />}
-            </span>
-            <span className="min-w-0">
-              <span className="text-sm font-semibold">Player only</span>
-              <span className="block text-[11px] text-muted">If the page has a single media player, hide everything else and fit it to the screen.</span>
-            </span>
-          </button>
+          <CheckRow
+            on={isolate}
+            onToggle={() => setIsolate((v) => !v)}
+            title="Player only"
+            desc="If the page has a single media player, hide everything else and fit it to the screen."
+          />
+          <CheckRow
+            on={hideChrome}
+            onToggle={() => setHideChrome((v) => !v)}
+            title="Hide banners & navbars"
+            desc="Strip menus, headers and cookie bars but keep the rest of the page."
+          />
         </div>
 
         <div className="mt-6 flex gap-2.5">
-          <Button className="flex-1" onClick={submit}><Plus size={16} /> Add channel</Button>
+          <Button className="flex-1" onClick={submit}><Plus size={16} /> {initial ? "Save" : "Add channel"}</Button>
           <Button variant="ghost" onClick={onClose}>Cancel</Button>
         </div>
       </div>

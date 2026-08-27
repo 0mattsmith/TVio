@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe } from "lucide-react";
 import { AddWebChannelDialog } from "../components/AddWebChannelDialog";
+import type { LiveChannel } from "../store/useAppStore";
 import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
 import { hasTmdbKey, currentRegion, usingBuiltInKey } from "../services/tmdb";
 import { firebaseEnabled } from "../services/firebase";
@@ -70,7 +71,7 @@ export function Settings() {
     platformOverride, setPlatformOverride,
     iptvEnabled, setIptvEnabled,
     iptvPlaylists, iptvEpgUrls, addIptvPlaylist, removeIptvPlaylist, addIptvEpg, removeIptvEpg,
-    liveTvEnabled, setLiveTvEnabled, liveChannels, addLiveChannel, removeLiveChannel,
+    liveTvEnabled, setLiveTvEnabled, liveChannels, addLiveChannel, updateLiveChannel, removeLiveChannel,
     browserEnabled, setBrowserEnabled,
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
     preferredAudioLang, setPreferredAudioLang,
@@ -136,6 +137,13 @@ export function Settings() {
   const [epgName, setEpgName] = useState("");
   const [epgUrl, setEpgUrl] = useState("");
   const [showAddChannel, setShowAddChannel] = useState(false);
+  const [editChannel, setEditChannel] = useState<LiveChannel | null>(null);
+  const closeChannelDialog = () => {
+    setShowAddChannel(false);
+    setEditChannel(null);
+    // Back / Cancel returns focus to Add rather than dropping it to the top.
+    requestAnimationFrame(() => document.getElementById("add-channel-btn")?.focus());
+  };
   const hasAiostreams = addons.some((a) => a.kind === "aiostreams");
   const installAiostreams = async () => {
     const k = aioKey.trim();
@@ -679,23 +687,39 @@ export function Settings() {
                     <div className="flex items-center gap-2">
                       <span className="text-sm font-semibold">{c.name}</span>
                       {c.isolate && <span className="rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">Player only</span>}
+                      {c.hideChrome && <span className="rounded bg-white/10 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-white/70">No banners</span>}
                     </div>
                     <div className="break-all text-xs text-muted">{c.url}</div>
                   </div>
-                  <button
-                    onClick={() => {
-                      removeLiveChannel(c.id);
-                      requestAnimationFrame(() => document.getElementById("add-channel-btn")?.focus());
-                    }}
-                    className="focusable shrink-0 text-muted hover:text-red-400"
-                    aria-label="Remove"
-                  ><Trash2 size={16} /></button>
+                  <div className="flex shrink-0 flex-col items-center gap-1.5">
+                    <button
+                      onClick={() => {
+                        removeLiveChannel(c.id);
+                        requestAnimationFrame(() => document.getElementById("add-channel-btn")?.focus());
+                      }}
+                      className="focusable text-muted hover:text-red-400"
+                      aria-label={`Remove ${c.name}`}
+                    ><Trash2 size={16} /></button>
+                    <button
+                      onClick={() => setEditChannel(c)}
+                      className="focusable text-muted hover:text-white"
+                      aria-label={`Edit ${c.name}`}
+                    ><Pencil size={15} /></button>
+                  </div>
                 </li>
               ))}
               {liveChannels.length === 0 && <li className="text-xs text-muted">No web channels added yet.</li>}
             </ul>
-            {showAddChannel && (
-              <AddWebChannelDialog onClose={() => setShowAddChannel(false)} onAdd={(n, u, iso) => addLiveChannel(n, u, iso)} />
+            {(showAddChannel || editChannel) && (
+              <AddWebChannelDialog
+                initial={editChannel ?? undefined}
+                onClose={closeChannelDialog}
+                onSave={(v) =>
+                  editChannel
+                    ? updateLiveChannel(editChannel.id, v)
+                    : addLiveChannel(v.name, v.url, v.isolate, v.hideChrome)
+                }
+              />
             )}
           </div>
           </div>

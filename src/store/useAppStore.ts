@@ -99,8 +99,13 @@ export interface LiveChannel {
   id: string;
   name: string;
   url: string;
+  /** Strip the page to just its single player. */
   isolate?: boolean;
+  /** Hide banners / navbars / cookie bars (lighter than isolate). */
+  hideChrome?: boolean;
 }
+
+export type LiveChannelPatch = Partial<Pick<LiveChannel, "name" | "url" | "isolate" | "hideChrome">>;
 
 export interface Bookmark {
   id: string;
@@ -227,7 +232,8 @@ interface AppState {
   liveTvEnabled: boolean;
   setLiveTvEnabled: (v: boolean) => void;
   liveChannels: LiveChannel[];
-  addLiveChannel: (name: string, url: string, isolate?: boolean) => void;
+  addLiveChannel: (name: string, url: string, isolate?: boolean, hideChrome?: boolean) => void;
+  updateLiveChannel: (id: string, patch: LiveChannelPatch) => void;
   removeLiveChannel: (id: string) => void;
 
   // In-app web browser. Native WebView on Android (TvioBrowserActivity); on
@@ -480,8 +486,16 @@ export const useAppStore = create<AppState>()(
       liveTvEnabled: false,
       setLiveTvEnabled: (v) => set({ liveTvEnabled: v }),
       liveChannels: [],
-      addLiveChannel: (name, url, isolate) =>
-        set((s) => ({ liveChannels: [...s.liveChannels, { id: crypto.randomUUID(), name: name.trim() || "Channel", url: url.trim(), isolate: !!isolate }] })),
+      addLiveChannel: (name, url, isolate, hideChrome) =>
+        set((s) => ({ liveChannels: [...s.liveChannels, { id: crypto.randomUUID(), name: name.trim() || "Channel", url: url.trim(), isolate: !!isolate, hideChrome: !!hideChrome }] })),
+      updateLiveChannel: (id, patch) =>
+        set((s) => ({
+          liveChannels: s.liveChannels.map((c) =>
+            c.id === id
+              ? { ...c, ...patch, name: (patch.name ?? c.name).trim() || c.name, url: (patch.url ?? c.url).trim() || c.url }
+              : c
+          ),
+        })),
       removeLiveChannel: (id) => set((s) => ({ liveChannels: s.liveChannels.filter((c) => c.id !== id) })),
 
       browserEnabled: true,

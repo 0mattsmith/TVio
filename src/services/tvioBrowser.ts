@@ -7,7 +7,7 @@
 // links open out in the system browser instead.
 
 interface TvioBrowserPlugin {
-  open(opts: { url: string; isolate?: boolean }): Promise<void>;
+  open(opts: { url: string; isolate?: boolean; hideChrome?: boolean }): Promise<void>;
   pickFile(): Promise<{ url?: string; name?: string }>;
 }
 
@@ -52,11 +52,11 @@ export function toUrl(input: string): string {
  * Open a URL: full-screen native WebView on Android, a new tab elsewhere.
  * `isolate` strips the page down to just its media player (native only).
  */
-export async function openBrowser(rawUrl: string, opts?: { isolate?: boolean }): Promise<void> {
+export async function openBrowser(rawUrl: string, opts?: { isolate?: boolean; hideChrome?: boolean }): Promise<void> {
   const url = toUrl(rawUrl);
   if (!url) return;
   const plugin = cap()?.Plugins?.TvioBrowser;
-  if (plugin) await plugin.open({ url, isolate: opts?.isolate });
+  if (plugin) await plugin.open({ url, isolate: opts?.isolate, hideChrome: opts?.hideChrome });
   else window.open(url, "_blank", "noopener,noreferrer");
 }
 

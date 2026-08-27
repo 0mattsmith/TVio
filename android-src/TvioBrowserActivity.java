@@ -101,6 +101,34 @@ public class TvioBrowserActivity extends Activity {
         }
     };
 
+    // "Hide banners & navbars" (lighter than isolate), and a D-pad "TV navigation"
+    // mode that turns the page's links/buttons into remote-navigable targets.
+    private boolean hideChrome = false;
+    private boolean tvNavMode = false;
+    private boolean prefTvNav = false;   // which page mode the user last chose
+    private boolean tvNavInjected = false;
+    private Runnable okLong;
+    private boolean okConsumedLong = false;
+
+    private static final String HIDE_CHROME_JS =
+        "(function(){try{" +
+        "var s='header,nav,[role=banner],[role=navigation],.navbar,.nav-bar,.site-header,.masthead,.banner,[class*=cookie],[id*=cookie],[class*=consent],[id*=consent],[class*=advert],[id*=advert],[class*=newsletter]';" +
+        "document.querySelectorAll(s).forEach(function(e){if(!e.querySelector('video'))e.style.setProperty('display','none','important');});" +
+        "Array.prototype.forEach.call(document.querySelectorAll('body *'),function(e){var c=getComputedStyle(e);if((c.position==='fixed'||c.position==='sticky')&&!e.querySelector('video')){var r=e.getBoundingClientRect();if(r.height>0&&r.height<window.innerHeight*0.35&&(r.top<=2||Math.abs(r.bottom-window.innerHeight)<=2))e.style.setProperty('display','none','important');}});" +
+        "return 'ok';}catch(e){return 'err';}})();";
+
+    private static final String TVNAV_JS =
+        "(function(){if(window.__tvnav){window.__tvnav.enable();return 'on';}" +
+        "var C='a[href],button,input,select,textarea,[role=button],[onclick],[tabindex],video';var cur=null;" +
+        "function vis(e){var r=e.getBoundingClientRect();if(r.width<8||r.height<8)return false;var c=getComputedStyle(e);return !(c.visibility==='hidden'||c.display==='none'||c.opacity==='0');}" +
+        "function cands(){return Array.prototype.slice.call(document.querySelectorAll(C)).filter(vis);}" +
+        "function hi(e){if(cur){cur.style.outline='';cur.style.outlineOffset='';}cur=e;if(cur){cur.style.outline='3px solid #14b8a6';cur.style.outlineOffset='2px';cur.scrollIntoView({block:'center',inline:'center',behavior:'smooth'});}}" +
+        "function first(){var c=cands();if(!c.length)return null;c.sort(function(a,b){var x=a.getBoundingClientRect(),y=b.getBoundingClientRect();return (x.top-y.top)||(x.left-y.left);});return c[0];}" +
+        "function move(d){var c=cands();if(!c.length)return;if(!cur||c.indexOf(cur)<0){hi(first());return;}var cr=cur.getBoundingClientRect();var ax=cr.left+cr.width/2,ay=cr.top+cr.height/2;var best=null,bs=1e12;c.forEach(function(e){if(e===cur)return;var r=e.getBoundingClientRect();var ex=r.left+r.width/2,ey=r.top+r.height/2;var dx=ex-ax,dy=ey-ay;var ok=false,al=0,ac=0;if(d==='right'){ok=dx>4;al=dx;ac=Math.abs(dy);}else if(d==='left'){ok=dx<-4;al=-dx;ac=Math.abs(dy);}else if(d==='down'){ok=dy>4;al=dy;ac=Math.abs(dx);}else{ok=dy<-4;al=-dy;ac=Math.abs(dx);}if(!ok)return;var sc=al+ac*2;if(sc<bs){bs=sc;best=e;}});if(best)hi(best);}" +
+        "function click(){if(!cur)return;if(cur.tagName==='VIDEO'){if(cur.paused)cur.play();else cur.pause();return;}if(cur.focus)cur.focus();cur.click();}" +
+        "window.__tvnav={enable:function(){if(!cur||cands().indexOf(cur)<0)hi(first());},disable:function(){if(cur){cur.style.outline='';}cur=null;},move:move,click:click};" +
+        "window.__tvnav.enable();return 'on';})();";
+
     private static final int MATCH = ViewGroup.LayoutParams.MATCH_PARENT;
     private static final int WRAP = ViewGroup.LayoutParams.WRAP_CONTENT;
     private static final int ACCENT = 0xFF14B8A6;
@@ -154,11 +182,12 @@ public class TvioBrowserActivity extends Activity {
         createCursor();
         // Cursor is shown exactly while the page (WebView) has focus.
         webView.setOnFocusChangeListener((v, hasFocus) -> {
-            if (hasFocus) enterCursorMode();
-            else exitCursorMode();
+            if (hasFocus) enterPageMode();
+            else exitPageModes();
         });
 
         isolate = getIntent().getBooleanExtra("isolate", false);
+        hideChrome = getIntent().getBooleanExtra("hideChrome", false);
         String url = getIntent().getStringExtra("url");
         if (url == null || url.isEmpty()) url = "https://duckduckgo.com";
         urlBar.setText(url);
@@ -292,6 +321,16 @@ public class TvioBrowserActivity extends Activity {
                     uiHandler.postDelayed(() -> applyIsolate(), 800);
                     uiHandler.postDelayed(() -> applyIsolate(), 2500);
                 }
+                if (hideChrome) {
+                    uiHandler.postDelayed(() -> applyHideChrome(), 600);
+                    uiHandler.postDelayed(() -> applyHideChrome(), 2000);
+                }
+                if (tvNavMode) {
+                    tvNavInjected = false; // fresh page — re-install the nav helper
+                    uiHandler.postDelayed(() -> {
+                        if (tvNavMode && webView != null) { webView.evaluateJavascript(TVNAV_JS, null); tvNavInjected = true; }
+                    }, 700);
+                }
             }
         });
 
@@ -389,6 +428,55 @@ public class TvioBrowserActivity extends Activity {
         if (isolate && webView != null) webView.evaluateJavascript(ISOLATE_JS, null);
     }
 
+    private void applyHideChrome() {
+        if (hideChrome && webView != null) webView.evaluateJavascript(HIDE_CHROME_JS, null);
+    }
+
+    // --- page interaction modes (cursor vs TV navigation) --------------------
+
+    private void enterPageMode() {
+        if (prefTvNav) enterTvNav();
+        else enterCursor();
+    }
+
+    private void enterCursor() {
+        tvNavMode = false;
+        if (tvNavInjected && webView != null) webView.evaluateJavascript("window.__tvnav&&window.__tvnav.disable()", null);
+        enterCursorMode();
+    }
+
+    private void enterTvNav() {
+        cursorMode = false;
+        stopCursorHold();
+        if (cursorView != null) cursorView.setVisibility(View.GONE);
+        tvNavMode = true;
+        if (webView != null) { webView.evaluateJavascript(TVNAV_JS, null); tvNavInjected = true; }
+    }
+
+    private void exitPageModes() {
+        tvNavMode = false;
+        if (tvNavInjected && webView != null) webView.evaluateJavascript("window.__tvnav&&window.__tvnav.disable()", null);
+        exitCursorMode();
+    }
+
+    private void togglePageMode() {
+        prefTvNav = !prefTvNav;
+        enterPageMode();
+        Toast.makeText(this, prefTvNav ? "TV navigation" : "Cursor", Toast.LENGTH_SHORT).show();
+    }
+
+    private void okShortClick() {
+        if (tvNavMode) {
+            if (webView != null) webView.evaluateJavascript("window.__tvnav&&window.__tvnav.click()", null);
+        } else if (cursorMode) {
+            clickAtCursor();
+        }
+    }
+
+    private void jsNav(String dir) {
+        if (webView != null) webView.evaluateJavascript("window.__tvnav&&window.__tvnav.move('" + dir + "')", null);
+    }
+
     private String unquote(String jsonString) {
         if (jsonString == null || jsonString.equals("null")) return null;
         String s = jsonString;
@@ -456,26 +544,50 @@ public class TvioBrowserActivity extends Activity {
             return true;
         }
 
-        // Cursor mode: hold a direction to glide (accelerating); OK clicks under it.
-        if (cursorMode) {
-            if (isDpad(k)) {
-                if (down) {
-                    if (heldKey != k) {
-                        heldKey = k;
-                        heldStart = SystemClock.uptimeMillis();
-                        stepCursor(k, px(14)); // a tiny nudge, so a tap barely moves
-                        uiHandler.removeCallbacks(cursorTick);
-                        uiHandler.postDelayed(cursorTick, 350); // glide kicks in when held
-                    }
-                } else if (heldKey == k) {
-                    stopCursorHold();
+        boolean pageFocused = cursorMode || tvNavMode;
+
+        // OK: a tap acts in the current mode; a long press toggles cursor ↔ TV
+        // navigation (so you can switch if one gets stuck on an awkward page).
+        if (pageFocused && (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER)) {
+            if (down) {
+                if (event.getRepeatCount() == 0) {
+                    okConsumedLong = false;
+                    okLong = () -> { okConsumedLong = true; togglePageMode(); };
+                    uiHandler.postDelayed(okLong, 600);
                 }
-                return true;
+            } else {
+                if (okLong != null) uiHandler.removeCallbacks(okLong);
+                if (!okConsumedLong) okShortClick();
+                okConsumedLong = false;
             }
-            if (down && (k == KeyEvent.KEYCODE_DPAD_CENTER || k == KeyEvent.KEYCODE_ENTER)) {
-                clickAtCursor();
-                return true;
+            return true;
+        }
+
+        // Cursor mode: hold a direction to glide (accelerating).
+        if (cursorMode && isDpad(k)) {
+            if (down) {
+                if (heldKey != k) {
+                    heldKey = k;
+                    heldStart = SystemClock.uptimeMillis();
+                    stepCursor(k, px(14)); // a tiny nudge, so a tap barely moves
+                    uiHandler.removeCallbacks(cursorTick);
+                    uiHandler.postDelayed(cursorTick, 350); // glide kicks in when held
+                }
+            } else if (heldKey == k) {
+                stopCursorHold();
             }
+            return true;
+        }
+
+        // TV navigation mode: the D-pad walks between the page's links/buttons.
+        if (tvNavMode && isDpad(k)) {
+            if (down) {
+                if (k == KeyEvent.KEYCODE_DPAD_UP) jsNav("up");
+                else if (k == KeyEvent.KEYCODE_DPAD_DOWN) jsNav("down");
+                else if (k == KeyEvent.KEYCODE_DPAD_LEFT) jsNav("left");
+                else jsNav("right");
+            }
+            return true;
         }
         return super.dispatchKeyEvent(event);
     }

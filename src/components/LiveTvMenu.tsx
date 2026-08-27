@@ -45,7 +45,7 @@ export function LiveTvMenu() {
 
   const dests = [
     ...(iptvEnabled ? [{ key: "guide", label: "TV Guide", icon: <Tv2 size={16} className="text-accent" />, run: () => navigate("/live") }] : []),
-    ...liveChannels.map((c) => ({ key: c.id, label: c.name, icon: <Globe size={16} className="text-accent" />, run: () => void openBrowser(c.url, { isolate: c.isolate }) })),
+    ...liveChannels.map((c) => ({ key: c.id, label: c.name, icon: <Globe size={16} className="text-accent" />, run: () => void openBrowser(c.url, { isolate: c.isolate, hideChrome: c.hideChrome }) })),
   ];
 
   const label = (
