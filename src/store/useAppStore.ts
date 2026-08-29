@@ -103,9 +103,11 @@ export interface LiveChannel {
   isolate?: boolean;
   /** Hide banners / navbars / cookie bars (lighter than isolate). */
   hideChrome?: boolean;
+  /** CSS selectors the user hand-picked to hide (the "Customise" option). */
+  hiddenSelectors?: string[];
 }
 
-export type LiveChannelPatch = Partial<Pick<LiveChannel, "name" | "url" | "isolate" | "hideChrome">>;
+export type LiveChannelPatch = Partial<Pick<LiveChannel, "name" | "url" | "isolate" | "hideChrome" | "hiddenSelectors">>;
 
 export interface Bookmark {
   id: string;
@@ -232,7 +234,7 @@ interface AppState {
   liveTvEnabled: boolean;
   setLiveTvEnabled: (v: boolean) => void;
   liveChannels: LiveChannel[];
-  addLiveChannel: (name: string, url: string, isolate?: boolean, hideChrome?: boolean) => void;
+  addLiveChannel: (channel: Omit<LiveChannel, "id">) => void;
   updateLiveChannel: (id: string, patch: LiveChannelPatch) => void;
   removeLiveChannel: (id: string) => void;
 
@@ -486,8 +488,20 @@ export const useAppStore = create<AppState>()(
       liveTvEnabled: false,
       setLiveTvEnabled: (v) => set({ liveTvEnabled: v }),
       liveChannels: [],
-      addLiveChannel: (name, url, isolate, hideChrome) =>
-        set((s) => ({ liveChannels: [...s.liveChannels, { id: crypto.randomUUID(), name: name.trim() || "Channel", url: url.trim(), isolate: !!isolate, hideChrome: !!hideChrome }] })),
+      addLiveChannel: (channel) =>
+        set((s) => ({
+          liveChannels: [
+            ...s.liveChannels,
+            {
+              id: crypto.randomUUID(),
+              name: channel.name.trim() || "Channel",
+              url: channel.url.trim(),
+              isolate: !!channel.isolate,
+              hideChrome: !!channel.hideChrome,
+              hiddenSelectors: channel.hiddenSelectors ?? [],
+            },
+          ],
+        })),
       updateLiveChannel: (id, patch) =>
         set((s) => ({
           liveChannels: s.liveChannels.map((c) =>

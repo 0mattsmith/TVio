@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from "react";
-import { Plus, FolderOpen, X, Check } from "lucide-react";
+import { Plus, FolderOpen, X, Check, SlidersHorizontal } from "lucide-react";
 import { Button } from "./Button";
 import { useOverlayBack } from "../hooks/useOverlayBack";
-import { pickLocalHtml, nativeBrowserAvailable } from "../services/tvioBrowser";
+import { pickLocalHtml, pickElements, nativeBrowserAvailable } from "../services/tvioBrowser";
 import type { LiveChannel } from "../store/useAppStore";
 
 function CheckRow({ on, onToggle, title, desc }: { on: boolean; onToggle: () => void; title: string; desc: string }) {
@@ -36,12 +36,14 @@ export function AddWebChannelDialog({
 }: {
   initial?: LiveChannel;
   onClose: () => void;
-  onSave: (v: { name: string; url: string; isolate: boolean; hideChrome: boolean }) => void;
+  onSave: (v: { name: string; url: string; isolate: boolean; hideChrome: boolean; hiddenSelectors: string[] }) => void;
 }) {
   const [name, setName] = useState(initial?.name ?? "");
   const [url, setUrl] = useState(initial?.url ?? "");
   const [isolate, setIsolate] = useState(!!initial?.isolate);
   const [hideChrome, setHideChrome] = useState(!!initial?.hideChrome);
+  const [hiddenSelectors, setHiddenSelectors] = useState<string[]>(initial?.hiddenSelectors ?? []);
+  const [picking, setPicking] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   useOverlayBack(true, onClose);
@@ -64,8 +66,19 @@ export function AddWebChannelDialog({
 
   const submit = () => {
     if (!url.trim()) return;
-    onSave({ name, url, isolate, hideChrome });
+    onSave({ name, url, isolate, hideChrome, hiddenSelectors });
     onClose();
+  };
+
+  const customise = async () => {
+    if (!url.trim() || picking) return;
+    setPicking(true);
+    try {
+      const sel = await pickElements(url);
+      if (sel.length) setHiddenSelectors(sel);
+    } finally {
+      setPicking(false);
+    }
   };
 
   return (
@@ -128,6 +141,29 @@ export function AddWebChannelDialog({
             title="Hide banners & navbars"
             desc="Strip menus, headers and cookie bars but keep the rest of the page."
           />
+
+          {nativeBrowserAvailable() && (
+            <button
+              type="button"
+              onClick={customise}
+              disabled={!url.trim() || picking}
+              className="focusable flex w-full items-start gap-2.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-left disabled:opacity-40"
+            >
+              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded text-accent">
+                <SlidersHorizontal size={16} />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="text-sm font-semibold">Customise…</span>
+                <span className="block text-[11px] text-muted">
+                  {picking
+                    ? "Loading the page — tick anything to hide."
+                    : hiddenSelectors.length
+                      ? `${hiddenSelectors.length} element${hiddenSelectors.length === 1 ? "" : "s"} hidden. Tap to change.`
+                      : "Open the page and pick elements to remove."}
+                </span>
+              </span>
+            </button>
+          )}
         </div>
 
         <div className="mt-6 flex gap-2.5">

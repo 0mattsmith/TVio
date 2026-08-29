@@ -189,6 +189,17 @@ export function matchAudioLanguage(name: string, preferred = "en"): MatchVerdict
   return FOREIGN_AUDIO.test(name) ? "mismatch" : "match";
 }
 
+/** The release name explicitly flags English audio. */
+export function hasEnglishTag(name: string): boolean {
+  return ENGLISH_AUDIO.test(name);
+}
+
+/** The release name flags a foreign language and doesn't mention English —
+ *  almost certainly a foreign dub, which we hide when English is wanted. */
+export function isForeignOnly(name: string): boolean {
+  return FOREIGN_AUDIO.test(name) && !ENGLISH_AUDIO.test(name);
+}
+
 /**
  * Is the file large enough to plausibly contain this runtime of video?
  *

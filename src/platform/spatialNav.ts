@@ -222,6 +222,13 @@ export function installSpatialNav(): () => void {
         candidates = candidates.filter((c) => c.el.closest("header"));
       }
     }
+    // The floating Back button (top-left of a detail hero) is reached with the
+    // hardware/Escape Back or a pointer — never a vertical D-pad move. Excluding
+    // it here means UP from the content below it (e.g. the first cast member)
+    // lands on the primary actions like Play, not on Back.
+    if (!overlay && (dir === "up" || dir === "down")) {
+      candidates = candidates.filter((c) => !c.el.closest("[data-back]"));
+    }
     if (candidates.length === 0) return;
 
     // Overlay open but focus still behind it: pull focus in rather than moving.

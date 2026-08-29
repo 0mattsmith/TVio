@@ -12,7 +12,7 @@ import type { WatchProvider, MediaType } from "../services/types";
 import { useIsTV } from "../hooks/useDeviceProfile";
 import { useOverlayBack } from "../hooks/useOverlayBack";
 import { fetchStreams, isWebPlayable, isHttpAddon, streamTitle, streamSubtitle, humanSize } from "../addons/manager";
-import { rankByTitleMatch, type StreamExpectation, type MatchVerdict, type StreamCheck } from "../addons/match";
+import { rankByTitleMatch, isForeignOnly, hasEnglishTag, type StreamExpectation, type MatchVerdict, type StreamCheck } from "../addons/match";
 import type { Stream } from "../addons/types";
 import { hasNativePlayback } from "../platform/capabilities";
 import { classifyStream } from "../lib/playback";
@@ -363,9 +363,23 @@ function AddonSource({
     expect,
     (s) => s.behaviorHints?.videoSize
   );
-  const visible = ranked.map((r) => r.item);
-  const checks = new Map(ranked.map((r) => [r.item, r]));
-  const hidden = all.length - playable.length;
+  // When English is preferred: drop foreign-only releases (a foreign tag with no
+  // English) entirely, and float explicit "English" ones to the top within each
+  // match tier — without letting an English tag beat a wrong-episode result.
+  const wantEnglish = (expect.preferredLang ?? "en") === "en";
+  const RANKV: Record<MatchVerdict, number> = { match: 0, uncertain: 1, mismatch: 2 };
+  const langRanked = wantEnglish
+    ? ranked
+        .filter((r) => !isForeignOnly(streamTitle(r.item)))
+        .sort(
+          (a, b) =>
+            RANKV[a.verdict] - RANKV[b.verdict] ||
+            Number(hasEnglishTag(streamTitle(b.item))) - Number(hasEnglishTag(streamTitle(a.item)))
+        )
+    : ranked;
+  const visible = langRanked.map((r) => r.item);
+  const checks = new Map(langRanked.map((r) => [r.item, r]));
+  const hidden = all.length - visible.length;
 
   return (
     <div>

@@ -1,17 +1,18 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useParams, useNavigate, Link, useSearchParams } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { Play, Plus, Check, ArrowLeft, Star, Layers, Heart } from "lucide-react";
+import { Play, Plus, Check, ArrowLeft, Star, Layers, Heart, Film } from "lucide-react";
 import { getDetail, getCollection } from "../services/catalog";
 import type { MediaType } from "../services/types";
 import { Button } from "../components/Button";
 import { PosterCard } from "../components/PosterCard";
 import { SeasonBrowser } from "../components/SeasonBrowser";
+import { TrailerModal } from "../components/TrailerModal";
 import { useAppStore } from "../store/useAppStore";
 import { usePlay } from "../hooks/usePlay";
+import { defaultSeason } from "../services/nextEpisode";
 import { useIsTV } from "../hooks/useDeviceProfile";
 import { useTrailer } from "../hooks/useTrailer";
-import { embedUrl } from "../services/trailers";
 
 export function Detail() {
   const { type, id } = useParams<{ type: MediaType; id: string }>();
@@ -45,6 +46,7 @@ export function Detail() {
   // the section can be hidden. Sits above the early return — hooks can't be
   // called conditionally.
   const trailer = useTrailer(data?.videos);
+  const [showTrailer, setShowTrailer] = useState(false);
 
   // On a TV, open on the Play button rather than the Back button (which is
   // top-left and would otherwise be the first thing the D-pad lands on).
@@ -104,12 +106,28 @@ export function Detail() {
             <p className="mt-5 max-w-3xl text-white/85">{data.overview}</p>
 
             <div ref={playRef} className="mt-6 flex flex-wrap gap-3">
-              <Button onClick={() => play(data)}>
+              <Button
+                onClick={() => {
+                  // A series must play with an episode ref, or finishing it never
+                  // ticks as watched. Resume the in-progress episode, else S(first)E1.
+                  if (mediaType === "tv") {
+                    const p = useAppStore.getState().progress.find((x) => x.id === data.id);
+                    play(data, { season: p?.season ?? defaultSeason(data.seasonsList), episode: p?.episode ?? 1 });
+                  } else {
+                    play(data);
+                  }
+                }}
+              >
                 <Play size={18} fill="currentColor" /> Play
               </Button>
               <Button variant="secondary" onClick={() => toggle(data)}>
                 {inList ? <Check size={18} /> : <Plus size={18} />} {inList ? "In Watchlist" : "Watchlist"}
               </Button>
+              {trailer.status === "ready" && (
+                <Button variant="secondary" onClick={() => setShowTrailer(true)}>
+                  <Film size={18} /> Watch Trailer
+                </Button>
+              )}
             </div>
 
           </div>
@@ -160,32 +178,6 @@ export function Detail() {
           </section>
         )}
 
-        {/* Trailer — only once we've confirmed one genuinely plays. While the
-            check runs we show nothing rather than a placeholder that might
-            vanish, and if every candidate is dead the section never appears. */}
-        {trailer.status === "ready" && (
-          <section className="order-2 mt-10">
-            <h2 className="mb-3 text-xl font-bold">
-              {trailer.video.type === "Trailer" ? "Trailer" : trailer.video.type}
-            </h2>
-            {/* Smaller on TV — at ten feet a trailer is a preview, not the
-                main event, and a half-width panel keeps the rows below reachable. */}
-            <div
-              className={`aspect-video w-full overflow-hidden rounded-xl bg-black ${
-                isTV ? "max-w-md" : "max-w-3xl"
-              }`}
-            >
-              <iframe
-                className="h-full w-full"
-                src={embedUrl(trailer.video)}
-                title={trailer.video.name}
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            </div>
-          </section>
-        )}
-
         {/* Cast */}
         {data.cast.length > 0 && (
           <section className="order-3 mb-16 mt-10">
@@ -212,6 +204,10 @@ export function Detail() {
           </section>
         )}
       </div>
+
+      {showTrailer && trailer.status === "ready" && (
+        <TrailerModal video={trailer.video} onClose={() => setShowTrailer(false)} />
+      )}
     </div>
   );
 }

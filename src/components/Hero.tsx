@@ -1,8 +1,13 @@
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Play, Info, Plus, Check } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { Play, Info, Plus, Check, Film } from "lucide-react";
 import type { MediaItem } from "../services/types";
+import { getDetail } from "../services/catalog";
 import { useAppStore } from "../store/useAppStore";
 import { usePlay } from "../hooks/usePlay";
+import { useTrailer } from "../hooks/useTrailer";
+import { TrailerModal } from "./TrailerModal";
 import { Button } from "./Button";
 
 export function Hero({ item }: { item?: MediaItem }) {
@@ -10,6 +15,16 @@ export function Hero({ item }: { item?: MediaItem }) {
   const play = usePlay();
   const inList = useAppStore((s) => (item ? s.inWatchlist(item.id) : false));
   const toggle = useAppStore((s) => s.toggleWatchlist);
+  const [showTrailer, setShowTrailer] = useState(false);
+
+  // The hero item is a catalogue entry (no videos); fetch its detail to know if
+  // a trailer exists. Same query key as the Detail page, so it's a cache hit.
+  const detailQ = useQuery({
+    queryKey: ["detail", item?.type, item?.id],
+    queryFn: () => getDetail(item!.type, item!.id),
+    enabled: !!item,
+  });
+  const trailer = useTrailer(detailQ.data?.videos);
 
   if (!item) return <div className="skeleton h-[56vh] max-h-[620px] min-h-[380px] w-full" />;
 
@@ -37,6 +52,11 @@ export function Hero({ item }: { item?: MediaItem }) {
           <Button onClick={() => play(item)}>
             <Play size={18} fill="currentColor" /> Play
           </Button>
+          {trailer.status === "ready" && (
+            <Button variant="ghost" onClick={() => setShowTrailer(true)}>
+              <Film size={18} /> Watch Trailer
+            </Button>
+          )}
           <Button variant="ghost" onClick={() => navigate(`/title/${item.type}/${item.id}`)}>
             <Info size={18} /> More Info
           </Button>
@@ -45,6 +65,10 @@ export function Hero({ item }: { item?: MediaItem }) {
           </Button>
         </div>
       </div>
+
+      {showTrailer && trailer.status === "ready" && (
+        <TrailerModal video={trailer.video} onClose={() => setShowTrailer(false)} />
+      )}
     </div>
   );
 }

@@ -8,6 +8,7 @@ import android.provider.OpenableColumns;
 
 import androidx.activity.result.ActivityResult;
 
+import com.getcapacitor.JSArray;
 import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
@@ -44,9 +45,49 @@ public class TvioBrowser extends Plugin {
         intent.putExtra("url", url);
         intent.putExtra("isolate", Boolean.TRUE.equals(call.getBoolean("isolate", false)));
         intent.putExtra("hideChrome", Boolean.TRUE.equals(call.getBoolean("hideChrome", false)));
+        String chan = call.getString("name", "");
+        if (chan != null && !chan.isEmpty()) intent.putExtra("channelName", chan);
+        String hide = call.getString("hide", "");
+        if (hide != null && !hide.isEmpty()) intent.putExtra("hide", hide);
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         getContext().startActivity(intent);
         call.resolve();
+    }
+
+    /**
+     * Open the page in "pick" mode: the user moves a highlight over blocks and
+     * ticks the ones to hide. Resolves with the chosen CSS selectors so they can
+     * be saved on the web channel and re-applied every time it opens.
+     */
+    @PluginMethod
+    public void pickElements(PluginCall call) {
+        String url = call.getString("url");
+        if (url == null || url.isEmpty()) {
+            call.reject("A url is required.");
+            return;
+        }
+        Intent intent = new Intent(getContext(), TvioBrowserActivity.class);
+        intent.putExtra("url", url);
+        intent.putExtra("pickMode", true);
+        startActivityForResult(call, intent, "onElementsPicked");
+    }
+
+    @ActivityCallback
+    private void onElementsPicked(PluginCall call, ActivityResult result) {
+        if (call == null) return;
+        JSObject ret = new JSObject();
+        JSArray arr = new JSArray();
+        if (result != null && result.getResultCode() == Activity.RESULT_OK && result.getData() != null) {
+            String joined = result.getData().getStringExtra("selectors");
+            if (joined != null && !joined.isEmpty()) {
+                for (String s : joined.split("\n")) {
+                    String t = s.trim();
+                    if (!t.isEmpty()) arr.put(t);
+                }
+            }
+        }
+        ret.put("selectors", arr);
+        call.resolve(ret);
     }
 
     /** Let the user pick a local .html file; returns its content:// URI + name. */

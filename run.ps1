@@ -27,6 +27,12 @@ param(
 $ErrorActionPreference = "Stop"
 $RepoName = "TVio"
 
+# Always operate on THIS script's own repo, whatever the caller's working
+# directory is. Invoked as `../TVio/run.ps1` from a sibling project, every git
+# command would otherwise run against that project — which once computed the
+# wrong next version and tried to push TVio's tag to the sibling's remote.
+Set-Location -LiteralPath $PSScriptRoot
+
 # ------------------------------------------------------------------------------
 # Default "upgrade notes" — used as the commit message when no override is given.
 # Update this each release.

@@ -715,9 +715,7 @@ export function Settings() {
                 initial={editChannel ?? undefined}
                 onClose={closeChannelDialog}
                 onSave={(v) =>
-                  editChannel
-                    ? updateLiveChannel(editChannel.id, v)
-                    : addLiveChannel(v.name, v.url, v.isolate, v.hideChrome)
+                  editChannel ? updateLiveChannel(editChannel.id, v) : addLiveChannel(v)
                 }
               />
             )}

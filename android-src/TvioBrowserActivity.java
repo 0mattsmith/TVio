@@ -77,14 +77,17 @@ public class TvioBrowserActivity extends Activity {
     private boolean isolate = false;
     private static final String ISOLATE_JS =
         "(function(){try{" +
-        "var v=[].slice.call(document.querySelectorAll('video'));var t=null;" +
-        "if(v.length===1){t=v[0];}else if(v.length>1){v.sort(function(a,b){return b.offsetWidth*b.offsetHeight-a.offsetWidth*a.offsetHeight;});t=v[0];}" +
-        "else{var f=[].slice.call(document.querySelectorAll('iframe')).filter(function(x){return x.offsetWidth>200&&x.offsetHeight>150;});if(f.length>=1){f.sort(function(a,b){return b.offsetWidth*b.offsetHeight-a.offsetWidth*a.offsetHeight;});t=f[0];}}" +
+        "function ar(e){var r=e.getBoundingClientRect();return r.width*r.height;}" +
+        "function big(e){var r=e.getBoundingClientRect();return r.width>120&&r.height>80;}" +
+        "var v=[].slice.call(document.querySelectorAll('video')).filter(big);var t=null;" +
+        "if(v.length){v.sort(function(a,b){return ar(b)-ar(a);});t=v[0];}" +
+        "else{var f=[].slice.call(document.querySelectorAll('iframe')).filter(big);if(f.length){f.sort(function(a,b){return ar(b)-ar(a);});t=f[0];}}" +
         "if(!t)return 'none';" +
         "if(!document.getElementById('tvio-iso-style')){var s=document.createElement('style');s.id='tvio-iso-style';s.textContent='html,body{margin:0!important;padding:0!important;background:#000!important;overflow:hidden!important;height:100%!important;width:100%!important;}';(document.head||document.documentElement).appendChild(s);}" +
-        "var n=t;while(n&&n.parentElement){var p=n.parentElement;var k=p.children;for(var i=0;i<k.length;i++){if(k[i]!==n&&k[i].id!=='tvio-iso-style'){k[i].style.setProperty('display','none','important');}}if(p===document.body||p===document.documentElement)break;p.style.setProperty('display','block','important');p.style.setProperty('width','100%','important');p.style.setProperty('height','100%','important');p.style.setProperty('margin','0','important');p.style.setProperty('padding','0','important');n=p;}" +
-        "t.style.setProperty('position','fixed','important');t.style.setProperty('top','0','important');t.style.setProperty('left','0','important');t.style.setProperty('width','100vw','important');t.style.setProperty('height','100vh','important');t.style.setProperty('margin','0','important');t.style.setProperty('z-index','2147483646','important');t.style.setProperty('background','#000','important');" +
-        "if(t.tagName==='VIDEO'){t.style.setProperty('object-fit','contain','important');}" +
+        "var n=t;while(n&&n.parentElement){var p=n.parentElement;var k=p.children;for(var i=0;i<k.length;i++){var c=k[i];if(c!==n&&c.id!=='tvio-iso-style'&&!c.contains(t)){c.style.setProperty('display','none','important');}}if(p===document.body||p===document.documentElement)break;p.style.setProperty('display','block','important');p.style.setProperty('position','static','important');p.style.setProperty('width','100%','important');p.style.setProperty('height','100%','important');p.style.setProperty('max-width','none','important');p.style.setProperty('max-height','none','important');p.style.setProperty('margin','0','important');p.style.setProperty('padding','0','important');n=p;}" +
+        // Keep the player in place (so its controls survive) and just make it fill.
+        "t.style.setProperty('width','100%','important');t.style.setProperty('height','100vh','important');t.style.setProperty('max-width','none','important');t.style.setProperty('max-height','none','important');t.style.setProperty('margin','0','important');" +
+        "if(t.tagName==='VIDEO'){t.style.setProperty('object-fit','contain','important');t.style.setProperty('background','#000','important');}" +
         "return 'ok';}catch(e){return 'err';}})();";
 
     // Address bar edits only after you press OK on it; a held direction glides
@@ -148,16 +151,56 @@ public class TvioBrowserActivity extends Activity {
         "hotjar.com", "connect.facebook.net", "ads.yahoo.com", "adroll.com"
     };
 
+    // When opened as a Live TV web channel, its name replaces the address bar.
+    private String channelName;
+
+    // Element-picker ("Customise"): load the page, let the user tick blocks to
+    // hide, and hand the chosen CSS selectors back to the web app. hideSpec is a
+    // newline-joined selector list re-applied on a normal open of a channel.
+    private boolean pickMode = false;
+    private String hideSpec = null;
+    private LinearLayout pickList;
+    private final java.util.LinkedHashSet<String> pickChosen = new java.util.LinkedHashSet<>();
+
+    // Enumerate the "chrome-ish" blocks worth offering to hide: structural
+    // regions, common banner/cookie/ad/sidebar class names, and anything pinned
+    // (fixed/sticky). Each becomes { sel: <stable CSS path>, label: <readable> }.
+    private static final String PICK_ENUM_JS =
+        "(function(){try{" +
+        "function esc(s){return (window.CSS&&CSS.escape)?CSS.escape(s):s;}" +
+        "function vis(e){var r=e.getBoundingClientRect();if(r.width<40||r.height<16)return false;var c=getComputedStyle(e);return c.visibility!=='hidden'&&c.display!=='none';}" +
+        "function path(e){if(e.id&&document.querySelectorAll('#'+esc(e.id)).length===1)return '#'+esc(e.id);" +
+        "var parts=[];var n=e;var depth=0;" +
+        "while(n&&n.nodeType===1&&n.tagName.toLowerCase()!=='html'&&depth<6){var t=n.tagName.toLowerCase();" +
+        "if(n.id){parts.unshift('#'+esc(n.id));break;}" +
+        "var p=n.parentElement;if(!p){parts.unshift(t);break;}" +
+        "var same=[].slice.call(p.children).filter(function(c){return c.tagName===n.tagName;});" +
+        "parts.unshift(same.length>1?(t+':nth-of-type('+(same.indexOf(n)+1)+')'):t);" +
+        "n=p;depth++;}return parts.join(' > ');}" +
+        "function label(e){var t=e.tagName.toLowerCase();var id=e.id?('#'+e.id):'';" +
+        "var cl=(typeof e.className==='string'&&e.className.trim())?('.'+e.className.trim().split(/\\s+/).slice(0,2).join('.')):'';" +
+        "var txt=(e.innerText||'').replace(/\\s+/g,' ').trim().slice(0,42);" +
+        "var tag='<'+t+id+cl+'>';return txt?(tag+' — '+txt):tag;}" +
+        "var out=[];var seen=new Set();" +
+        "function add(e){if(!e||seen.has(e)||!vis(e))return;seen.add(e);var s=path(e);if(s)out.push({sel:s,label:label(e)});}" +
+        "var sels='header,nav,footer,aside,[role=banner],[role=navigation],[role=complementary],.navbar,.nav-bar,.site-header,.masthead,.banner,.sidebar,.side-bar,.social,.share,.newsletter,.subscribe,[class*=cookie],[id*=cookie],[class*=consent],[id*=consent],[class*=advert],[id*=advert],[class*=promo],[id*=promo],[class*=popup],[id*=popup]';" +
+        "[].slice.call(document.querySelectorAll(sels)).forEach(add);" +
+        "[].slice.call(document.querySelectorAll('body *')).forEach(function(e){var c=getComputedStyle(e);if(c.position==='fixed'||c.position==='sticky'){var r=e.getBoundingClientRect();if(r.width>60&&r.height>16&&r.height<window.innerHeight*0.6)add(e);}});" +
+        "return out.slice(0,40);}catch(e){return [];}})();";
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+        channelName = getIntent().getStringExtra("channelName");
+        pickMode = getIntent().getBooleanExtra("pickMode", false);
+        hideSpec = getIntent().getStringExtra("hide");
 
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(Color.BLACK);
         root.setLayoutParams(new ViewGroup.LayoutParams(MATCH, MATCH));
-        root.addView(buildTopBar());
+        root.addView(pickMode ? buildPickBar() : buildTopBar());
 
         progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
         progress.setMax(100);
@@ -180,8 +223,11 @@ public class TvioBrowserActivity extends Activity {
         setContentView(outer);
 
         createCursor();
-        // Cursor is shown exactly while the page (WebView) has focus.
+        if (pickMode) addPickPanel();
+        // Cursor is shown exactly while the page (WebView) has focus — but not in
+        // the element picker, where the native checklist owns the D-pad.
         webView.setOnFocusChangeListener((v, hasFocus) -> {
+            if (pickMode) return;
             if (hasFocus) enterPageMode();
             else exitPageModes();
         });
@@ -190,7 +236,7 @@ public class TvioBrowserActivity extends Activity {
         hideChrome = getIntent().getBooleanExtra("hideChrome", false);
         String url = getIntent().getStringExtra("url");
         if (url == null || url.isEmpty()) url = "https://duckduckgo.com";
-        urlBar.setText(url);
+        if (urlBar != null) urlBar.setText(url);
         webView.loadUrl(url);
     }
 
@@ -206,29 +252,43 @@ public class TvioBrowserActivity extends Activity {
         bar.addView(barButton("›", v -> { if (webView.canGoForward()) webView.goForward(); }));
         bar.addView(barButton("⟳", v -> webView.reload()));
 
-        urlBar = new EditText(this);
-        urlBar.setSingleLine(true);
-        urlBar.setInputType(InputType.TYPE_TEXT_VARIATION_URI);
-        urlBar.setImeOptions(EditorInfo.IME_ACTION_GO);
-        urlBar.setTextColor(Color.WHITE);
-        urlBar.setHintTextColor(0xFF888888);
-        urlBar.setHint("Search or enter address");
-        urlBar.setTextSize(14);
-        urlBar.setBackgroundColor(0xFF23262B);
-        urlBar.setPadding(px(12), px(10), px(12), px(10));
-        urlBar.setCursorVisible(false);
-        urlBar.setShowSoftInputOnFocus(false); // no keyboard merely from D-pad focus
-        urlBar.setOnFocusChangeListener((v, hasFocus) -> { if (!hasFocus && urlEditing) exitUrlEdit(); });
-        LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(0, WRAP, 1f);
-        ulp.setMargins(px(6), 0, px(6), 0);
-        urlBar.setLayoutParams(ulp);
-        urlBar.setOnEditorActionListener((v, actionId, event) -> {
-            navigateFromBar();
-            return true;
-        });
-        bar.addView(urlBar);
-
-        bar.addView(barButton("Go", v -> navigateFromBar()));
+        if (channelName != null && !channelName.isEmpty()) {
+            // Opened as a Live TV web channel — no address bar, just its name.
+            android.widget.TextView label = new android.widget.TextView(this);
+            label.setText(channelName);
+            label.setTextColor(Color.WHITE);
+            label.setTextSize(15);
+            label.setSingleLine(true);
+            label.setEllipsize(android.text.TextUtils.TruncateAt.END);
+            label.setPadding(px(12), px(10), px(12), px(10));
+            LinearLayout.LayoutParams llp = new LinearLayout.LayoutParams(0, WRAP, 1f);
+            llp.setMargins(px(6), 0, px(6), 0);
+            label.setLayoutParams(llp);
+            bar.addView(label);
+        } else {
+            urlBar = new EditText(this);
+            urlBar.setSingleLine(true);
+            urlBar.setInputType(InputType.TYPE_TEXT_VARIATION_URI);
+            urlBar.setImeOptions(EditorInfo.IME_ACTION_GO);
+            urlBar.setTextColor(Color.WHITE);
+            urlBar.setHintTextColor(0xFF888888);
+            urlBar.setHint("Search or enter address");
+            urlBar.setTextSize(14);
+            urlBar.setBackgroundColor(0xFF23262B);
+            urlBar.setPadding(px(12), px(10), px(12), px(10));
+            urlBar.setCursorVisible(false);
+            urlBar.setShowSoftInputOnFocus(false); // no keyboard merely from D-pad focus
+            urlBar.setOnFocusChangeListener((v, hasFocus) -> { if (!hasFocus && urlEditing) exitUrlEdit(); });
+            LinearLayout.LayoutParams ulp = new LinearLayout.LayoutParams(0, WRAP, 1f);
+            ulp.setMargins(px(6), 0, px(6), 0);
+            urlBar.setLayoutParams(ulp);
+            urlBar.setOnEditorActionListener((v, actionId, event) -> {
+                navigateFromBar();
+                return true;
+            });
+            bar.addView(urlBar);
+            bar.addView(barButton("Go", v -> navigateFromBar()));
+        }
         Button play = barButton("▶ Play", v -> manualCheck());
         play.setTextColor(ACCENT);
         bar.addView(play);
@@ -311,6 +371,18 @@ public class TvioBrowserActivity extends Activity {
             @Override
             public void onPageFinished(WebView view, String url) {
                 if (urlBar != null && !urlBar.hasFocus()) urlBar.setText(url);
+                // Element picker: build the checklist from the loaded page, then stop
+                // (no auto-play / isolate / nav helpers in this mode).
+                if (pickMode) {
+                    uiHandler.postDelayed(() -> populatePickList(), 500);
+                    return;
+                }
+                // Re-apply this channel's saved "hidden elements" (from Customise…),
+                // twice, to catch blocks that mount a beat after load.
+                if (hideSpec != null && !hideSpec.isEmpty()) {
+                    uiHandler.postDelayed(() -> applyHiddenSelectors(), 500);
+                    uiHandler.postDelayed(() -> applyHiddenSelectors(), 2000);
+                }
                 // Start the user in the page content, not stuck in the toolbar.
                 if (firstLoad) { firstLoad = false; webView.requestFocus(); }
                 // Give a late-loading player a moment, then offer to play, once.
@@ -506,6 +578,9 @@ public class TvioBrowserActivity extends Activity {
     public boolean dispatchKeyEvent(KeyEvent event) {
         int k = event.getKeyCode();
         boolean down = event.getAction() == KeyEvent.ACTION_DOWN;
+
+        // Element picker: let native focus walk the checklist and toggle boxes.
+        if (pickMode) return super.dispatchKeyEvent(event);
 
         if (down && (k == KeyEvent.KEYCODE_MEDIA_PLAY || k == KeyEvent.KEYCODE_MEDIA_PLAY_PAUSE)) {
             manualCheck();
@@ -716,6 +791,7 @@ public class TvioBrowserActivity extends Activity {
     @Override
     public void onBackPressed() {
         if (customView != null) { hideCustomView(); return; }
+        if (pickMode) { finishPick(false); return; }
         long now = System.currentTimeMillis();
         if (now - lastBackAt < DOUBLE_BACK_MS) {
             lastBackAt = 0;
@@ -761,6 +837,155 @@ public class TvioBrowserActivity extends Activity {
             webView.destroy();
             webView = null;
         }
+    }
+
+    // --- element picker ("Customise…") --------------------------------------
+
+    private LinearLayout buildPickBar() {
+        LinearLayout bar = new LinearLayout(this);
+        bar.setOrientation(LinearLayout.HORIZONTAL);
+        bar.setBackgroundColor(0xFF14161A);
+        bar.setPadding(px(8), px(6), px(8), px(6));
+        bar.setGravity(Gravity.CENTER_VERTICAL);
+        bar.setLayoutParams(new LinearLayout.LayoutParams(MATCH, WRAP));
+
+        android.widget.TextView t = new android.widget.TextView(this);
+        t.setText("Tick anything to hide");
+        t.setTextColor(Color.WHITE);
+        t.setTextSize(15);
+        LinearLayout.LayoutParams tp = new LinearLayout.LayoutParams(0, WRAP, 1f);
+        tp.setMargins(px(6), 0, px(6), 0);
+        t.setLayoutParams(tp);
+        bar.addView(t);
+
+        Button done = barButton("Done", v -> finishPick(true));
+        done.setTextColor(ACCENT);
+        bar.addView(done);
+        bar.addView(barButton("Cancel", v -> finishPick(false)));
+        topBar = bar;
+        return bar;
+    }
+
+    /** The right-hand checklist panel, overlaid on the live page preview. */
+    private void addPickPanel() {
+        android.widget.ScrollView sv = new android.widget.ScrollView(this);
+        int w = (int) (getResources().getDisplayMetrics().widthPixels * 0.42f);
+        FrameLayout.LayoutParams lp = new FrameLayout.LayoutParams(w, MATCH);
+        lp.gravity = Gravity.END;
+        sv.setLayoutParams(lp);
+        sv.setBackgroundColor(0xF00E0F12);
+        sv.setPadding(px(10), px(10), px(10), px(10));
+        pickList = new LinearLayout(this);
+        pickList.setOrientation(LinearLayout.VERTICAL);
+        pickList.setLayoutParams(new FrameLayout.LayoutParams(MATCH, WRAP));
+        android.widget.TextView hint = new android.widget.TextView(this);
+        hint.setText("Loading page…");
+        hint.setTextColor(0xFFBBBBBB);
+        hint.setPadding(px(6), px(8), px(6), px(8));
+        pickList.addView(hint);
+        sv.addView(pickList);
+        outer.addView(sv);
+    }
+
+    private void populatePickList() {
+        if (webView == null || pickList == null) return;
+        webView.evaluateJavascript(PICK_ENUM_JS, value -> {
+            pickList.removeAllViews();
+            java.util.List<String[]> items = parsePickItems(value);
+            if (items.isEmpty()) {
+                android.widget.TextView e = new android.widget.TextView(this);
+                e.setText("Nothing obvious to hide here.");
+                e.setTextColor(0xFFBBBBBB);
+                e.setPadding(px(6), px(10), px(6), px(10));
+                pickList.addView(e);
+                return;
+            }
+            for (String[] it : items) addPickRow(it[0], it[1]);
+            if (pickList.getChildCount() > 0) pickList.getChildAt(0).requestFocus();
+        });
+    }
+
+    private void addPickRow(String sel, String label) {
+        android.widget.CheckBox cb = new android.widget.CheckBox(this);
+        cb.setText(label);
+        cb.setTextColor(Color.WHITE);
+        cb.setTextSize(14);
+        cb.setPadding(px(8), px(10), px(6), px(10));
+        cb.setButtonTintList(android.content.res.ColorStateList.valueOf(ACCENT));
+        cb.setChecked(pickChosen.contains(sel));
+        cb.setOnFocusChangeListener((v, f) -> { if (f) highlightSel(sel); });
+        cb.setOnCheckedChangeListener((v, checked) -> {
+            if (checked) pickChosen.add(sel); else pickChosen.remove(sel);
+            setSelHidden(sel, checked);
+        });
+        cb.setLayoutParams(new LinearLayout.LayoutParams(MATCH, WRAP));
+        pickList.addView(cb);
+    }
+
+    /** Outline the focused row's element(s) on the page so the user sees them. */
+    private void highlightSel(String sel) {
+        if (webView == null) return;
+        String js = "(function(){try{" +
+            "if(window.__tvHi){window.__tvHi.forEach(function(e){e.style.outline='';e.style.outlineOffset='';});}" +
+            "window.__tvHi=[];document.querySelectorAll(" + jsStr(sel) + ").forEach(function(e){" +
+            "e.style.setProperty('outline','3px solid #14b8a6','important');e.style.setProperty('outline-offset','2px','important');window.__tvHi.push(e);});" +
+            "if(window.__tvHi[0])window.__tvHi[0].scrollIntoView({block:'center',behavior:'smooth'});" +
+            "}catch(e){}})();";
+        webView.evaluateJavascript(js, null);
+    }
+
+    private void setSelHidden(String sel, boolean hide) {
+        if (webView == null) return;
+        String js = "(function(){try{document.querySelectorAll(" + jsStr(sel) + ").forEach(function(e){" +
+            (hide ? "e.style.setProperty('display','none','important');" : "e.style.removeProperty('display');") +
+            "});}catch(e){}})();";
+        webView.evaluateJavascript(js, null);
+    }
+
+    /** Re-apply a channel's saved hidden selectors on a normal open. */
+    private void applyHiddenSelectors() {
+        if (hideSpec == null || hideSpec.isEmpty() || webView == null) return;
+        String js = "(function(){try{" + jsStr(hideSpec) + ".split('\\n').forEach(function(sel){sel=sel.trim();if(!sel)return;" +
+            "try{document.querySelectorAll(sel).forEach(function(e){e.style.setProperty('display','none','important');});}catch(e){}});" +
+            "}catch(e){}})();";
+        webView.evaluateJavascript(js, null);
+    }
+
+    private void finishPick(boolean ok) {
+        Intent data = new Intent();
+        if (ok) {
+            StringBuilder sb = new StringBuilder();
+            for (String s : pickChosen) { if (sb.length() > 0) sb.append('\n'); sb.append(s); }
+            data.putExtra("selectors", sb.toString());
+            setResult(Activity.RESULT_OK, data);
+        } else {
+            setResult(Activity.RESULT_CANCELED);
+        }
+        finish();
+    }
+
+    private java.util.List<String[]> parsePickItems(String value) {
+        java.util.List<String[]> out = new java.util.ArrayList<>();
+        if (value == null || value.equals("null")) return out;
+        String json = value;
+        try {
+            if (json.startsWith("\"")) json = new org.json.JSONTokener(json).nextValue().toString();
+            org.json.JSONArray arr = new org.json.JSONArray(json);
+            for (int i = 0; i < arr.length(); i++) {
+                org.json.JSONObject o = arr.optJSONObject(i);
+                if (o == null) continue;
+                String sel = o.optString("sel", "");
+                String label = o.optString("label", sel);
+                if (!sel.isEmpty()) out.add(new String[]{sel, label});
+            }
+        } catch (Exception ignored) {
+        }
+        return out;
+    }
+
+    /** A safe JS string literal for a value we inject into evaluateJavascript. */
+    private String jsStr(String s) {
+        return org.json.JSONObject.quote(s == null ? "" : s);
     }
 
     private int px(int dp) {

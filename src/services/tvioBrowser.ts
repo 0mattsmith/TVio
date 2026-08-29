@@ -7,8 +7,9 @@
 // links open out in the system browser instead.
 
 interface TvioBrowserPlugin {
-  open(opts: { url: string; isolate?: boolean; hideChrome?: boolean }): Promise<void>;
+  open(opts: { url: string; isolate?: boolean; hideChrome?: boolean; name?: string; hide?: string }): Promise<void>;
   pickFile(): Promise<{ url?: string; name?: string }>;
+  pickElements(opts: { url: string }): Promise<{ selectors?: string[] }>;
 }
 
 interface CapacitorGlobal {
@@ -52,12 +53,40 @@ export function toUrl(input: string): string {
  * Open a URL: full-screen native WebView on Android, a new tab elsewhere.
  * `isolate` strips the page down to just its media player (native only).
  */
-export async function openBrowser(rawUrl: string, opts?: { isolate?: boolean; hideChrome?: boolean }): Promise<void> {
+export async function openBrowser(
+  rawUrl: string,
+  opts?: { isolate?: boolean; hideChrome?: boolean; name?: string; hiddenSelectors?: string[] }
+): Promise<void> {
   const url = toUrl(rawUrl);
   if (!url) return;
   const plugin = cap()?.Plugins?.TvioBrowser;
-  if (plugin) await plugin.open({ url, isolate: opts?.isolate, hideChrome: opts?.hideChrome });
-  else window.open(url, "_blank", "noopener,noreferrer");
+  if (plugin) {
+    await plugin.open({
+      url,
+      isolate: opts?.isolate,
+      hideChrome: opts?.hideChrome,
+      name: opts?.name,
+      hide: opts?.hiddenSelectors?.length ? opts.hiddenSelectors.join("\n") : undefined,
+    });
+  } else {
+    window.open(url, "_blank", "noopener,noreferrer");
+  }
+}
+
+/**
+ * Native "customise" flow: opens the page and lets the user tick page elements
+ * to remove, returning the chosen CSS selectors. Empty if unavailable/cancelled.
+ */
+export async function pickElements(rawUrl: string): Promise<string[]> {
+  const url = toUrl(rawUrl);
+  const plugin = cap()?.Plugins?.TvioBrowser;
+  if (!url || !plugin?.pickElements) return [];
+  try {
+    const r = await plugin.pickElements({ url });
+    return Array.isArray(r?.selectors) ? r.selectors : [];
+  } catch {
+    return [];
+  }
 }
 
 /** "south-park.html" → "South Park": drop the extension, split on -/_, Title Case. */

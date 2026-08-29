@@ -33,7 +33,6 @@ export function Player() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const setProgress = useAppStore((s) => s.setProgress);
   const markWatched = useAppStore((s) => s.markWatched);
-  const markSeasonWatched = useAppStore((s) => s.markSeasonWatched);
   const removeFromProgress = useAppStore((s) => s.removeFromProgress);
   const openQuickWatch = useAppStore((s) => s.openQuickWatch);
 
@@ -171,19 +170,9 @@ export function Player() {
       return false;
     }
 
-    // Season finished (but not the whole show)? It graduates to the Watched row
-    // as "… — Season N"; when the last season completes, markWatched above
-    // collapses them all into a single show entry.
-    const cur = seasons.find((s) => s.seasonNumber === ep.season);
-    if (
-      cur &&
-      Array.from({ length: cur.episodeCount }, (_, i) => i + 1).every((e) =>
-        done.has(`${d.id}:${ep.season}:${e}`)
-      )
-    ) {
-      markSeasonWatched(d, ep.season, cur.poster);
-    }
-
+    // Not complete → just advance Continue Watching to the next episode. Finishing
+    // an episode (or a season) never puts the show in Watched; only finishing the
+    // WHOLE show does (above).
     const next = computeNextEpisode(d.seasonsList, ep.season, ep.episode);
     if (!next) {
       // Caught up to what's aired — drop it from Continue Watching rather than
