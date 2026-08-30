@@ -27,6 +27,11 @@ export const SERVICES: StreamService[] = [
   // TMDB watch-provider id 39. No single TMDB network maps to it (Sky content
   // airs across Sky Atlantic, Sky Max, etc.), so it has no "Originals" row.
   { key: "now", name: "NOW", color: "#00b7b3", providerId: 39 },
+  // Discovery+ — factual/reality/documentary. TMDB watch-provider 524 (GB) /
+  // 520 (US); 524 has the fuller UK catalogue. Mostly TV, so the Movies tab is
+  // sparse. (Live-sports services — DAZN, ESPN+, TNT Sports — have no VOD
+  // catalogue in TMDB, so they belong in Live TV, not here.)
+  { key: "discoveryplus", name: "Discovery+", color: "#2175ff", providerId: 524 },
 ];
 
 // Pseudo-service for popular titles not on any tracked platform.

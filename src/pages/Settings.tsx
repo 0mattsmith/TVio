@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe } from "lucide-react";
+import { FAST_PRESETS, fastPresetName, fastChannelsFeed, type FastPreset } from "../services/fastChannels";
 import { AddWebChannelDialog } from "../components/AddWebChannelDialog";
 import type { LiveChannel } from "../store/useAppStore";
 import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
@@ -74,6 +75,7 @@ export function Settings() {
     liveTvEnabled, setLiveTvEnabled, liveChannels, addLiveChannel, updateLiveChannel, removeLiveChannel,
     browserEnabled, setBrowserEnabled,
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
+    preferEnglish, setPreferEnglish,
     preferredAudioLang, setPreferredAudioLang,
     profiles, activeProfileId, addProfile, updateProfile, removeProfile, profileData, watchlist,
   } = useAppStore();
@@ -136,6 +138,27 @@ export function Settings() {
   const [plUrl, setPlUrl] = useState("");
   const [epgName, setEpgName] = useState("");
   const [epgUrl, setEpgUrl] = useState("");
+  const [fcUrl, setFcUrl] = useState("");
+
+  // FAST presets add their M3U + EPG straight into the IPTV lists. A preset is
+  // "on" when its playlist URL is present; toggling off removes both.
+  const fastOn = (preset: FastPreset) => iptvPlaylists.some((p) => p.url === preset.m3u);
+  const toggleFast = (preset: FastPreset) => {
+    if (fastOn(preset)) {
+      iptvPlaylists.filter((p) => p.url === preset.m3u).forEach((p) => removeIptvPlaylist(p.id));
+      iptvEpgUrls.filter((e) => e.url === preset.epg).forEach((e) => removeIptvEpg(e.id));
+    } else {
+      addIptvPlaylist(fastPresetName(preset), preset.m3u);
+      addIptvEpg(fastPresetName(preset), preset.epg);
+    }
+  };
+  const addFastServer = () => {
+    if (!fcUrl.trim()) return;
+    const { m3u, epg } = fastChannelsFeed(fcUrl);
+    if (!iptvPlaylists.some((p) => p.url === m3u)) addIptvPlaylist("FastChannels", m3u);
+    if (!iptvEpgUrls.some((e) => e.url === epg)) addIptvEpg("FastChannels", epg);
+    setFcUrl("");
+  };
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [editChannel, setEditChannel] = useState<LiveChannel | null>(null);
   const closeChannelDialog = () => {
@@ -249,6 +272,16 @@ export function Settings() {
             </div>
           </div>
           <Toggle on={compactProviders} onClick={() => setCompactProviders(!compactProviders)} label="Show service icons only" />
+        </div>
+
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div>
+            <div className="text-sm font-semibold">Prefer English-language titles</div>
+            <div className="text-xs text-muted">
+              Focus Trending, Home and every service's rows on English-language films &amp; shows, while still letting big non-English hits (e.g. Squid Game) through. Turn off to see everything. Search is never filtered.
+            </div>
+          </div>
+          <Toggle on={preferEnglish} onClick={() => setPreferEnglish(!preferEnglish)} label="Prefer English-language titles" />
         </div>
 
         {/* Device layout — not on TV. The override exists so you can preview
@@ -663,6 +696,47 @@ export function Settings() {
                 {iptvEpgUrls.length === 0 && <li className="text-xs text-muted">No EPG sources added yet.</li>}
               </ul>
             </div>
+
+                {/* FAST channels — one-tap public presets + a FastChannels server. */}
+                <div>
+                  <div className="mb-1 flex items-center gap-2 text-sm font-semibold"><Zap size={16} className="text-accent" /> FAST channels</div>
+                  <p className="mb-3 text-xs text-muted">
+                    Free ad-supported channels (Pluto TV, Samsung TV Plus, Plex). Tap to add a region's playlist &amp; guide to the TV Guide above.
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {FAST_PRESETS.map((p) => {
+                      const on = fastOn(p);
+                      return (
+                        <button
+                          key={p.key}
+                          onClick={() => toggleFast(p)}
+                          aria-pressed={on}
+                          className={`focusable flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${
+                            on ? "border-accent bg-accent-soft text-accent" : "border-white/10 bg-surface-2 text-muted hover:text-white"
+                          }`}
+                        >
+                          {on ? <Check size={14} /> : <Plus size={14} />} {fastPresetName(p)}
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  <div className="mt-4 rounded-lg border border-white/10 bg-surface-2 p-3">
+                    <div className="mb-1 flex items-center gap-2 text-xs font-semibold"><Server size={14} className="text-accent" /> FastChannels server</div>
+                    <p className="mb-2 text-[11px] text-muted">
+                      Running FastChannels (Docker)? Paste its address to load your own always-fresh lineup and guide.
+                    </p>
+                    <div className="flex flex-col gap-2 sm:flex-row">
+                      <input
+                        value={fcUrl}
+                        onChange={(e) => setFcUrl(e.target.value)}
+                        placeholder="http://192.168.1.50:5523"
+                        className="focusable min-w-0 flex-1 rounded-lg border border-white/10 bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
+                      />
+                      <Button onClick={addFastServer}><Plus size={16} /> Add server</Button>
+                    </div>
+                  </div>
+                </div>
 
                 <p className="text-xs text-muted">
                   Note: some IPTV/EPG servers block browser (CORS) requests. If a source won't load in the web app it will still work in the Android / desktop builds.

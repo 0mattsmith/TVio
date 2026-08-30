@@ -10,6 +10,11 @@ export interface MediaItem {
   rating: number; // 0-10
   overview: string;
   genreIds: number[];
+  // Used by the "prefer English" catalogue filter: keep English-original titles
+  // and any breakout non-English hit (high vote count / popularity).
+  originalLanguage?: string;
+  voteCount?: number;
+  popularity?: number;
 }
 
 /**

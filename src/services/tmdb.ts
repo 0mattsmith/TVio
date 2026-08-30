@@ -27,10 +27,13 @@ const ENV_PROXY = (import.meta.env.VITE_TMDB_PROXY as string | undefined)?.repla
 // their own TMDB key without editing .env.local.
 let runtimeKey: string | undefined;
 let runtimeRegion: string | undefined;
+// "Prefer English" catalogue filter (default on). Set from Settings via the store.
+let preferEnglish = true;
 
-export function configureTmdb(opts: { key?: string; region?: string }) {
+export function configureTmdb(opts: { key?: string; region?: string; preferEnglish?: boolean }) {
   runtimeKey = opts.key && opts.key.trim() ? opts.key.trim() : undefined;
   runtimeRegion = opts.region && opts.region.trim() ? opts.region.trim() : undefined;
+  if (opts.preferEnglish !== undefined) preferEnglish = opts.preferEnglish;
 }
 
 function activeKey() {
@@ -79,6 +82,9 @@ interface RawMedia {
   release_date?: string;
   first_air_date?: string;
   vote_average?: number;
+  vote_count?: number;
+  popularity?: number;
+  original_language?: string;
   overview?: string;
   genre_ids?: number[];
   media_type?: string;
@@ -99,14 +105,35 @@ function mapItem(raw: RawMedia, fallbackType: MediaType): MediaItem {
     rating: raw.vote_average ? Math.round(raw.vote_average * 10) / 10 : 0,
     overview: raw.overview || "",
     genreIds: raw.genre_ids || [],
+    originalLanguage: raw.original_language,
+    voteCount: raw.vote_count,
+    popularity: raw.popularity,
   };
+}
+
+// "Prefer English" keeps English-original titles and any breakout non-English
+// hit — judged by a high vote count or popularity, so Squid Game / Money Heist
+// stay while the long tail of obscure foreign titles is dropped. Stable signals
+// (vote count doesn't swing the way popularity does) keep the megahit list sane.
+const MEGAHIT_VOTES = 1200;
+const MEGAHIT_POPULARITY = 250;
+function keepForEnglishPref(m: MediaItem): boolean {
+  if (!preferEnglish) return true;
+  if (!m.originalLanguage || m.originalLanguage === "en") return true;
+  return (m.voteCount ?? 0) >= MEGAHIT_VOTES || (m.popularity ?? 0) >= MEGAHIT_POPULARITY;
 }
 
 interface Paged<T> { results: T[]; total_pages?: number }
 
-async function list(path: string, type: MediaType, params: Record<string, string | number | undefined> = {}) {
+// Raw list (no language preference applied) — used by search, so a title in any
+// language is still findable by name.
+async function listRaw(path: string, type: MediaType, params: Record<string, string | number | undefined> = {}) {
   const data = await tmdb<Paged<RawMedia>>(path, params);
   return (data.results || []).filter((r) => r.poster_path).map((r) => mapItem(r, type));
+}
+
+async function list(path: string, type: MediaType, params: Record<string, string | number | undefined> = {}) {
+  return (await listRaw(path, type, params)).filter(keepForEnglishPref);
 }
 
 // --- Discover-based rows for a specific streaming service ---
@@ -168,7 +195,7 @@ export const recommendations = (type: MediaType, id: number) => list(`/${type}/$
 export const similar = (type: MediaType, id: number) => list(`/${type}/${id}/similar`, type);
 
 export const search = (q: string) =>
-  list("/search/multi", "movie", { query: q, include_adult: "false" });
+  listRaw("/search/multi", "movie", { query: q, include_adult: "false" });
 
 export const genres = async (type: MediaType) => {
   const data = await tmdb<{ genres: { id: number; name: string }[] }>(`/genre/${type}/list`);

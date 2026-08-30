@@ -45,17 +45,27 @@ export interface DiscoverRowOpts {
   sort?: "popularity.desc" | "vote_average.desc" | "primary_release_date.desc" | "first_air_date.desc" | "first_air_date.asc";
   minVotes?: number;
   year?: number;
+  /** Restrict to a watch provider (used by provider sub-brands like BritBox). */
+  providerId?: number;
+  /**
+   * Force a watch region for this row, overriding the user's. Several UK/US
+   * channels (BritBox, Acorn, ITVX) are only indexed by TMDB under one region,
+   * so their catalogue is empty everywhere else without this.
+   */
+  region?: string;
 }
 
 /** A general discover row (used by custom brand layouts like WWE). */
 export async function discoverRow(type: MediaType, opts: DiscoverRowOpts): Promise<MediaItem[]> {
-  if (!hasTmdbKey()) return demoRow(type, (opts.companies?.[0] ?? 1) + (opts.genre ?? 0), 14);
+  if (!hasTmdbKey()) return demoRow(type, (opts.companies?.[0] ?? opts.providerId ?? 1) + (opts.genre ?? 0), 14);
   return discover(type, {
     companies: opts.companies,
     genre: opts.genre,
     sort: opts.sort ?? "popularity.desc",
     minVotes: opts.minVotes,
     year: opts.year,
+    providerId: opts.providerId,
+    region: opts.region,
   });
 }
 

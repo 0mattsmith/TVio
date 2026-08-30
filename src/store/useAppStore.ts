@@ -203,6 +203,10 @@ interface AppState {
   setTmdbKey: (v: string) => void;
   tmdbRegion: string;
   setTmdbRegion: (v: string) => void;
+  // Prefer English-language titles across the catalogue (keeps breakout foreign
+  // hits). Cuts down the flood of non-English content in Trending/service rows.
+  preferEnglish: boolean;
+  setPreferEnglish: (v: boolean) => void;
   // Preferred audio language (ISO 639-1) for the native player's default track.
   preferredAudioLang: string;
   setPreferredAudioLang: (v: string) => void;
@@ -456,6 +460,8 @@ export const useAppStore = create<AppState>()(
       setTmdbKey: (v) => set({ tmdbKey: v.trim() }),
       tmdbRegion: "",
       setTmdbRegion: (v) => set({ tmdbRegion: v.trim() }),
+      preferEnglish: true,
+      setPreferEnglish: (v) => set({ preferEnglish: v }),
       preferredAudioLang: "en",
       setPreferredAudioLang: (v) => set({ preferredAudioLang: v }),
       searchHistory: [],
@@ -542,7 +548,7 @@ export const useAppStore = create<AppState>()(
     }),
     {
       name: "tvio-store",
-      version: 2,
+      version: 3,
       // One-time fix-ups for existing installs. Fresh installs skip these — their
       // defaults are already right.
       migrate: (persisted, from) => {
@@ -556,6 +562,11 @@ export const useAppStore = create<AppState>()(
         // already had IPTV on.
         if (from < 2 && s && s.liveTvEnabled === undefined) {
           s.liveTvEnabled = !!s.iptvEnabled;
+        }
+        // v3: Discovery+ added as a service — switch it on once (leaving any
+        // services the user deliberately turned off alone).
+        if (from < 3 && s?.enabledServices && !s.enabledServices.includes("discoveryplus")) {
+          s.enabledServices = [...s.enabledServices, "discoveryplus"];
         }
         return s;
       },
@@ -578,6 +589,7 @@ export const useAppStore = create<AppState>()(
         platformOverride: s.platformOverride,
         tmdbKey: s.tmdbKey,
         tmdbRegion: s.tmdbRegion,
+        preferEnglish: s.preferEnglish,
         preferredAudioLang: s.preferredAudioLang,
         searchHistory: s.searchHistory,
         onboardingDone: s.onboardingDone,
@@ -601,9 +613,13 @@ export const selectPersonalSources = (s: AppState) => s.addons.filter((a) => a.k
 
 // Apply the persisted TMDB key/region to the API client at startup, and whenever
 // the user changes them in Settings.
-configureTmdb({ key: useAppStore.getState().tmdbKey, region: useAppStore.getState().tmdbRegion });
+configureTmdb({
+  key: useAppStore.getState().tmdbKey,
+  region: useAppStore.getState().tmdbRegion,
+  preferEnglish: useAppStore.getState().preferEnglish,
+});
 useAppStore.subscribe((s, p) => {
-  if (s.tmdbKey !== p.tmdbKey || s.tmdbRegion !== p.tmdbRegion) {
-    configureTmdb({ key: s.tmdbKey, region: s.tmdbRegion });
+  if (s.tmdbKey !== p.tmdbKey || s.tmdbRegion !== p.tmdbRegion || s.preferEnglish !== p.preferEnglish) {
+    configureTmdb({ key: s.tmdbKey, region: s.tmdbRegion, preferEnglish: s.preferEnglish });
   }
 });

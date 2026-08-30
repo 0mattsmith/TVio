@@ -122,6 +122,26 @@ const TNA_LAYOUT: BrandRowSpec[] = [
   { key: "ppv", title: "Pay-Per-Views", discover: { mediaType: "movie", companies: [13927], sort: "primary_release_date.desc" } },
 ];
 
+// Provider sub-brands (Prime Video / Amazon Channels): a watch provider rather
+// than a studio, so the tile opens a small layout of discover rows keyed to that
+// provider. Each forces a watch region — these channels are only indexed by TMDB
+// under one country, so their catalogue is empty everywhere else (see
+// DiscoverRowOpts.region). Provider ids verified live against TMDB.
+function providerBrandLayout(providerId: number, region: string): BrandRowSpec[] {
+  return [
+    { key: "popular", title: "Popular", discover: { mediaType: "tv", providerId, region, sort: "popularity.desc" } },
+    { key: "new", title: "Recently Added", discover: { mediaType: "tv", providerId, region, sort: "first_air_date.desc" } },
+    { key: "toprated", title: "Top Rated", discover: { mediaType: "tv", providerId, region, sort: "vote_average.desc", minVotes: 20 } },
+    { key: "films", title: "Films", discover: { mediaType: "movie", providerId, region, sort: "popularity.desc" } },
+  ];
+}
+
+// BritBox (151) and Acorn TV (196) are indexed under US in TMDB — the same
+// British library, but GB returns almost nothing. ITVX Premium (2300) is UK-only.
+const BRITBOX_LAYOUT = providerBrandLayout(151, "US");
+const ACORN_LAYOUT = providerBrandLayout(196, "US");
+const ITVX_LAYOUT = providerBrandLayout(2300, "GB");
+
 /**
  * Two notes on what's reachable here.
  *
@@ -202,8 +222,14 @@ const LAYOUTS: Record<string, Layout> = {
     ],
   },
   prime: {
-    // AEW as a text tile — its own home of weekly shows, PPVs and PLEs.
-    brands: [{ key: "aew", name: "AEW", layout: AEW_LAYOUT }],
+    // AEW plus the Prime Video Channels the user subscribes through Amazon —
+    // BritBox, Acorn TV and ITVX Premium — each a text tile opening its own rows.
+    brands: [
+      { key: "aew", name: "AEW", layout: AEW_LAYOUT },
+      { key: "britbox", name: "BritBox", layout: BRITBOX_LAYOUT },
+      { key: "acorn", name: "Acorn TV", layout: ACORN_LAYOUT },
+      { key: "itvx", name: "ITVX Premium", layout: ITVX_LAYOUT },
+    ],
     rows: [
       { kind: "trending", title: "Trending Now" },
       { kind: "originals", title: "Amazon Originals" },
