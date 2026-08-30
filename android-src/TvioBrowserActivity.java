@@ -183,10 +183,17 @@ public class TvioBrowserActivity extends Activity {
         "var tag='<'+t+id+cl+'>';return txt?(tag+' — '+txt):tag;}" +
         "var out=[];var seen=new Set();" +
         "function add(e){if(!e||seen.has(e)||!vis(e))return;seen.add(e);var s=path(e);if(s)out.push({sel:s,label:label(e)});}" +
-        "var sels='header,nav,footer,aside,[role=banner],[role=navigation],[role=complementary],.navbar,.nav-bar,.site-header,.masthead,.banner,.sidebar,.side-bar,.social,.share,.newsletter,.subscribe,[class*=cookie],[id*=cookie],[class*=consent],[id*=consent],[class*=advert],[id*=advert],[class*=promo],[id*=promo],[class*=popup],[id*=popup]';" +
+        // Named regions, common ad/widget/comment/modal/media containers, and
+        // media embeds — the obvious things to hide.
+        "var sels='header,nav,footer,aside,section,article,form,dialog,figure,iframe,embed,object,video,canvas,ins,[role=banner],[role=navigation],[role=complementary],[role=contentinfo],[role=dialog],[role=alertdialog],.navbar,.nav-bar,.site-header,.masthead,.banner,.sidebar,.side-bar,.widget,.social,.share,.newsletter,.subscribe,.related,.recommended,.comments,.comment,.modal,.overlay,.paywall,.chat,[class*=cookie],[id*=cookie],[class*=consent],[id*=consent],[class*=advert],[id*=advert],[class*=promo],[id*=promo],[class*=popup],[id*=popup],[class*=sponsor],[class*=ads],[id*=ads],[class*=widget],[class*=related],[class*=recommend],[class*=comment],[class*=footer],[id*=footer],[class*=subscribe],[class*=signup],[class*=newsletter],[class*=paywall],[class*=notif],[class*=overlay],[class*=modal],[id*=modal]';" +
         "[].slice.call(document.querySelectorAll(sels)).forEach(add);" +
-        "[].slice.call(document.querySelectorAll('body *')).forEach(function(e){var c=getComputedStyle(e);if(c.position==='fixed'||c.position==='sticky'){var r=e.getBoundingClientRect();if(r.width>60&&r.height>16&&r.height<window.innerHeight*0.6)add(e);}});" +
-        "return out.slice(0,40);}catch(e){return [];}})();";
+        // Anything pinned (fixed/sticky) — floating bars, sticky headers, chat bubbles.
+        "[].slice.call(document.querySelectorAll('body *')).forEach(function(e){var c=getComputedStyle(e);if(c.position==='fixed'||c.position==='sticky'){var r=e.getBoundingClientRect();if(r.width>40&&r.height>12)add(e);}});" +
+        // Every reasonably large block (5%-90% of the screen), so the user can hide
+        // whole content sections too — this is where the extra choices come from.
+        "var vw=window.innerWidth,vh=window.innerHeight,area=vw*vh;" +
+        "[].slice.call(document.querySelectorAll('main,section,article,aside,div,ul,ol,form,figure')).forEach(function(e){var r=e.getBoundingClientRect();var a=r.width*r.height;if(a>=area*0.05&&a<=area*0.9&&r.height>=40&&r.width>=100)add(e);});" +
+        "return out.slice(0,80);}catch(e){return [];}})();";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {

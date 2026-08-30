@@ -226,10 +226,66 @@ export interface StreamExpectation {
   year?: number;
   season?: number;
   episode?: number;
+  /**
+   * The episode's broadcast date (YYYY-MM-DD). For date-driven weekly shows —
+   * wrestling (Raw, SmackDown, TNA, AEW), the soaps, long-runners — release
+   * files are named by date, not SxxExx, so this is the strongest signal we have.
+   */
+  airDate?: string;
   /** TMDB runtime in minutes — enables the file-size plausibility check. */
   runtimeMin?: number;
   /** Preferred audio language (ISO 639-1) — flags foreign-dub releases. */
   preferredLang?: string;
+}
+
+const MONTHS: Record<string, number> = {
+  jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12,
+};
+
+/** Every plausible day-level date in a release name, as {y,m,d}. */
+function datesIn(name: string): { y: number; m: number; d: number }[] {
+  const out: { y: number; m: number; d: number }[] = [];
+  const flat = ` ${name.toLowerCase().replace(/[._]+/g, " ")} `;
+  let mm: RegExpExecArray | null;
+  // YYYY MM DD (also YYYYMMDD): the most common wrestling/soap convention.
+  let re = /\b(19|20)(\d\d)[.\-_ ]?(\d{1,2})[.\-_ ]?(\d{1,2})\b/g;
+  while ((mm = re.exec(flat))) {
+    const y = +(mm[1] + mm[2]), a = +mm[3], b = +mm[4];
+    if (a >= 1 && a <= 12 && b >= 1 && b <= 31) out.push({ y, m: a, d: b });
+  }
+  // DD MM YYYY / MM DD YYYY — ambiguous, so accept whichever ordering is valid.
+  re = /\b(\d{1,2})[.\-_ ](\d{1,2})[.\-_ ]((?:19|20)\d\d)\b/g;
+  while ((mm = re.exec(flat))) {
+    const a = +mm[1], b = +mm[2], y = +mm[3];
+    if (b >= 1 && b <= 12 && a >= 1 && a <= 31) out.push({ y, m: b, d: a });
+    if (a >= 1 && a <= 12 && b >= 1 && b <= 31) out.push({ y, m: a, d: b });
+  }
+  // Month-name dates: "Jan 01 2024" / "1st January 2024".
+  re = /\b([a-z]{3,9})[.\-_ ]?(\d{1,2})(?:st|nd|rd|th)?,?[.\-_ ]((?:19|20)\d\d)\b/g;
+  while ((mm = re.exec(flat))) {
+    const mo = MONTHS[mm[1].slice(0, 3)];
+    if (mo) out.push({ y: +mm[3], m: mo, d: +mm[2] });
+  }
+  re = /\b(\d{1,2})(?:st|nd|rd|th)?[.\-_ ]([a-z]{3,9})[.\-_ ]((?:19|20)\d\d)\b/g;
+  while ((mm = re.exec(flat))) {
+    const mo = MONTHS[mm[2].slice(0, 3)];
+    if (mo) out.push({ y: +mm[3], m: mo, d: +mm[1] });
+  }
+  return out;
+}
+
+/**
+ * Compares dates found in a release name with the episode's broadcast date.
+ * "none" when the name carries no date (neutral — most files don't), so the
+ * caller falls back to the SxxExx tag.
+ */
+export function matchDate(name: string, airDate?: string): "match" | "mismatch" | "none" {
+  const t = airDate?.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!t) return "none";
+  const target = { y: +t[1], m: +t[2], d: +t[3] };
+  const found = datesIn(name);
+  if (found.length === 0) return "none";
+  return found.some((f) => f.y === target.y && f.m === target.m && f.d === target.d) ? "match" : "mismatch";
 }
 
 export interface StreamCheck {
@@ -244,10 +300,23 @@ export interface StreamCheck {
  * than a generic warning.
  */
 export function checkStream(name: string, expect: StreamExpectation, sizeBytes?: number): StreamCheck {
+  const episodic = expect.season != null && expect.episode != null;
+
+  // Episode identity. When we know the broadcast date and the file carries a
+  // date, the date is authoritative — uploaders of weekly shows routinely
+  // mislabel or omit SxxExx, so a matching date beats a wrong tag, and a wrong
+  // date sinks the file. With no date in the name we fall back to the SxxExx tag.
+  const dateV = matchDate(name, expect.airDate);
+  const episodeVerdict: MatchVerdict =
+    dateV === "match" ? "match" : dateV === "mismatch" ? "mismatch" : matchEpisode(name, expect.season, expect.episode);
+
   const checks: { reason: StreamCheck["reason"]; verdict: MatchVerdict }[] = [
     { reason: "title", verdict: matchTitle(name, expect.title) },
-    { reason: "episode", verdict: matchEpisode(name, expect.season, expect.episode) },
-    { reason: "year", verdict: matchYear(name, expect.year) },
+    { reason: "episode", verdict: episodeVerdict },
+    // A series' start year never matches an individual episode file's air year
+    // (Corrie began in 1960; a 2024 episode's file says 2024), so the year check
+    // is for movies only — otherwise every current episode reads as "wrong year".
+    ...(episodic ? [] : [{ reason: "year" as const, verdict: matchYear(name, expect.year) }]),
     { reason: "size", verdict: plausibleSize(sizeBytes, expect.runtimeMin) },
     { reason: "language", verdict: matchAudioLanguage(name, expect.preferredLang ?? "en") },
   ];

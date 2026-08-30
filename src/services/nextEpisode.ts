@@ -8,6 +8,8 @@ import { rankByTitleMatch, type StreamExpectation } from "../addons/match";
 export interface EpisodeRef {
   season: number;
   episode: number;
+  /** This episode's broadcast date (YYYY-MM-DD) — date-driven show matching. */
+  airDate?: string;
 }
 
 /**
@@ -71,7 +73,7 @@ export async function resolveEpisodeStream(opts: {
     const ranked = rankByTitleMatch(
       playable,
       (s) => streamTitle(s),
-      { ...expect, season: ref.season, episode: ref.episode },
+      { ...expect, season: ref.season, episode: ref.episode, airDate: ref.airDate },
       (s) => s.behaviorHints?.videoSize
     );
     // First result that isn't a definite mismatch — never autoplay a wrong one.
@@ -114,7 +116,7 @@ export async function resolveEpisodeStreams(opts: {
     const ranked = rankByTitleMatch(
       playable,
       (s) => streamTitle(s),
-      { ...expect, season: ref.season, episode: ref.episode },
+      { ...expect, season: ref.season, episode: ref.episode, airDate: ref.airDate },
       (s) => s.behaviorHints?.videoSize
     );
     for (const r of ranked) {

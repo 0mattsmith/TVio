@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { X, Play, Puzzle, Server, MonitorPlay, ExternalLink, Plus, Clapperboard, LayoutGrid, Tag, Magnet, AlertCircle, MonitorSmartphone } from "lucide-react";
 import { PlayOnSheet } from "./PlayOnSheet";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
-import { getDetail } from "../services/catalog";
+import { getDetail, getSeason } from "../services/catalog";
 import { resolveProviderUrl } from "../services/services";
 import { useAppStore, selectPersonalSources } from "../store/useAppStore";
 import type { Addon } from "../store/useAppStore";
@@ -60,6 +60,18 @@ export function QuickWatch() {
     queryFn: () => getDetail(item!.type, item!.id),
     enabled: !!item,
   });
+
+  // The episode's broadcast date — the strongest matching signal for date-named
+  // weekly shows (wrestling, soaps). Fetched from the season and passed into the
+  // stream expectation below.
+  const seasonQ = useQuery({
+    queryKey: ["season", item?.id, episode?.season],
+    queryFn: () => getSeason(item!.id, episode!.season),
+    enabled: !!item && item.type === "tv" && !!episode,
+  });
+  const airDate = episode
+    ? seasonQ.data?.find((e) => e.episodeNumber === episode.episode)?.airDate || undefined
+    : undefined;
 
   // Close on Escape + lock background scroll while open.
   useEffect(() => {
@@ -230,6 +242,7 @@ export function QuickWatch() {
                       year: item.year ? Number(item.year) : undefined,
                       season: episode?.season,
                       episode: episode?.episode,
+                      airDate,
                       runtimeMin: data?.runtime ?? undefined,
                       preferredLang: useAppStore.getState().preferredAudioLang || "en",
                     }}
