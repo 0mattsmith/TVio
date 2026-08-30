@@ -243,6 +243,36 @@ export function installSpatialNav(): () => void {
       return;
     }
 
+    // Up from inside a horizontal row (a poster / cast strip): the row scrolls
+    // sideways, so "the column above" is meaningless — pressing Up from a poster
+    // partway along the row would otherwise find nothing above it and leave the
+    // section header unreachable from all but the first poster. If focusable
+    // header controls sit just above the row (and aren't themselves in a row —
+    // e.g. a collection's title and its ♡ button), jump to them, leftmost first
+    // (the title). Stacked rows with only a text heading between them have no such
+    // control, so they fall through to the normal column-preserving nav below.
+    if (dir === "up" && !overlay) {
+      const scroller = active.closest<HTMLElement>(".focus-scroller");
+      if (scroller) {
+        const rowTop = scroller.getBoundingClientRect().top;
+        const header = candidates.filter(
+          (c) => c.box.bottom <= rowTop + 4 && !c.el.closest(".focus-scroller")
+        );
+        if (header.length) {
+          const nearest = Math.max(...header.map((c) => c.box.bottom));
+          if (rowTop - nearest < 120) {
+            const band = header
+              .filter((c) => c.box.bottom >= nearest - 24)
+              .sort((a, b) => a.box.left - b.box.left);
+            e.preventDefault();
+            band[0].el.focus({ preventScroll: true });
+            band[0].el.scrollIntoView({ block: "nearest", inline: "nearest", behavior: "smooth" });
+            return;
+          }
+        }
+      }
+    }
+
     const r = active.getBoundingClientRect();
     const from: Box = { left: r.left, top: r.top, right: r.right, bottom: r.bottom };
     const next = pickBest(from, candidates, dir);

@@ -5,6 +5,7 @@ import { Hero } from "../components/Hero";
 import { Row } from "../components/Row";
 import { DemoBanner } from "../components/DemoBanner";
 import { trendingRow, popularRow, recommendationsRow } from "../services/catalog";
+import { getRecommendations } from "../services/simkl";
 import { useAppStore } from "../store/useAppStore";
 import { useReconcileProgress } from "../hooks/useReconcileProgress";
 import type { MediaItem } from "../services/types";
@@ -30,6 +31,17 @@ export function Home() {
     queryKey: ["home", "because", seed?.type ?? "none", seed?.id ?? 0],
     queryFn: () => (seed ? recommendationsRow(seed.type, seed.id) : trendingRow("movie")),
   });
+
+  // When Simkl is connected, prefer its own recommendations on Home (this screen
+  // is all about the user's profile). Only Home — the Movies/TV tabs stay
+  // per-service. Falls back to ours if Simkl returns nothing.
+  const simklOn = useAppStore((s) => !!s.simklToken);
+  const simklRecs = useQuery({
+    queryKey: ["home", "simkl-recs", seed?.type ?? "none", seed?.id ?? 0],
+    queryFn: () => (seed ? getRecommendations(seed.id, seed.type) : Promise.resolve([])),
+    enabled: simklOn && !!seed,
+  });
+  const useSimklRecs = simklOn && (simklRecs.data?.length ?? 0) > 0;
 
   const heroItem = trendMovies.data?.[0];
   const pct = (p: { positionSec: number; durationSec: number }) =>
@@ -80,7 +92,11 @@ export function Home() {
           </section>
         )}
 
-        <Row title={seed ? `Because You Watched ${seed.title}` : "Because You've Watched…"} items={because.data} loading={because.isLoading} />
+        {useSimklRecs ? (
+          <Row title="Recommended by Simkl" items={simklRecs.data} loading={simklRecs.isLoading} />
+        ) : (
+          <Row title={seed ? `Because You Watched ${seed.title}` : "Because You've Watched…"} items={because.data} loading={because.isLoading} />
+        )}
 
         <Row title="Trending Movies" items={trendMovies.data} loading={trendMovies.isLoading} />
         <Row title="Trending TV Shows" items={trendTv.data} loading={trendTv.isLoading} />

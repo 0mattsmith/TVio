@@ -3,6 +3,8 @@ import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe } from "lucide-react";
 import { FAST_PRESETS, fastPresetName, fastChannelsFeed, type FastPreset } from "../services/fastChannels";
+import { simklEnabled } from "../services/simkl";
+import { SimklConnectDialog } from "../components/SimklConnectDialog";
 import { AddWebChannelDialog } from "../components/AddWebChannelDialog";
 import type { LiveChannel } from "../store/useAppStore";
 import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
@@ -76,6 +78,7 @@ export function Settings() {
     browserEnabled, setBrowserEnabled,
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
     preferEnglish, setPreferEnglish,
+    simklToken, disconnectSimkl, syncSimkl,
     preferredAudioLang, setPreferredAudioLang,
     profiles, activeProfileId, addProfile, updateProfile, removeProfile, profileData, watchlist,
   } = useAppStore();
@@ -139,6 +142,17 @@ export function Settings() {
   const [epgName, setEpgName] = useState("");
   const [epgUrl, setEpgUrl] = useState("");
   const [fcUrl, setFcUrl] = useState("");
+  const [showSimkl, setShowSimkl] = useState(false);
+  const [simklBusy, setSimklBusy] = useState(false);
+  const [simklMsg, setSimklMsg] = useState("");
+  const simklOn = !!simklToken;
+  const runSimklSync = async () => {
+    setSimklBusy(true);
+    setSimklMsg("");
+    const r = await syncSimkl();
+    setSimklBusy(false);
+    setSimklMsg(r.ok ? "Synced with Simkl." : "Sync failed — try again.");
+  };
 
   // FAST presets add their M3U + EPG straight into the IPTV lists. A preset is
   // "on" when its playlist URL is present; toggling off removes both.
@@ -283,6 +297,40 @@ export function Settings() {
           </div>
           <Toggle on={preferEnglish} onClick={() => setPreferEnglish(!preferEnglish)} label="Prefer English-language titles" />
         </div>
+
+        {/* Simkl — optional cross-app sync (a free Trakt alternative). Only shown
+            when the build ships a Simkl client id. */}
+        {simklEnabled() && (
+          <div className="mt-6 rounded-xl border border-white/10 bg-surface p-4">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="flex items-center gap-2 text-sm font-bold">
+                  Simkl
+                  {simklOn && (
+                    <span className="rounded-full bg-accent-soft px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-accent">Connected</span>
+                  )}
+                </h3>
+                <p className="mt-0.5 text-xs text-muted">
+                  A free Trakt alternative. Sync your watchlist, favourites and watched history across apps and devices. When connected, your Home recommendations draw on your Simkl profile.
+                </p>
+              </div>
+              {simklOn ? (
+                <Button variant="ghost" onClick={disconnectSimkl}>Disconnect</Button>
+              ) : (
+                <Button variant="secondary" onClick={() => setShowSimkl(true)}>Connect</Button>
+              )}
+            </div>
+            {simklOn && (
+              <div className="mt-3 flex items-center gap-3">
+                <Button variant="secondary" onClick={runSimklSync}>
+                  <RefreshCw size={16} className={simklBusy ? "animate-spin" : ""} /> Sync now
+                </Button>
+                {simklMsg && <span className="text-xs text-muted">{simklMsg}</span>}
+              </div>
+            )}
+          </div>
+        )}
+        {showSimkl && <SimklConnectDialog onClose={() => setShowSimkl(false)} />}
 
         {/* Device layout — not on TV. The override exists so you can preview
             the TV layout from a PC; on an actual TV it's just a way to break

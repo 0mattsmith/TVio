@@ -4,10 +4,15 @@ import { doc, getDoc, onSnapshot, setDoc } from "firebase/firestore";
 import { auth, db, firebaseEnabled } from "./firebase";
 import { useAppStore } from "../store/useAppStore";
 import type { Addon, Profile, ProgressEntry, FavCollection } from "../store/useAppStore";
-import type { MediaItem } from "./types";
+import type { MediaItem, WatchedItem } from "./types";
 
 // While applying a remote snapshot we must not echo it back up to Firestore.
 let applyingRemote = false;
+
+// A per-launch id stamped on every write, so a device can tell its own echo
+// (Firestore replays local writes) from a genuine change made on another device
+// — only the latter drives the "added to your watchlist" toast.
+const SESSION = Math.random().toString(36).slice(2);
 
 function unionById(primary: MediaItem[], extra: MediaItem[]): MediaItem[] {
   const ids = new Set(primary.map((p) => p.id));
@@ -18,6 +23,15 @@ function unionCollections(primary: FavCollection[], extra: FavCollection[]): Fav
   const ids = new Set(primary.map((p) => p.id));
   return [...primary, ...extra.filter((e) => !ids.has(e.id))];
 }
+
+// Watched entries are keyed by id (+ season, for any legacy per-season rows).
+function unionWatched(primary: WatchedItem[], extra: WatchedItem[]): WatchedItem[] {
+  const key = (w: WatchedItem) => `${w.id}:${(w as { season?: number }).season ?? ""}`;
+  const seen = new Set(primary.map(key));
+  return [...primary, ...extra.filter((e) => !seen.has(key(e)))];
+}
+
+const unionKeys = (a: string[], b: string[]): string[] => [...new Set([...a, ...b])];
 
 /**
  * Pulls the sources saved on the account right now (rather than waiting for the
@@ -78,7 +92,13 @@ export function FirebaseSync() {
         const remoteWatch: MediaItem[] = (data?.watchlist as MediaItem[]) || [];
 
         // Account-level settings that should travel across devices.
-        type Bucket = { watchlist: MediaItem[]; progress: ProgressEntry[]; collections?: FavCollection[] };
+        type Bucket = {
+          watchlist: MediaItem[];
+          progress: ProgressEntry[];
+          collections?: FavCollection[];
+          watched?: WatchedItem[];
+          watchedEpisodes?: string[];
+        };
         const account: {
           tmdbKey?: string;
           tmdbRegion?: string;
@@ -109,6 +129,10 @@ export function FirebaseSync() {
         const activeProgress = bucket?.progress ?? data?.progress ?? useAppStore.getState().progress;
         const remoteCollections: FavCollection[] =
           bucket?.collections ?? (data?.collections as FavCollection[] | undefined) ?? [];
+        const remoteWatched: WatchedItem[] =
+          bucket?.watched ?? (data?.watched as WatchedItem[] | undefined) ?? [];
+        const remoteWatchedEps: string[] =
+          bucket?.watchedEpisodes ?? (data?.watchedEpisodes as string[] | undefined) ?? [];
 
         applyingRemote = true;
         if (!ready) {
@@ -116,16 +140,30 @@ export function FirebaseSync() {
           // list built on this device isn't wiped by another device's. No toast.
           const merged = unionById(activeWatch, useAppStore.getState().watchlist);
           const mergedCollections = unionCollections(remoteCollections, useAppStore.getState().collections);
+          const mergedWatched = unionWatched(remoteWatched, useAppStore.getState().watched);
+          const mergedWatchedEps = unionKeys(remoteWatchedEps, useAppStore.getState().watchedEpisodes);
           prevWatchIds = new Set(merged.map((w) => w.id));
-          useAppStore.setState({ watchlist: merged, progress: activeProgress, collections: mergedCollections, ...account });
+          useAppStore.setState({
+            watchlist: merged,
+            progress: activeProgress,
+            collections: mergedCollections,
+            watched: mergedWatched,
+            watchedEpisodes: mergedWatchedEps,
+            ...account,
+          });
           ready = true;
         } else {
-          const added = activeWatch.find((w) => !prevWatchIds.has(w.id));
+          // Only a write from ANOTHER device toasts — never this device's own
+          // echo (adding on the TV itself shouldn't pop its own notification).
+          const remoteWriter = !!data?.writerSession && data.writerSession !== SESSION;
+          const added = remoteWriter ? activeWatch.find((w) => !prevWatchIds.has(w.id)) : undefined;
           prevWatchIds = new Set(activeWatch.map((w) => w.id));
           useAppStore.setState({
             watchlist: activeWatch,
             progress: activeProgress,
             collections: remoteCollections,
+            watched: remoteWatched,
+            watchedEpisodes: remoteWatchedEps,
             ...account,
             ...(added ? { lastWatchlistAdd: { item: added, at: Date.now() } } : {}),
           });
@@ -142,6 +180,8 @@ export function FirebaseSync() {
         s.watchlist !== prev.watchlist ||
         s.progress !== prev.progress ||
         s.collections !== prev.collections ||
+        s.watched !== prev.watched ||
+        s.watchedEpisodes !== prev.watchedEpisodes ||
         s.tmdbKey !== prev.tmdbKey ||
         s.tmdbRegion !== prev.tmdbRegion ||
         s.addons !== prev.addons ||
@@ -158,15 +198,28 @@ export function FirebaseSync() {
             watchlist: s.watchlist,
             progress: s.progress,
             collections: s.collections,
+            watched: s.watched,
+            watchedEpisodes: s.watchedEpisodes,
             tmdbKey: s.tmdbKey,
             tmdbRegion: s.tmdbRegion,
             profiles: s.profiles,
             // Fold the active profile's live data into the per-profile buckets.
             profileData: s.activeProfileId
-              ? { ...s.profileData, [s.activeProfileId]: { watchlist: s.watchlist, progress: s.progress, collections: s.collections } }
+              ? {
+                  ...s.profileData,
+                  [s.activeProfileId]: {
+                    watchlist: s.watchlist,
+                    progress: s.progress,
+                    collections: s.collections,
+                    watched: s.watched,
+                    watchedEpisodes: s.watchedEpisodes,
+                  },
+                }
               : s.profileData,
             // Only sources the user opted to save to the account (default on).
             addons: s.addons.filter((a) => a.sync !== false && a.kind !== "builtin"),
+            // Stamp the writer so our own echo doesn't self-toast (see SESSION).
+            writerSession: SESSION,
           },
           { merge: true }
         ).catch(() => {});

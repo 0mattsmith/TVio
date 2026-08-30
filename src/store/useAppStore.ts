@@ -4,6 +4,7 @@ import { signOut as fbSignOut } from "firebase/auth";
 import { ALL_SERVICE_KEYS } from "../services/services";
 import { auth, firebaseEnabled } from "../services/firebase";
 import { configureTmdb } from "../services/tmdb";
+import { configureSimkl, pushLists, pullLists, simklConnected } from "../services/simkl";
 import type { MediaItem, WatchedItem } from "../services/types";
 
 export interface ProgressEntry extends MediaItem {
@@ -207,6 +208,12 @@ interface AppState {
   // hits). Cuts down the flood of non-English content in Trending/service rows.
   preferEnglish: boolean;
   setPreferEnglish: (v: boolean) => void;
+  // Optional Simkl account sync (a free Trakt alternative). Empty token = not
+  // connected. The connector lives in services/simkl.ts.
+  simklToken: string;
+  setSimklToken: (t: string) => void;
+  disconnectSimkl: () => void;
+  syncSimkl: () => Promise<{ ok: boolean }>;
   // Preferred audio language (ISO 639-1) for the native player's default track.
   preferredAudioLang: string;
   setPreferredAudioLang: (v: string) => void;
@@ -342,9 +349,11 @@ export const useAppStore = create<AppState>()(
       toggleWatchlist: (item) =>
         set((s) => {
           const exists = s.watchlist.some((w) => w.id === item.id);
+          // Note: adding locally does NOT raise the toast — that's only for adds
+          // made on ANOTHER device (surfaced by firebaseSync). Adding on the TV
+          // itself needs no notification.
           return {
             watchlist: exists ? s.watchlist.filter((w) => w.id !== item.id) : [{ ...item }, ...s.watchlist],
-            lastWatchlistAdd: exists ? s.lastWatchlistAdd : { item, at: Date.now() },
           };
         }),
       lastWatchlistAdd: null,
@@ -462,6 +471,24 @@ export const useAppStore = create<AppState>()(
       setTmdbRegion: (v) => set({ tmdbRegion: v.trim() }),
       preferEnglish: true,
       setPreferEnglish: (v) => set({ preferEnglish: v }),
+
+      simklToken: "",
+      setSimklToken: (t) => { configureSimkl(t); set({ simklToken: t }); },
+      disconnectSimkl: () => { configureSimkl(undefined); set({ simklToken: "" }); },
+      syncSimkl: async () => {
+        if (!simklConnected()) return { ok: false };
+        const s = get();
+        await pushLists(s.watchlist, s.watched);
+        const pulled = await pullLists();
+        // Union pulled Simkl items into the local lists (Simkl items are already
+        // WatchedItem-shaped — season optional).
+        const wlIds = new Set(s.watchlist.map((w) => w.id));
+        const watchlist = [...s.watchlist, ...pulled.watchlist.filter((p) => !wlIds.has(p.id))];
+        const wIds = new Set(s.watched.map((w) => w.id));
+        const watched = [...s.watched, ...pulled.watched.filter((p) => !wIds.has(p.id))];
+        set({ watchlist, watched });
+        return { ok: true };
+      },
       preferredAudioLang: "en",
       setPreferredAudioLang: (v) => set({ preferredAudioLang: v }),
       searchHistory: [],
@@ -590,6 +617,7 @@ export const useAppStore = create<AppState>()(
         tmdbKey: s.tmdbKey,
         tmdbRegion: s.tmdbRegion,
         preferEnglish: s.preferEnglish,
+        simklToken: s.simklToken,
         preferredAudioLang: s.preferredAudioLang,
         searchHistory: s.searchHistory,
         onboardingDone: s.onboardingDone,
@@ -622,4 +650,11 @@ useAppStore.subscribe((s, p) => {
   if (s.tmdbKey !== p.tmdbKey || s.tmdbRegion !== p.tmdbRegion || s.preferEnglish !== p.preferEnglish) {
     configureTmdb({ key: s.tmdbKey, region: s.tmdbRegion, preferEnglish: s.preferEnglish });
   }
+});
+
+// Apply the persisted Simkl token to its client at startup + on change (e.g.
+// after the store rehydrates from storage).
+configureSimkl(useAppStore.getState().simklToken);
+useAppStore.subscribe((s, p) => {
+  if (s.simklToken !== p.simklToken) configureSimkl(s.simklToken);
 });
