@@ -1,10 +1,12 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe } from "lucide-react";
-import { FAST_PRESETS, fastPresetName, fastChannelsFeed, type FastPreset } from "../services/fastChannels";
+import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe, ChevronDown } from "lucide-react";
+import { FAST_PRESETS } from "../services/fastChannels";
 import { simklEnabled } from "../services/simkl";
 import { SimklConnectDialog } from "../components/SimklConnectDialog";
+import { AddSourceDialog } from "../components/AddSourceDialog";
+import { FastChannelsDialog } from "../components/FastChannelsDialog";
 import { AddWebChannelDialog } from "../components/AddWebChannelDialog";
 import type { LiveChannel } from "../store/useAppStore";
 import { SERVICES, OTHER_SERVICE, ALL_SERVICE_KEYS } from "../services/services";
@@ -137,11 +139,9 @@ export function Settings() {
     );
     setSyncing(false);
   };
-  const [plName, setPlName] = useState("");
-  const [plUrl, setPlUrl] = useState("");
-  const [epgName, setEpgName] = useState("");
-  const [epgUrl, setEpgUrl] = useState("");
-  const [fcUrl, setFcUrl] = useState("");
+  const [showAddPlaylist, setShowAddPlaylist] = useState(false);
+  const [showAddEpg, setShowAddEpg] = useState(false);
+  const [showFast, setShowFast] = useState(false);
   const [showSimkl, setShowSimkl] = useState(false);
   const [simklBusy, setSimklBusy] = useState(false);
   const [simklMsg, setSimklMsg] = useState("");
@@ -154,25 +154,10 @@ export function Settings() {
     setSimklMsg(r.ok ? "Synced with Simkl." : "Sync failed — try again.");
   };
 
-  // FAST presets add their M3U + EPG straight into the IPTV lists. A preset is
-  // "on" when its playlist URL is present; toggling off removes both.
-  const fastOn = (preset: FastPreset) => iptvPlaylists.some((p) => p.url === preset.m3u);
-  const toggleFast = (preset: FastPreset) => {
-    if (fastOn(preset)) {
-      iptvPlaylists.filter((p) => p.url === preset.m3u).forEach((p) => removeIptvPlaylist(p.id));
-      iptvEpgUrls.filter((e) => e.url === preset.epg).forEach((e) => removeIptvEpg(e.id));
-    } else {
-      addIptvPlaylist(fastPresetName(preset), preset.m3u);
-      addIptvEpg(fastPresetName(preset), preset.epg);
-    }
-  };
-  const addFastServer = () => {
-    if (!fcUrl.trim()) return;
-    const { m3u, epg } = fastChannelsFeed(fcUrl);
-    if (!iptvPlaylists.some((p) => p.url === m3u)) addIptvPlaylist("FastChannels", m3u);
-    if (!iptvEpgUrls.some((e) => e.url === epg)) addIptvEpg("FastChannels", epg);
-    setFcUrl("");
-  };
+  // How many FAST sources are on (region presets + a FastChannels server feed).
+  const fastCount =
+    FAST_PRESETS.filter((p) => iptvPlaylists.some((x) => x.url === p.m3u)).length +
+    (iptvPlaylists.some((x) => /\/feeds\/[^/]+\/m3u$/.test(x.url)) ? 1 : 0);
   const [showAddChannel, setShowAddChannel] = useState(false);
   const [editChannel, setEditChannel] = useState<LiveChannel | null>(null);
   const closeChannelDialog = () => {
@@ -701,15 +686,14 @@ export function Settings() {
             </div>
             {iptvEnabled && (
               <div className="mt-5 space-y-6">
-            {/* Playlists */}
+            {/* Playlists — added via a focus-locked popup so the fields aren't
+                loose focus targets on the page. */}
             <div>
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><ListVideo size={16} className="text-accent" /> M3U Playlists</div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input value={plName} onChange={(e) => setPlName(e.target.value)} placeholder="Name" className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent sm:w-40" />
-                <input value={plUrl} onChange={(e) => setPlUrl(e.target.value)} placeholder="https://…/playlist.m3u" className="focusable min-w-0 flex-1 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent" />
-                <Button onClick={() => { if (plUrl.trim()) { addIptvPlaylist(plName, plUrl); setPlName(""); setPlUrl(""); } }}><Plus size={16} /> Add</Button>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-semibold"><ListVideo size={16} className="text-accent" /> M3U Playlists</div>
+                <Button variant="secondary" id="add-playlist-btn" onClick={() => setShowAddPlaylist(true)}><Plus size={16} /> Add</Button>
               </div>
-              <ul className="mt-3 space-y-2">
+              <ul className="space-y-2">
                 {iptvPlaylists.map((p) => (
                   <li key={p.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-4 py-3">
                     <div className="min-w-0">
@@ -725,13 +709,11 @@ export function Settings() {
 
             {/* EPG */}
             <div>
-              <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><CalendarClock size={16} className="text-accent" /> EPG guides (XMLTV)</div>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input value={epgName} onChange={(e) => setEpgName(e.target.value)} placeholder="Name" className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent sm:w-40" />
-                <input value={epgUrl} onChange={(e) => setEpgUrl(e.target.value)} placeholder="https://…/epg.xml  (.xml or .xml.gz)" className="focusable min-w-0 flex-1 rounded-lg border border-white/10 bg-surface-2 px-3 py-2.5 text-sm outline-none focus:border-accent" />
-                <Button onClick={() => { if (epgUrl.trim()) { addIptvEpg(epgName, epgUrl); setEpgName(""); setEpgUrl(""); } }}><Plus size={16} /> Add</Button>
+              <div className="mb-2 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 text-sm font-semibold"><CalendarClock size={16} className="text-accent" /> EPG guides (XMLTV)</div>
+                <Button variant="secondary" id="add-epg-btn" onClick={() => setShowAddEpg(true)}><Plus size={16} /> Add</Button>
               </div>
-              <ul className="mt-3 space-y-2">
+              <ul className="space-y-2">
                 {iptvEpgUrls.map((u) => (
                   <li key={u.id} className="flex items-center justify-between gap-3 rounded-lg bg-surface-2 px-4 py-3">
                     <div className="min-w-0">
@@ -745,50 +727,47 @@ export function Settings() {
               </ul>
             </div>
 
-                {/* FAST channels — one-tap public presets + a FastChannels server. */}
+                {/* FAST channels — an expandable, focus-locked panel (opens the
+                    dark-blurred overlay; Back folds it away). */}
                 <div>
-                  <div className="mb-1 flex items-center gap-2 text-sm font-semibold"><Zap size={16} className="text-accent" /> FAST channels</div>
-                  <p className="mb-3 text-xs text-muted">
-                    Free ad-supported channels (Pluto TV, Samsung TV Plus, Plex). Tap to add a region's playlist &amp; guide to the TV Guide above.
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {FAST_PRESETS.map((p) => {
-                      const on = fastOn(p);
-                      return (
-                        <button
-                          key={p.key}
-                          onClick={() => toggleFast(p)}
-                          aria-pressed={on}
-                          className={`focusable flex items-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-semibold ${
-                            on ? "border-accent bg-accent-soft text-accent" : "border-white/10 bg-surface-2 text-muted hover:text-white"
-                          }`}
-                        >
-                          {on ? <Check size={14} /> : <Plus size={14} />} {fastPresetName(p)}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  <div className="mt-4 rounded-lg border border-white/10 bg-surface-2 p-3">
-                    <div className="mb-1 flex items-center gap-2 text-xs font-semibold"><Server size={14} className="text-accent" /> FastChannels server</div>
-                    <p className="mb-2 text-[11px] text-muted">
-                      Running FastChannels (Docker)? Paste its address to load your own always-fresh lineup and guide.
-                    </p>
-                    <div className="flex flex-col gap-2 sm:flex-row">
-                      <input
-                        value={fcUrl}
-                        onChange={(e) => setFcUrl(e.target.value)}
-                        placeholder="http://192.168.1.50:5523"
-                        className="focusable min-w-0 flex-1 rounded-lg border border-white/10 bg-surface px-3 py-2.5 text-sm outline-none focus:border-accent"
-                      />
-                      <Button onClick={addFastServer}><Plus size={16} /> Add server</Button>
-                    </div>
-                  </div>
+                  <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Zap size={16} className="text-accent" /> FAST channels</div>
+                  <button
+                    onClick={() => setShowFast(true)}
+                    className="focusable flex w-full items-center justify-between gap-2 rounded-lg border border-white/10 bg-surface-2 px-4 py-3 text-left"
+                  >
+                    <span className="min-w-0">
+                      <span className="block text-sm font-semibold">Pluto TV, Samsung TV Plus, Plex…</span>
+                      <span className="block text-[11px] text-muted">
+                        {fastCount > 0 ? `${fastCount} added` : "Free ad-supported channels — choose your regions"}
+                      </span>
+                    </span>
+                    <ChevronDown size={18} className="shrink-0 text-muted" />
+                  </button>
                 </div>
 
                 <p className="text-xs text-muted">
                   Note: some IPTV/EPG servers block browser (CORS) requests. If a source won't load in the web app it will still work in the Android / desktop builds.
                 </p>
+
+                {showAddPlaylist && (
+                  <AddSourceDialog
+                    title="Add M3U playlist"
+                    subtitle="A name and the playlist URL (.m3u / .m3u8)."
+                    urlPlaceholder="https://…/playlist.m3u"
+                    onClose={() => { setShowAddPlaylist(false); requestAnimationFrame(() => document.getElementById("add-playlist-btn")?.focus()); }}
+                    onSave={(v) => addIptvPlaylist(v.name || "Playlist", v.url)}
+                  />
+                )}
+                {showAddEpg && (
+                  <AddSourceDialog
+                    title="Add EPG guide"
+                    subtitle="XMLTV guide URL — .xml or .xml.gz."
+                    urlPlaceholder="https://…/epg.xml"
+                    onClose={() => { setShowAddEpg(false); requestAnimationFrame(() => document.getElementById("add-epg-btn")?.focus()); }}
+                    onSave={(v) => addIptvEpg(v.name || "EPG", v.url)}
+                  />
+                )}
+                {showFast && <FastChannelsDialog onClose={() => setShowFast(false)} />}
               </div>
             )}
           </div>
