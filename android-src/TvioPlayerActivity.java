@@ -150,6 +150,19 @@ public class TvioPlayerActivity extends Activity {
                     stallHandler.removeCallbacks(stallRunnable);
                 }
             }
+
+            // A decode/extractor/network failure. Surface WHY (error code name +
+            // message) so a file that won't play isn't just a frozen black screen,
+            // then close back to the app rather than hanging.
+            @Override
+            public void onPlayerError(androidx.media3.common.PlaybackException error) {
+                stallHandler.removeCallbacks(stallRunnable);
+                String msg = error.getErrorCodeName();
+                if (error.getMessage() != null) msg += " — " + error.getMessage();
+                android.widget.Toast.makeText(
+                        TvioPlayerActivity.this, "Can't play this file: " + msg, android.widget.Toast.LENGTH_LONG).show();
+                if (!isFinishing()) reportAndFinish(false);
+            }
         });
 
         addOverlayControls();
