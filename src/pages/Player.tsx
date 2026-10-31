@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { CastButton } from "../components/CastButton";
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
@@ -41,9 +41,18 @@ export function Player() {
   // `auto` marks a stream that started from autoplay-next (so a total failure
   // opens the source list rather than a dead-end error).
   const st = location.state as
-    | { url?: string; name?: string; filename?: string; size?: number; queue?: { url: string; name: string }[]; auto?: boolean }
+    | { url?: string; name?: string; filename?: string; size?: number; queue?: { url: string; name: string }[]; auto?: boolean; parts?: string[] }
     | null;
-  const streamUrl = st?.url;
+  // A pinned episode can be several files played back-to-back (a split PPV /
+  // two-disc DVD). Everything else is a single part.
+  const partsList = useMemo(
+    () => (st?.parts && st.parts.length ? st.parts : st?.url ? [st.url] : []),
+    [st?.parts, st?.url]
+  );
+  const [partIndex, setPartIndex] = useState(0);
+  useEffect(() => { setPartIndex(0); }, [partsList]);
+  const streamUrl = partsList[partIndex];
+  const multiPart = partsList.length > 1;
   const streamName = st?.name;
   const queue = st?.queue ?? [];
   const params = new URLSearchParams(location.search);
@@ -272,7 +281,7 @@ export function Player() {
     if (!nativeVideo || !streamUrl || resumeChoice === "pending") return; // wait for Continue / Start over
     let cancelled = false;
     (async () => {
-      const startSec = resumeChoice === "restart" ? 0 : resumeSec;
+      const startSec = partIndex > 0 ? 0 : resumeChoice === "restart" ? 0 : resumeSec;
       try {
         const res = await playNative({
           url: streamUrl,
@@ -295,6 +304,7 @@ export function Player() {
         // don't fall through to the progress-save below, which would re-add the
         // finished episode we just advanced past.
         if (finished) {
+          if (partIndex < partsList.length - 1) { setPartIndex((i) => i + 1); return; } // play the next part
           if (type === "tv") {
             if (onEpisodeFinished()) return; // next queued → stay for the "Up next" prompt
             navigate(-1); return;            // show complete / caught up → state already set
@@ -426,8 +436,8 @@ export function Player() {
       const r = await attachStream(v, playable);
       if (!active) return r.cleanup();
       cleanup = r.cleanup;
-      // Resume from the saved position when the user chose Continue.
-      if (resumeChoice === "resume" && resumeSec > 0) {
+      // Resume from the saved position when the user chose Continue (first part only).
+      if (resumeChoice === "resume" && resumeSec > 0 && partIndex === 0) {
         const seek = () => { try { v.currentTime = resumeSec; } catch { /* not seekable yet */ } };
         if (v.readyState >= 1) seek();
         else v.addEventListener("loadedmetadata", seek, { once: true });
@@ -475,6 +485,7 @@ export function Player() {
           if (buffering) onBufferEnd(); // frames are advancing → not stuck
         }}
         onEnded={() => {
+          if (partIndex < partsList.length - 1) { setPartIndex((i) => i + 1); return; } // next part
           if (onEpisodeFinished()) return; // tv episode: marked watched + advanced
           if (type !== "tv") onMovieFinished(); // film: out of CW, next in series queued
           toDetail();
@@ -585,7 +596,7 @@ export function Player() {
           <div className="min-w-0">
             <div className="truncate text-lg font-bold">{data?.title || "Now Playing"}</div>
             <div className="truncate text-xs text-white/60">
-              {[epLabel, streamName || (streamUrl ? "Addon source" : "Sample video")].filter(Boolean).join("  ·  ")}
+              {[epLabel, multiPart ? `Part ${partIndex + 1} of ${partsList.length}` : "", streamName || (streamUrl ? "Addon source" : "Sample video")].filter(Boolean).join("  ·  ")}
             </div>
           </div>
         </div>

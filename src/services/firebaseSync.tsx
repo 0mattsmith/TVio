@@ -136,9 +136,9 @@ export function FirebaseSync() {
           bucket?.watched ?? (data?.watched as WatchedItem[] | undefined) ?? [];
         const remoteWatchedEps: string[] =
           bucket?.watchedEpisodes ?? (data?.watchedEpisodes as string[] | undefined) ?? [];
-        const remotePins: Record<string, TorboxPin> =
+        const remotePins: Record<string, TorboxPin | TorboxPin[]> =
           (data?.pinnedSources && typeof data.pinnedSources === "object"
-            ? (data.pinnedSources as Record<string, TorboxPin>)
+            ? (data.pinnedSources as Record<string, TorboxPin | TorboxPin[]>)
             : {});
 
         applyingRemote = true;

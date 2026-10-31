@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { X, FileVideo, Link2Off } from "lucide-react";
+import { X, FileVideo, Link2Off, Layers } from "lucide-react";
 import { listLibrary, type TorboxFile } from "../services/torbox";
 import { useOverlayBack } from "../hooks/useOverlayBack";
 import { humanSize } from "../addons/manager";
@@ -22,7 +22,7 @@ export function TorboxPickerDialog({
   defaultYear,
 }: {
   onClose: () => void;
-  onPick: (file: TorboxFile) => void;
+  onPick: (files: TorboxFile[]) => void;
   onUnlink?: () => void;
   /** Show words (e.g. ["raw"]) — the list defaults to files containing one. */
   filterTokens?: string[];
@@ -32,7 +32,12 @@ export function TorboxPickerDialog({
   const [q, setQ] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [yearSel, setYearSel] = useState<string>(defaultYear || "all");
+  // Multi-part mode: build an ordered list of files (e.g. a split PPV / 2-disc DVD).
+  const [multi, setMulti] = useState(false);
+  const [selected, setSelected] = useState<TorboxFile[]>([]);
   const rootRef = useRef<HTMLDivElement>(null);
+  const fileId = (f: TorboxFile) => `${f.type}:${f.id}:${f.fileId}`;
+  const selIndex = (f: TorboxFile) => selected.findIndex((s) => fileId(s) === fileId(f));
 
   useOverlayBack(true, onClose);
 
@@ -142,6 +147,37 @@ export function TorboxPickerDialog({
           )}
         </div>
 
+        {/* Multi-part: build an ordered list for a split PPV / two-disc episode. */}
+        <div className="mb-2 flex items-center justify-between gap-2">
+          <button
+            onClick={() => { setMulti((v) => !v); setSelected([]); }}
+            aria-pressed={multi}
+            className={`focusable inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
+              multi ? "border-accent bg-accent-soft text-accent" : "border-white/10 text-muted hover:text-white"
+            }`}
+          >
+            <Layers size={13} /> {multi ? "Multi-part on" : "Multi-part"}
+          </button>
+          {multi && <span className="text-[11px] text-muted">Tap files in play order</span>}
+        </div>
+        {multi && selected.length > 0 && (
+          <div className="mb-2 space-y-1">
+            {selected.map((f, i) => (
+              <div key={fileId(f)} className="flex items-center gap-2 rounded-md bg-surface-2 px-2 py-1.5 text-xs">
+                <span className="shrink-0 font-bold text-accent">{i + 1}.</span>
+                <span className="min-w-0 flex-1 truncate">{f.name}</span>
+                <button
+                  onClick={() => setSelected((sel) => sel.filter((s) => fileId(s) !== fileId(f)))}
+                  className="focusable shrink-0 text-muted hover:text-red-400"
+                  aria-label="Remove part"
+                >
+                  <X size={13} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+
         <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto">
           {isLoading ? (
             Array.from({ length: 6 }).map((_, i) => <div key={i} className="skeleton h-12 rounded-lg" />)
@@ -156,21 +192,49 @@ export function TorboxPickerDialog({
                   : "No files match."}
             </p>
           ) : (
-            files.map((f) => (
-              <button
-                key={`${f.type}-${f.id}-${f.fileId}`}
-                onClick={() => { onPick(f); onClose(); }}
-                className="focusable flex w-full items-center gap-3 rounded-lg bg-surface-2 px-3 py-2.5 text-left hover:bg-white/10"
-              >
-                <FileVideo size={16} className="shrink-0 text-accent" />
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-sm font-semibold">{f.name}</div>
-                  <div className="truncate text-[11px] text-muted">{[f.item, humanSize(f.size)].filter(Boolean).join("  ·  ")}</div>
-                </div>
-              </button>
-            ))
+            files.map((f) => {
+              const idx = multi ? selIndex(f) : -1;
+              return (
+                <button
+                  key={`${f.type}-${f.id}-${f.fileId}`}
+                  onClick={() => {
+                    if (multi) {
+                      setSelected((sel) => (selIndex(f) >= 0 ? sel.filter((s) => fileId(s) !== fileId(f)) : [...sel, f]));
+                    } else {
+                      onPick([f]);
+                      onClose();
+                    }
+                  }}
+                  className={`focusable flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left hover:bg-white/10 ${
+                    idx >= 0 ? "bg-accent-soft" : "bg-surface-2"
+                  }`}
+                >
+                  {multi ? (
+                    <span className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${idx >= 0 ? "bg-accent text-black" : "border border-white/30 text-muted"}`}>
+                      {idx >= 0 ? idx + 1 : ""}
+                    </span>
+                  ) : (
+                    <FileVideo size={16} className="shrink-0 text-accent" />
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <div className={`truncate text-sm font-semibold ${idx >= 0 ? "text-accent" : ""}`}>{f.name}</div>
+                    <div className="truncate text-[11px] text-muted">{[f.item, humanSize(f.size)].filter(Boolean).join("  ·  ")}</div>
+                  </div>
+                </button>
+              );
+            })
           )}
         </div>
+
+        {multi && (
+          <button
+            disabled={selected.length === 0}
+            onClick={() => { onPick(selected); onClose(); }}
+            className="focusable mt-3 w-full rounded-lg bg-accent py-2.5 text-sm font-bold text-black disabled:opacity-40"
+          >
+            Link {selected.length} part{selected.length === 1 ? "" : "s"}
+          </button>
+        )}
       </div>
     </div>
   );

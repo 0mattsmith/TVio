@@ -64,6 +64,20 @@ export function pinKey(type: "movie" | "tv", id: number, season?: number, episod
   return type === "tv" && season != null && episode != null ? `tv:${id}:${season}:${episode}` : `movie:${id}`;
 }
 
+/**
+ * A pinned value is either a single file or an ordered list of parts (e.g. a
+ * split PPV / two-disc DVD). Normalise both shapes to an array.
+ */
+export function asParts(v: TorboxPin | TorboxPin[] | undefined): TorboxPin[] {
+  return v ? (Array.isArray(v) ? v : [v]) : [];
+}
+
+/** Resolve every part to a fresh playable URL, in order (drops any that fail). */
+export async function resolveParts(parts: TorboxPin[]): Promise<string[]> {
+  const urls = await Promise.all(parts.map((p) => resolveLink(p)));
+  return urls.filter((u): u is string => !!u);
+}
+
 /** One playable file inside the user's library. */
 export interface TorboxFile extends TorboxPin {
   name: string; // the file's own (short) name

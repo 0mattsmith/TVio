@@ -13,7 +13,7 @@ import { useIsTV } from "../hooks/useDeviceProfile";
 import { useOverlayBack } from "../hooks/useOverlayBack";
 import { fetchStreams, isWebPlayable, isHttpAddon, streamTitle, streamSubtitle, humanSize } from "../addons/manager";
 import { rankByTitleMatch, isForeignOnly, hasEnglishTag, type StreamExpectation, type MatchVerdict, type StreamCheck } from "../addons/match";
-import { pinKey, resolveLink, torboxConnected, type TorboxFile } from "../services/torbox";
+import { pinKey, resolveParts, asParts, torboxConnected, type TorboxFile, type TorboxPin } from "../services/torbox";
 import { TorboxPickerDialog } from "./TorboxPickerDialog";
 import type { Stream } from "../addons/types";
 import { hasNativePlayback } from "../platform/capabilities";
@@ -161,18 +161,22 @@ export function QuickWatch() {
     close();
   };
 
-  // A pinned owned file (TorBox) for this exact title/episode, if any.
+  // A pinned owned file (TorBox) for this title/episode — one file, or an ordered
+  // list of parts (split PPV / two-disc DVD).
   const pinK = pinKey(item.type, item.id, episode?.season, episode?.episode);
-  const pin = pinnedSources[pinK];
-  // Play the pinned file: re-resolve to a fresh URL (never goes stale), then go.
+  const parts = asParts(pinnedSources[pinK]);
+  const hasPin = parts.length > 0;
+  const pinLabel = parts[0]?.label || "Pinned owned file";
+  const toPin = (f: TorboxFile): TorboxPin => ({ type: f.type, id: f.id, fileId: f.fileId, label: f.name });
+  // Play the pin: re-resolve every part to a fresh URL, then play back-to-back.
   const playPinned = async () => {
-    if (!pin) return;
+    if (!hasPin) return;
     setPinError("");
     setPinBusy(true);
-    const url = await resolveLink(pin);
+    const urls = await resolveParts(parts);
     setPinBusy(false);
-    if (url) {
-      navigate(`/watch/${item.type}/${item.id}${epQuery}`, { state: { url, name: pin.label || "TorBox file" } });
+    if (urls.length) {
+      navigate(`/watch/${item.type}/${item.id}${epQuery}`, { state: { url: urls[0], parts: urls, name: pinLabel } });
       close();
     } else {
       setPinError("Couldn't get a link from TorBox — the file may have been removed.");
@@ -240,13 +244,15 @@ export function QuickWatch() {
               no searching; otherwise offer to link one. */}
           {torboxConnected() && (
             <div className="mb-3">
-              {pin ? (
+              {hasPin ? (
                 <div className="rounded-lg border border-accent/40 bg-accent-soft p-2">
                   <button onClick={playPinned} className="focusable flex w-full items-center gap-2 rounded-md px-2 py-2 text-left">
                     <Play size={16} className="shrink-0 text-accent" fill="currentColor" />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-bold text-accent">{pinBusy ? "Opening…" : "Your file · TorBox"}</span>
-                      <span className="block truncate text-[11px] text-accent/80">{pin.label || "Pinned owned file"}</span>
+                      <span className="block truncate text-sm font-bold text-accent">
+                        {pinBusy ? "Opening…" : parts.length > 1 ? `Your file · ${parts.length} parts` : "Your file · TorBox"}
+                      </span>
+                      <span className="block truncate text-[11px] text-accent/80">{pinLabel}</span>
                     </span>
                   </button>
                   <div className="mt-1 flex gap-3 px-2">
@@ -377,7 +383,7 @@ export function QuickWatch() {
     {showTorboxPicker && (
       <TorboxPickerDialog
         onClose={() => setShowTorboxPicker(false)}
-        onPick={(f: TorboxFile) => pinSource(pinK, { type: f.type, id: f.id, fileId: f.fileId, label: f.name })}
+        onPick={(files: TorboxFile[]) => pinSource(pinK, files.length === 1 ? toPin(files[0]) : files.map(toPin))}
       />
     )}
     </>

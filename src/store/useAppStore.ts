@@ -222,8 +222,9 @@ interface AppState {
   // Episodes/movies pinned to a specific owned TorBox file (key = pinKey()).
   // A pin is a stable {type,id,fileId} reference, re-resolved to a fresh URL at
   // play time, so it never goes stale and never needs a search.
-  pinnedSources: Record<string, TorboxPin>;
-  pinSource: (key: string, pin: TorboxPin) => void;
+  // A pin is one file, or an ordered list of parts (split PPV / two-disc DVD).
+  pinnedSources: Record<string, TorboxPin | TorboxPin[]>;
+  pinSource: (key: string, pin: TorboxPin | TorboxPin[]) => void;
   pinSources: (entries: Record<string, TorboxPin>) => void;
   unpinSource: (key: string) => void;
   // Preferred audio language (ISO 639-1) for the native player's default track.

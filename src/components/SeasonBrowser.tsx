@@ -8,7 +8,7 @@ import { defaultSeason } from "../services/nextEpisode";
 import { useAppStore } from "../store/useAppStore";
 import { EpisodeActions } from "./EpisodeActions";
 import { TorboxPickerDialog } from "./TorboxPickerDialog";
-import { torboxConnected, listLibrary, pinKey, type TorboxPin } from "../services/torbox";
+import { torboxConnected, listLibrary, pinKey, asParts, type TorboxPin } from "../services/torbox";
 import { autoLinkEpisodes, titleTokens } from "../services/torboxLink";
 
 /** Hold OK this long on an episode to open its actions (mark watched, etc.). */
@@ -29,12 +29,13 @@ function EpisodeRow({
   season: number;
   ep: Episode;
   watched: boolean;
-  pin?: TorboxPin;
+  pin?: TorboxPin | TorboxPin[];
   connected: boolean;
   onHold: () => void;
   onRelink: () => void;
 }) {
   const play = usePlay();
+  const parts = asParts(pin);
   const holdTimer = useRef<number>();
   const opened = useRef(false);
   const start = () => play(series, { season, episode: ep.episodeNumber });
@@ -89,11 +90,11 @@ function EpisodeRow({
         {/* Linked TorBox file — the name to verify, with a pencil to change it;
             or a one-tap Link when nothing's pinned yet. */}
         {connected && (
-          pin ? (
+          parts.length > 0 ? (
             <div className="mt-1.5 flex items-center gap-1.5">
               <span className="inline-flex min-w-0 items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent">
                 <HardDrive size={11} className="shrink-0" />
-                <span className="truncate">{pin.label || "Linked file"}</span>
+                <span className="truncate">{parts[0]?.label || "Linked file"}{parts.length > 1 ? ` (+${parts.length - 1})` : ""}</span>
               </span>
               <button
                 onClick={(e) => { e.stopPropagation(); onRelink(); }}
@@ -257,14 +258,13 @@ export function SeasonBrowser({
               : undefined
           }
           onClose={() => setRelinkEp(null)}
-          onPick={(f) =>
-            pinSource(pinKey("tv", series.id, sel, relinkEp.episodeNumber), {
-              type: f.type,
-              id: f.id,
-              fileId: f.fileId,
-              label: f.name,
-            })
-          }
+          onPick={(files) => {
+            const toPin = (f: (typeof files)[number]) => ({ type: f.type, id: f.id, fileId: f.fileId, label: f.name });
+            pinSource(
+              pinKey("tv", series.id, sel, relinkEp.episodeNumber),
+              files.length === 1 ? toPin(files[0]) : files.map(toPin)
+            );
+          }}
         />
       )}
     </section>
