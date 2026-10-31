@@ -102,6 +102,7 @@ export function FirebaseSync() {
         const account: {
           tmdbKey?: string;
           tmdbRegion?: string;
+          torboxKey?: string;
           addons?: Addon[];
           profiles?: Profile[];
           profileData?: Record<string, Bucket>;
@@ -112,6 +113,7 @@ export function FirebaseSync() {
         }
         if (typeof data?.tmdbKey === "string") account.tmdbKey = data.tmdbKey;
         if (typeof data?.tmdbRegion === "string") account.tmdbRegion = data.tmdbRegion;
+        if (typeof data?.torboxKey === "string") account.torboxKey = data.torboxKey;
         if (Array.isArray(data?.addons)) {
           // Remote holds only account-synced sources. Keep this device's
           // built-in + device-only sources and append the synced ones.
@@ -184,6 +186,7 @@ export function FirebaseSync() {
         s.watchedEpisodes !== prev.watchedEpisodes ||
         s.tmdbKey !== prev.tmdbKey ||
         s.tmdbRegion !== prev.tmdbRegion ||
+        s.torboxKey !== prev.torboxKey ||
         s.addons !== prev.addons ||
         s.profiles !== prev.profiles ||
         s.profileData !== prev.profileData;
@@ -202,6 +205,7 @@ export function FirebaseSync() {
             watchedEpisodes: s.watchedEpisodes,
             tmdbKey: s.tmdbKey,
             tmdbRegion: s.tmdbRegion,
+            torboxKey: s.torboxKey,
             profiles: s.profiles,
             // Fold the active profile's live data into the per-profile buckets.
             profileData: s.activeProfileId

@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
-import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe, ChevronDown } from "lucide-react";
+import { LogOut, Puzzle, MonitorPlay, Trash2, Server, ListVideo, Zap, Plus, Tv, Smartphone, Monitor, Sparkles, Radio, CalendarClock, Lock, Users, Pencil, RefreshCw, Check, X, Globe, ChevronDown, HardDrive } from "lucide-react";
 import { FAST_PRESETS } from "../services/fastChannels";
 import { simklEnabled } from "../services/simkl";
 import { SimklConnectDialog } from "../components/SimklConnectDialog";
@@ -81,6 +81,7 @@ export function Settings() {
     tmdbKey, setTmdbKey, tmdbRegion, setTmdbRegion,
     preferEnglish, setPreferEnglish,
     simklToken, disconnectSimkl, syncSimkl,
+    torboxKey, setTorboxKey,
     preferredAudioLang, setPreferredAudioLang,
     profiles, activeProfileId, addProfile, updateProfile, removeProfile, profileData, watchlist,
   } = useAppStore();
@@ -143,6 +144,7 @@ export function Settings() {
   const [showAddEpg, setShowAddEpg] = useState(false);
   const [showFast, setShowFast] = useState(false);
   const [showSimkl, setShowSimkl] = useState(false);
+  const [showTorbox, setShowTorbox] = useState(false);
   const [simklBusy, setSimklBusy] = useState(false);
   const [simklMsg, setSimklMsg] = useState("");
   const simklOn = !!simklToken;
@@ -923,6 +925,43 @@ export function Settings() {
           </div>
         </div>
       </section>
+
+      {/* TorBox — your own debrid library + episode pinning. */}
+      <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">
+        <h2 className="flex items-center gap-2 text-lg font-bold"><HardDrive size={18} /> TorBox</h2>
+        <p className="mt-1 text-sm text-muted">
+          Connect TorBox to browse your own library and pin episodes to owned files — great for personal recordings and DVD rips. A pinned episode always plays that exact file, with no searching.
+        </p>
+        <div className="mt-4 flex items-center justify-between gap-4">
+          <div className="min-w-0">
+            <div className="text-sm font-semibold">API key</div>
+            <div className="text-xs text-muted">
+              {torboxKey
+                ? <span className="text-accent">● Connected · ••••{torboxKey.slice(-4)}</span>
+                : "Not connected — get your key from torbox.app → Settings → API."}
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            <Button variant="secondary" onClick={() => setShowTorbox(true)}>{torboxKey ? "Change" : "Connect"}</Button>
+            {torboxKey && (
+              <button onClick={() => setTorboxKey("")} className="focusable text-muted hover:text-red-400" aria-label="Remove TorBox key"><Trash2 size={16} /></button>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {showTorbox && (
+        <AddSourceDialog
+          title="TorBox API key"
+          subtitle="Paste your TorBox API key (torbox.app → Settings → API)."
+          withName={false}
+          urlPlaceholder="TorBox API key"
+          initialUrl={torboxKey}
+          saveLabel="Save"
+          onClose={() => setShowTorbox(false)}
+          onSave={(v) => setTorboxKey(v.url)}
+        />
+      )}
       </>
       ) : (
         <section className="mt-6 rounded-xl border border-white/5 bg-surface p-6">

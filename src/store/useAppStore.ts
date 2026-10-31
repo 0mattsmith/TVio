@@ -5,6 +5,7 @@ import { ALL_SERVICE_KEYS } from "../services/services";
 import { auth, firebaseEnabled } from "../services/firebase";
 import { configureTmdb } from "../services/tmdb";
 import { configureSimkl, pushLists, pullLists, simklConnected } from "../services/simkl";
+import { configureTorbox } from "../services/torbox";
 import type { MediaItem, WatchedItem } from "../services/types";
 
 export interface ProgressEntry extends MediaItem {
@@ -214,6 +215,10 @@ interface AppState {
   setSimklToken: (t: string) => void;
   disconnectSimkl: () => void;
   syncSimkl: () => Promise<{ ok: boolean }>;
+  // TorBox (debrid) API key — enables browsing your own library and pinning
+  // episodes to owned files. Empty = not connected.
+  torboxKey: string;
+  setTorboxKey: (v: string) => void;
   // Preferred audio language (ISO 639-1) for the native player's default track.
   preferredAudioLang: string;
   setPreferredAudioLang: (v: string) => void;
@@ -472,6 +477,9 @@ export const useAppStore = create<AppState>()(
       preferEnglish: true,
       setPreferEnglish: (v) => set({ preferEnglish: v }),
 
+      torboxKey: "",
+      setTorboxKey: (v) => { configureTorbox(v); set({ torboxKey: v.trim() }); },
+
       simklToken: "",
       setSimklToken: (t) => { configureSimkl(t); set({ simklToken: t }); },
       disconnectSimkl: () => { configureSimkl(undefined); set({ simklToken: "" }); },
@@ -618,6 +626,7 @@ export const useAppStore = create<AppState>()(
         tmdbRegion: s.tmdbRegion,
         preferEnglish: s.preferEnglish,
         simklToken: s.simklToken,
+        torboxKey: s.torboxKey,
         preferredAudioLang: s.preferredAudioLang,
         searchHistory: s.searchHistory,
         onboardingDone: s.onboardingDone,
@@ -657,4 +666,9 @@ useAppStore.subscribe((s, p) => {
 configureSimkl(useAppStore.getState().simklToken);
 useAppStore.subscribe((s, p) => {
   if (s.simklToken !== p.simklToken) configureSimkl(s.simklToken);
+});
+
+configureTorbox(useAppStore.getState().torboxKey);
+useAppStore.subscribe((s, p) => {
+  if (s.torboxKey !== p.torboxKey) configureTorbox(s.torboxKey);
 });
