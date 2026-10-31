@@ -7,11 +7,16 @@
 
 export type PlaybackKind = "native" | "hls" | "mpegts" | "unsupported";
 
+// Containers a browser/WebView can't demux. Marked "unsupported" so the caller
+// routes them to a real player: the native ExoPlayer on Android, the ffmpeg
+// sidecar on desktop, or a "use the app" hint on the web build.
+const UNSUPPORTED = /\.(mkv|avi|wmv|flv|mpg|mpeg|vob|divx|xvid|ogv|asf|rm|rmvb|m2v)$/;
+
 export function classifyStream(url: string): PlaybackKind {
   const u = url.toLowerCase().split("?")[0];
   if (u.endsWith(".m3u8") || u.includes("mpegurl")) return "hls";
   if (u.endsWith(".ts") || u.includes("mpegts") || u.endsWith(".m2ts")) return "mpegts";
-  if (u.endsWith(".mkv") || u.includes("matroska")) return "unsupported";
+  if (UNSUPPORTED.test(u) || u.includes("matroska")) return "unsupported";
   return "native"; // mp4, webm, mov, m4v, direct links…
 }
 

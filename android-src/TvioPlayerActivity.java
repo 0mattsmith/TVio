@@ -91,7 +91,16 @@ public class TvioPlayerActivity extends Activity {
                 android.view.ViewGroup.LayoutParams.MATCH_PARENT));
         setContentView(playerView);
 
-        player = new ExoPlayer.Builder(this).build();
+        // Decoder fallback: if the primary (hardware) decoder rejects a stream,
+        // try the next one (often a software decoder) instead of just failing —
+        // which lets odd/older codecs (MPEG-1/2, VC-1, etc.) play where the device
+        // supports them. Prefer bundled extension decoders when present.
+        androidx.media3.exoplayer.DefaultRenderersFactory rf =
+                new androidx.media3.exoplayer.DefaultRenderersFactory(this)
+                        .setEnableDecoderFallback(true)
+                        .setExtensionRendererMode(
+                                androidx.media3.exoplayer.DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER);
+        player = new ExoPlayer.Builder(this, rf).build();
         playerView.setPlayer(player);
 
         // Pick a sensible default audio track. Without this, ExoPlayer can land

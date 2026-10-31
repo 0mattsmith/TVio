@@ -85,7 +85,7 @@ export interface TorboxFile extends TorboxPin {
   size?: number;
 }
 
-const VIDEO_RE = /\.(mkv|mp4|avi|m4v|mov|ts|webm|wmv|flv|mpg|mpeg)$/i;
+const VIDEO_RE = /\.(mkv|mp4|avi|m4v|mov|ts|m2ts|mts|webm|wmv|flv|mpg|mpeg|m2v|vob|divx|ogv)$/i;
 
 interface RawFile { id: number; name?: string; short_name?: string; size?: number; mimetype?: string }
 interface RawItem { id: number; name?: string; files?: RawFile[] }
