@@ -5,6 +5,7 @@ import { auth, db, firebaseEnabled } from "./firebase";
 import { useAppStore } from "../store/useAppStore";
 import type { Addon, Profile, ProgressEntry, FavCollection } from "../store/useAppStore";
 import type { MediaItem, WatchedItem } from "./types";
+import type { TorboxPin } from "./torbox";
 
 // While applying a remote snapshot we must not echo it back up to Firestore.
 let applyingRemote = false;
@@ -135,6 +136,10 @@ export function FirebaseSync() {
           bucket?.watched ?? (data?.watched as WatchedItem[] | undefined) ?? [];
         const remoteWatchedEps: string[] =
           bucket?.watchedEpisodes ?? (data?.watchedEpisodes as string[] | undefined) ?? [];
+        const remotePins: Record<string, TorboxPin> =
+          (data?.pinnedSources && typeof data.pinnedSources === "object"
+            ? (data.pinnedSources as Record<string, TorboxPin>)
+            : {});
 
         applyingRemote = true;
         if (!ready) {
@@ -151,6 +156,8 @@ export function FirebaseSync() {
             collections: mergedCollections,
             watched: mergedWatched,
             watchedEpisodes: mergedWatchedEps,
+            // Pins are a personal library mapping — union remote with local.
+            pinnedSources: { ...remotePins, ...useAppStore.getState().pinnedSources },
             ...account,
           });
           ready = true;
@@ -166,6 +173,7 @@ export function FirebaseSync() {
             collections: remoteCollections,
             watched: remoteWatched,
             watchedEpisodes: remoteWatchedEps,
+            pinnedSources: remotePins,
             ...account,
             ...(added ? { lastWatchlistAdd: { item: added, at: Date.now() } } : {}),
           });
@@ -184,6 +192,7 @@ export function FirebaseSync() {
         s.collections !== prev.collections ||
         s.watched !== prev.watched ||
         s.watchedEpisodes !== prev.watchedEpisodes ||
+        s.pinnedSources !== prev.pinnedSources ||
         s.tmdbKey !== prev.tmdbKey ||
         s.tmdbRegion !== prev.tmdbRegion ||
         s.torboxKey !== prev.torboxKey ||
@@ -203,6 +212,7 @@ export function FirebaseSync() {
             collections: s.collections,
             watched: s.watched,
             watchedEpisodes: s.watchedEpisodes,
+            pinnedSources: s.pinnedSources,
             tmdbKey: s.tmdbKey,
             tmdbRegion: s.tmdbRegion,
             torboxKey: s.torboxKey,

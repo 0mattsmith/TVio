@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useQuery } from "@tanstack/react-query";
-import { X, Play, Puzzle, Server, MonitorPlay, ExternalLink, Plus, Clapperboard, LayoutGrid, Tag, Magnet, AlertCircle, MonitorSmartphone } from "lucide-react";
+import { X, Play, Puzzle, Server, MonitorPlay, ExternalLink, Plus, Clapperboard, LayoutGrid, Tag, Magnet, AlertCircle, MonitorSmartphone, HardDrive } from "lucide-react";
 import { PlayOnSheet } from "./PlayOnSheet";
 import { useDeviceProfile } from "../hooks/useDeviceProfile";
 import { getDetail, getSeason } from "../services/catalog";
@@ -13,6 +13,8 @@ import { useIsTV } from "../hooks/useDeviceProfile";
 import { useOverlayBack } from "../hooks/useOverlayBack";
 import { fetchStreams, isWebPlayable, isHttpAddon, streamTitle, streamSubtitle, humanSize } from "../addons/manager";
 import { rankByTitleMatch, isForeignOnly, hasEnglishTag, type StreamExpectation, type MatchVerdict, type StreamCheck } from "../addons/match";
+import { pinKey, resolveLink, torboxConnected, type TorboxFile } from "../services/torbox";
+import { TorboxPickerDialog } from "./TorboxPickerDialog";
 import type { Stream } from "../addons/types";
 import { hasNativePlayback } from "../platform/capabilities";
 import { classifyStream } from "../lib/playback";
@@ -49,9 +51,15 @@ export function QuickWatch() {
   const showOfficial = useAppStore((s) => s.showOfficialSources);
   const compact = useAppStore((s) => s.compactProviders);
   const setCompact = useAppStore((s) => s.setCompactProviders);
+  const pinnedSources = useAppStore((s) => s.pinnedSources);
+  const pinSource = useAppStore((s) => s.pinSource);
+  const unpinSource = useAppStore((s) => s.unpinSource);
   const isTV = useIsTV();
   const isMobile = useDeviceProfile() === "mobile";
   const [playOnOpen, setPlayOnOpen] = useState(false);
+  const [showTorboxPicker, setShowTorboxPicker] = useState(false);
+  const [pinBusy, setPinBusy] = useState(false);
+  const [pinError, setPinError] = useState("");
   const sheetRef = useRef<HTMLDivElement>(null);
   const sourcesRef = useRef<HTMLDivElement>(null);
 
@@ -153,6 +161,24 @@ export function QuickWatch() {
     close();
   };
 
+  // A pinned owned file (TorBox) for this exact title/episode, if any.
+  const pinK = pinKey(item.type, item.id, episode?.season, episode?.episode);
+  const pin = pinnedSources[pinK];
+  // Play the pinned file: re-resolve to a fresh URL (never goes stale), then go.
+  const playPinned = async () => {
+    if (!pin) return;
+    setPinError("");
+    setPinBusy(true);
+    const url = await resolveLink(pin);
+    setPinBusy(false);
+    if (url) {
+      navigate(`/watch/${item.type}/${item.id}${epQuery}`, { state: { url, name: pin.label || "TorBox file" } });
+      close();
+    } else {
+      setPinError("Couldn't get a link from TorBox — the file may have been removed.");
+    }
+  };
+
   const flatrate = (data?.providers || []).filter((p) => ["flatrate", "free", "ads"].includes(p.type));
   const buyRent = (data?.providers || []).filter((p) => ["rent", "buy"].includes(p.type));
 
@@ -164,7 +190,7 @@ export function QuickWatch() {
   return (
     <>
     <div
-      data-spatial-scope
+      data-spatial-scope={showTorboxPicker ? undefined : ""}
       className="fixed inset-0 z-50 flex items-end justify-center bg-black/70 backdrop-blur-sm sm:items-center"
       onClick={close}
     >
@@ -209,6 +235,33 @@ export function QuickWatch() {
               <span className="text-[11px] text-muted">S{episode?.season ?? 1} · E{episode?.episode ?? 1}</span>
             )}
           </div>
+
+          {/* Pinned owned file (TorBox). When set, it plays this exact file with
+              no searching; otherwise offer to link one. */}
+          {torboxConnected() && (
+            <div className="mb-3">
+              {pin ? (
+                <div className="rounded-lg border border-accent/40 bg-accent-soft p-2">
+                  <button onClick={playPinned} className="focusable flex w-full items-center gap-2 rounded-md px-2 py-2 text-left">
+                    <Play size={16} className="shrink-0 text-accent" fill="currentColor" />
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-bold text-accent">{pinBusy ? "Opening…" : "Your file · TorBox"}</span>
+                      <span className="block truncate text-[11px] text-accent/80">{pin.label || "Pinned owned file"}</span>
+                    </span>
+                  </button>
+                  <div className="mt-1 flex gap-3 px-2">
+                    <button onClick={() => setShowTorboxPicker(true)} className="focusable text-[11px] font-semibold text-accent/90 hover:underline">Change</button>
+                    <button onClick={() => unpinSource(pinK)} className="focusable text-[11px] font-semibold text-red-300 hover:underline">Unlink</button>
+                  </div>
+                  {pinError && <div className="px-2 pt-1 text-[11px] text-red-300">{pinError}</div>}
+                </div>
+              ) : (
+                <button onClick={() => setShowTorboxPicker(true)} className="focusable flex w-full items-center gap-2 rounded-lg border border-dashed border-white/20 bg-surface-2/40 px-3 py-2.5 text-left text-sm font-semibold text-muted hover:text-white">
+                  <HardDrive size={16} className="text-accent" /> Link a TorBox file to this {episode ? "episode" : "title"}…
+                </button>
+              )}
+            </div>
+          )}
 
           {personal.length === 0 ? (
             <div className="rounded-lg border border-dashed border-white/15 bg-surface-2/50 p-4 text-center">
@@ -320,6 +373,12 @@ export function QuickWatch() {
     </div>
     {isMobile && playOnOpen && (
       <PlayOnSheet item={item} episode={episode || undefined} onClose={() => setPlayOnOpen(false)} />
+    )}
+    {showTorboxPicker && (
+      <TorboxPickerDialog
+        onClose={() => setShowTorboxPicker(false)}
+        onPick={(f: TorboxFile) => pinSource(pinK, { type: f.type, id: f.id, fileId: f.fileId, label: f.name })}
+      />
     )}
     </>
   );

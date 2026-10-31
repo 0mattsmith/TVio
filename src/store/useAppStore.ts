@@ -5,7 +5,7 @@ import { ALL_SERVICE_KEYS } from "../services/services";
 import { auth, firebaseEnabled } from "../services/firebase";
 import { configureTmdb } from "../services/tmdb";
 import { configureSimkl, pushLists, pullLists, simklConnected } from "../services/simkl";
-import { configureTorbox } from "../services/torbox";
+import { configureTorbox, type TorboxPin } from "../services/torbox";
 import type { MediaItem, WatchedItem } from "../services/types";
 
 export interface ProgressEntry extends MediaItem {
@@ -219,6 +219,12 @@ interface AppState {
   // episodes to owned files. Empty = not connected.
   torboxKey: string;
   setTorboxKey: (v: string) => void;
+  // Episodes/movies pinned to a specific owned TorBox file (key = pinKey()).
+  // A pin is a stable {type,id,fileId} reference, re-resolved to a fresh URL at
+  // play time, so it never goes stale and never needs a search.
+  pinnedSources: Record<string, TorboxPin>;
+  pinSource: (key: string, pin: TorboxPin) => void;
+  unpinSource: (key: string) => void;
   // Preferred audio language (ISO 639-1) for the native player's default track.
   preferredAudioLang: string;
   setPreferredAudioLang: (v: string) => void;
@@ -479,6 +485,13 @@ export const useAppStore = create<AppState>()(
 
       torboxKey: "",
       setTorboxKey: (v) => { configureTorbox(v); set({ torboxKey: v.trim() }); },
+      pinnedSources: {},
+      pinSource: (key, pin) => set((s) => ({ pinnedSources: { ...s.pinnedSources, [key]: pin } })),
+      unpinSource: (key) => set((s) => {
+        const next = { ...s.pinnedSources };
+        delete next[key];
+        return { pinnedSources: next };
+      }),
 
       simklToken: "",
       setSimklToken: (t) => { configureSimkl(t); set({ simklToken: t }); },
@@ -627,6 +640,7 @@ export const useAppStore = create<AppState>()(
         preferEnglish: s.preferEnglish,
         simklToken: s.simklToken,
         torboxKey: s.torboxKey,
+        pinnedSources: s.pinnedSources,
         preferredAudioLang: s.preferredAudioLang,
         searchHistory: s.searchHistory,
         onboardingDone: s.onboardingDone,

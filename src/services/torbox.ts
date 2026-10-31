@@ -27,6 +27,11 @@ export interface TorboxPin {
   label?: string; // human name, for the UI
 }
 
+/** Map key for a pin: a specific episode, or a movie. */
+export function pinKey(type: "movie" | "tv", id: number, season?: number, episode?: number): string {
+  return type === "tv" && season != null && episode != null ? `tv:${id}:${season}:${episode}` : `movie:${id}`;
+}
+
 /** One playable file inside the user's library. */
 export interface TorboxFile extends TorboxPin {
   name: string; // the file's own (short) name
