@@ -1,6 +1,6 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Play, Star, Check, HardDrive, Pencil, Link2, RefreshCw } from "lucide-react";
+import { Play, Star, Check, HardDrive, Pencil, Link2, RefreshCw, Trash2 } from "lucide-react";
 import { getSeason } from "../services/catalog";
 import type { SeasonSummary, MediaItem, Episode } from "../services/types";
 import { usePlay } from "../hooks/usePlay";
@@ -9,7 +9,7 @@ import { useAppStore } from "../store/useAppStore";
 import { EpisodeActions } from "./EpisodeActions";
 import { TorboxPickerDialog } from "./TorboxPickerDialog";
 import { torboxConnected, listLibrary, pinKey, type TorboxPin } from "../services/torbox";
-import { autoLinkEpisodes } from "../services/torboxLink";
+import { autoLinkEpisodes, titleTokens } from "../services/torboxLink";
 
 /** Hold OK this long on an episode to open its actions (mark watched, etc.). */
 const HOLD_MS = 500;
@@ -132,6 +132,7 @@ export function SeasonBrowser({
   const pinnedSources = useAppStore((s) => s.pinnedSources);
   const pinSource = useAppStore((s) => s.pinSource);
   const pinSources = useAppStore((s) => s.pinSources);
+  const unpinSource = useAppStore((s) => s.unpinSource);
   const [actionsEp, setActionsEp] = useState<Episode | null>(null);
   const [relinkEp, setRelinkEp] = useState<Episode | null>(null);
   const [linking, setLinking] = useState(false);
@@ -166,6 +167,15 @@ export function SeasonBrowser({
     setLinkMsg(files.length === 0 ? "No TorBox files found — check your API key." : `Linked ${n} of ${data.length}.`);
   };
 
+  // Remove every TorBox link in the current season — a one-click recovery if a
+  // batch linked to the wrong files.
+  const seasonHasPins = !!data && data.some((ep) => pinnedSources[pinKey("tv", series.id, sel, ep.episodeNumber)]);
+  const clearSeason = () => {
+    if (!data) return;
+    data.forEach((ep) => unpinSource(pinKey("tv", series.id, sel, ep.episodeNumber)));
+    setLinkMsg("Cleared this season's links.");
+  };
+
   if (!seasons.length) return null;
 
   return (
@@ -181,6 +191,16 @@ export function SeasonBrowser({
             >
               {linking ? <RefreshCw size={15} className="animate-spin" /> : <HardDrive size={15} />}
               Link from TorBox
+            </button>
+          )}
+          {connected && seasonHasPins && (
+            <button
+              onClick={clearSeason}
+              title="Clear all TorBox links for this season"
+              aria-label="Clear all TorBox links for this season"
+              className="focusable rounded-lg border border-white/10 bg-surface-2 px-2.5 py-2 text-red-400 hover:text-red-300"
+            >
+              <Trash2 size={16} />
             </button>
           )}
           <select
@@ -229,6 +249,13 @@ export function SeasonBrowser({
 
       {relinkEp && (
         <TorboxPickerDialog
+          filterTokens={titleTokens(series.title)}
+          defaultYear={relinkEp.airDate ? relinkEp.airDate.slice(0, 4) : undefined}
+          onUnlink={
+            pinnedSources[pinKey("tv", series.id, sel, relinkEp.episodeNumber)]
+              ? () => unpinSource(pinKey("tv", series.id, sel, relinkEp.episodeNumber))
+              : undefined
+          }
           onClose={() => setRelinkEp(null)}
           onPick={(f) =>
             pinSource(pinKey("tv", series.id, sel, relinkEp.episodeNumber), {

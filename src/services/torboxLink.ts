@@ -10,9 +10,9 @@ import type { Episode } from "./types";
 import { matchDate, matchEpisode } from "../addons/match";
 import { pinKey, type TorboxFile, type TorboxPin } from "./torbox";
 
-const STOP = new Set(["the", "a", "an", "wwe", "wwf", "show", "night", "and"]);
+const STOP = new Set(["the", "a", "an", "wwe", "wwf", "show", "night", "and", "monday", "friday", "live"]);
 
-function titleTokens(t: string): string[] {
+export function titleTokens(t: string): string[] {
   return t
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, " ")
@@ -33,6 +33,9 @@ function tokenOverlap(name: string, tokens: string[]): number {
 export function matchFileForEpisode(files: TorboxFile[], ep: Episode, seriesTitle: string): TorboxFile | null {
   const tokens = titleTokens(seriesTitle);
   const cands = files
+    // GATE: the file must plausibly belong to THIS show. Without this, a
+    // "Family Guy S9E01" file matches "Raw S9E01" purely on the episode number.
+    .filter((f) => tokens.length === 0 || tokenOverlap(f.name, tokens) > 0)
     .map((f) => ({ f, d: matchDate(f.name, ep.airDate), e: matchEpisode(f.name, ep.seasonNumber, ep.episodeNumber) }))
     .filter((x) => x.d !== "mismatch" && x.e !== "mismatch")
     .filter((x) => x.d === "match" || x.e === "match");
