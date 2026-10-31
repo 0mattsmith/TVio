@@ -4,6 +4,13 @@
 // Docs: https://api-docs.torbox.app  ·  Base: https://api.torbox.app/v1/api
 // Auth is a Bearer token (the user's API key). The requestdl endpoint takes the
 // key as a ?token= query param instead. The key is user-supplied (Settings).
+//
+// IMPORTANT: TorBox's API does NOT send CORS headers, so a plain browser/WebView
+// fetch to it is blocked. On the native app we go through Capacitor's native HTTP
+// (OkHttp), which isn't subject to CORS; on the web build we fall back to fetch,
+// which only works behind a CORS proxy.
+
+import { Capacitor, CapacitorHttp } from "@capacitor/core";
 
 const BASE = "https://api.torbox.app/v1/api";
 
@@ -16,6 +23,31 @@ export function configureTorbox(k?: string) {
 export function torboxConnected(): boolean {
   return !!key;
 }
+
+// --- transport (CORS-safe on native) ---------------------------------------
+
+async function httpJson(url: string, headers?: Record<string, string>): Promise<unknown> {
+  // Native: OkHttp via CapacitorHttp — not subject to WebView CORS.
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const res = await CapacitorHttp.request({ method: "GET", url, headers });
+      if (res.status < 200 || res.status >= 300) return null;
+      return typeof res.data === "string" ? JSON.parse(res.data) : res.data;
+    } catch {
+      return null;
+    }
+  }
+  // Web/desktop: plain fetch (TorBox has no CORS, so this needs a proxy).
+  try {
+    const r = await fetch(url, { headers });
+    if (!r.ok) return null;
+    return await r.json();
+  } catch {
+    return null;
+  }
+}
+
+// --- types ------------------------------------------------------------------
 
 export type TorboxKind = "torrent" | "usenet" | "webdl";
 
@@ -46,27 +78,21 @@ interface RawItem { id: number; name?: string; files?: RawFile[] }
 
 async function mylist(kind: "torrents" | "usenet" | "webdl"): Promise<TorboxFile[]> {
   if (!key) return [];
-  try {
-    const r = await fetch(`${BASE}/${kind}/mylist?bypass_cache=true`, {
-      headers: { Authorization: `Bearer ${key}` },
-    });
-    if (!r.ok) return [];
-    const d = await r.json();
-    const items = (Array.isArray(d?.data) ? d.data : []) as RawItem[];
-    const type: TorboxKind = kind === "torrents" ? "torrent" : kind === "usenet" ? "usenet" : "webdl";
-    const out: TorboxFile[] = [];
-    for (const it of items) {
-      for (const f of it.files ?? []) {
-        const name = f.short_name || f.name || `File ${f.id}`;
-        // Video files only — skip samples, nfo, art, etc.
-        if (!VIDEO_RE.test(name) && !(f.mimetype || "").startsWith("video")) continue;
-        out.push({ type, id: it.id, fileId: f.id, name, item: it.name || "", size: f.size });
-      }
+  const d = (await httpJson(`${BASE}/${kind}/mylist?bypass_cache=true`, { Authorization: `Bearer ${key}` })) as
+    | { data?: RawItem[] }
+    | null;
+  const items = Array.isArray(d?.data) ? (d!.data as RawItem[]) : [];
+  const type: TorboxKind = kind === "torrents" ? "torrent" : kind === "usenet" ? "usenet" : "webdl";
+  const out: TorboxFile[] = [];
+  for (const it of items) {
+    for (const f of it.files ?? []) {
+      const name = f.short_name || f.name || `File ${f.id}`;
+      // Video files only — skip samples, nfo, art, etc.
+      if (!VIDEO_RE.test(name) && !(f.mimetype || "").startsWith("video")) continue;
+      out.push({ type, id: it.id, fileId: f.id, name, item: it.name || "", size: f.size });
     }
-    return out;
-  } catch {
-    return [];
   }
+  return out;
 }
 
 /** Every playable video file across the user's TorBox library. */
@@ -83,24 +109,16 @@ export async function resolveLink(pin: TorboxPin): Promise<string | null> {
   if (!key) return null;
   const path = pin.type === "torrent" ? "torrents" : pin.type === "usenet" ? "usenet" : "webdl";
   const idParam = pin.type === "torrent" ? "torrent_id" : pin.type === "usenet" ? "usenet_id" : "web_id";
-  try {
-    const url = `${BASE}/${path}/requestdl?token=${encodeURIComponent(key)}&${idParam}=${pin.id}&file_id=${pin.fileId}&redirect=false`;
-    const r = await fetch(url);
-    if (!r.ok) return null;
-    const d = await r.json();
-    return typeof d?.data === "string" ? d.data : null;
-  } catch {
-    return null;
-  }
+  const url = `${BASE}/${path}/requestdl?token=${encodeURIComponent(key)}&${idParam}=${pin.id}&file_id=${pin.fileId}&redirect=false`;
+  const d = (await httpJson(url)) as { data?: unknown } | null;
+  return typeof d?.data === "string" ? d.data : null;
 }
 
-/** Check a key works, for the Settings "Connected" status. */
+/** Check a key works, for a live "Connected" check. */
 export async function validateKey(k: string): Promise<boolean> {
   if (!k.trim()) return false;
-  try {
-    const r = await fetch(`${BASE}/user/me`, { headers: { Authorization: `Bearer ${k.trim()}` } });
-    return r.ok;
-  } catch {
-    return false;
-  }
+  const d = (await httpJson(`${BASE}/user/me`, { Authorization: `Bearer ${k.trim()}` })) as
+    | { success?: boolean; data?: unknown }
+    | null;
+  return !!d && (d.success === true || d.data != null);
 }
