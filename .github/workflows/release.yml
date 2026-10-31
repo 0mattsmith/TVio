@@ -198,6 +198,13 @@ jobs:
           restore-keys: |
             gradle-${{ runner.os }}-
       - uses: android-actions/setup-android@v3
+        with:
+          # The action's default package list is "tools platform-tools", but
+          # Google removed the legacy "tools" package from the SDK repo, so that
+          # default now fails ("Failed to find package 'tools'") and kills the
+          # job. platform-tools is all we need up front — Gradle/AGP fetches the
+          # right platforms + build-tools itself (licenses are already accepted).
+          packages: platform-tools
       # Decode the release keystore if it's configured. When it isn't (forks,
       # or before the secret is set) the build falls back to a debug key — which
       # still installs, it just can't update over a previous install.

@@ -31,3 +31,7 @@ src-tauri/gen
 *.apk
 *.msi
 *.exe
+
+# CI build logs captured by logs.ps1 (for debugging; never committed)
+*.log
+/ci-logs/
