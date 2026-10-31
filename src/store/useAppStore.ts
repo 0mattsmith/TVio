@@ -224,6 +224,7 @@ interface AppState {
   // play time, so it never goes stale and never needs a search.
   pinnedSources: Record<string, TorboxPin>;
   pinSource: (key: string, pin: TorboxPin) => void;
+  pinSources: (entries: Record<string, TorboxPin>) => void;
   unpinSource: (key: string) => void;
   // Preferred audio language (ISO 639-1) for the native player's default track.
   preferredAudioLang: string;
@@ -487,6 +488,7 @@ export const useAppStore = create<AppState>()(
       setTorboxKey: (v) => { configureTorbox(v); set({ torboxKey: v.trim() }); },
       pinnedSources: {},
       pinSource: (key, pin) => set((s) => ({ pinnedSources: { ...s.pinnedSources, [key]: pin } })),
+      pinSources: (entries) => set((s) => ({ pinnedSources: { ...s.pinnedSources, ...entries } })),
       unpinSource: (key) => set((s) => {
         const next = { ...s.pinnedSources };
         delete next[key];

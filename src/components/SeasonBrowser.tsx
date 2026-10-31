@@ -1,12 +1,15 @@
 import { useRef, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Play, Star, Check } from "lucide-react";
+import { Play, Star, Check, HardDrive, Pencil, Link2, RefreshCw } from "lucide-react";
 import { getSeason } from "../services/catalog";
 import type { SeasonSummary, MediaItem, Episode } from "../services/types";
 import { usePlay } from "../hooks/usePlay";
 import { defaultSeason } from "../services/nextEpisode";
 import { useAppStore } from "../store/useAppStore";
 import { EpisodeActions } from "./EpisodeActions";
+import { TorboxPickerDialog } from "./TorboxPickerDialog";
+import { torboxConnected, listLibrary, pinKey, type TorboxPin } from "../services/torbox";
+import { autoLinkEpisodes } from "../services/torboxLink";
 
 /** Hold OK this long on an episode to open its actions (mark watched, etc.). */
 const HOLD_MS = 500;
@@ -17,25 +20,35 @@ function EpisodeRow({
   season,
   ep,
   watched,
+  pin,
+  connected,
   onHold,
+  onRelink,
 }: {
   series: MediaItem;
   season: number;
   ep: Episode;
   watched: boolean;
+  pin?: TorboxPin;
+  connected: boolean;
   onHold: () => void;
+  onRelink: () => void;
 }) {
   const play = usePlay();
   const holdTimer = useRef<number>();
   const opened = useRef(false);
   const start = () => play(series, { season, episode: ep.episodeNumber });
+  // Only react to keys on the row itself — not a nested button (the pencil /
+  // Link control), whose Enter would otherwise also trigger play.
   const onKeyDown = (e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget) return;
     if (e.key !== "Enter" || e.repeat) return;
     e.preventDefault();
     opened.current = false;
     holdTimer.current = window.setTimeout(() => { opened.current = true; onHold(); }, HOLD_MS);
   };
   const onKeyUp = (e: React.KeyboardEvent) => {
+    if (e.target !== e.currentTarget) return;
     if (e.key !== "Enter") return;
     window.clearTimeout(holdTimer.current);
     if (!opened.current) start();
@@ -72,6 +85,34 @@ function EpisodeRow({
           {ep.airDate ? <span>{ep.airDate}</span> : null}
         </div>
         <p className="mt-1.5 line-clamp-2 text-xs text-white/70">{ep.overview || "No synopsis available."}</p>
+
+        {/* Linked TorBox file — the name to verify, with a pencil to change it;
+            or a one-tap Link when nothing's pinned yet. */}
+        {connected && (
+          pin ? (
+            <div className="mt-1.5 flex items-center gap-1.5">
+              <span className="inline-flex min-w-0 items-center gap-1 rounded bg-accent-soft px-1.5 py-0.5 text-[10px] font-semibold text-accent">
+                <HardDrive size={11} className="shrink-0" />
+                <span className="truncate">{pin.label || "Linked file"}</span>
+              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); onRelink(); }}
+                className="focusable shrink-0 rounded p-0.5 text-muted hover:text-white"
+                aria-label="Change linked file"
+              >
+                <Pencil size={13} />
+              </button>
+            </div>
+          ) : (
+            <button
+              onClick={(e) => { e.stopPropagation(); onRelink(); }}
+              className="focusable mt-1.5 inline-flex items-center gap-1 rounded text-[11px] font-semibold text-muted hover:text-accent"
+              aria-label="Link a TorBox file to this episode"
+            >
+              <Link2 size={12} /> Link file
+            </button>
+          )
+        )}
       </div>
     </div>
   );
@@ -88,7 +129,14 @@ export function SeasonBrowser({
   initialSeason?: number;
 }) {
   const watchedEpisodes = useAppStore((s) => s.watchedEpisodes);
+  const pinnedSources = useAppStore((s) => s.pinnedSources);
+  const pinSource = useAppStore((s) => s.pinSource);
+  const pinSources = useAppStore((s) => s.pinSources);
   const [actionsEp, setActionsEp] = useState<Episode | null>(null);
+  const [relinkEp, setRelinkEp] = useState<Episode | null>(null);
+  const [linking, setLinking] = useState(false);
+  const [linkMsg, setLinkMsg] = useState("");
+  const connected = torboxConnected();
   // Open on the deep-linked season if there is one, else the season you're
   // partway through, else the first real season — never "Specials" (0).
   const inProgressSeason = useAppStore.getState().progress.find((p) => p.id === series.id)?.season;
@@ -103,25 +151,53 @@ export function SeasonBrowser({
     queryFn: () => getSeason(series.id, sel),
   });
 
+  // Auto-link this season's episodes to owned TorBox files by name (date/SxxExx).
+  // Only confident matches are pinned — oddly-named files are left for you to
+  // link by hand from the row below.
+  const linkSeason = async () => {
+    if (!data || linking) return;
+    setLinking(true);
+    setLinkMsg("");
+    const files = await listLibrary();
+    const pins = autoLinkEpisodes(series.id, series.title, data, files);
+    const n = Object.keys(pins).length;
+    if (n) pinSources(pins);
+    setLinking(false);
+    setLinkMsg(files.length === 0 ? "No TorBox files found — check your API key." : `Linked ${n} of ${data.length}.`);
+  };
+
   if (!seasons.length) return null;
 
   return (
     <section className="mt-10">
-      <div className="mb-4 flex items-center justify-between gap-3">
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <h2 className="text-xl font-bold">Episodes</h2>
-        <select
-          value={sel}
-          onChange={(e) => setSel(Number(e.target.value))}
-          className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm font-semibold outline-none focus:border-accent"
-        >
-          {seasons.map((s) => (
-            <option key={s.seasonNumber} value={s.seasonNumber}>
-              {s.name}
-              {s.episodeCount ? ` · ${s.episodeCount} eps` : ""}
-            </option>
-          ))}
-        </select>
+        <div className="flex items-center gap-2">
+          {connected && (
+            <button
+              onClick={linkSeason}
+              disabled={linking}
+              className="focusable flex items-center gap-1.5 rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm font-semibold text-accent disabled:opacity-50"
+            >
+              {linking ? <RefreshCw size={15} className="animate-spin" /> : <HardDrive size={15} />}
+              Link from TorBox
+            </button>
+          )}
+          <select
+            value={sel}
+            onChange={(e) => { setSel(Number(e.target.value)); setLinkMsg(""); }}
+            className="focusable rounded-lg border border-white/10 bg-surface-2 px-3 py-2 text-sm font-semibold outline-none focus:border-accent"
+          >
+            {seasons.map((s) => (
+              <option key={s.seasonNumber} value={s.seasonNumber}>
+                {s.name}
+                {s.episodeCount ? ` · ${s.episodeCount} eps` : ""}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
+      {linkMsg && <p className="mb-3 text-xs text-muted">{linkMsg}</p>}
 
       <div className="space-y-2">
         {isLoading
@@ -133,7 +209,10 @@ export function SeasonBrowser({
                 season={sel}
                 ep={ep}
                 watched={watchedEpisodes.includes(`${series.id}:${sel}:${ep.episodeNumber}`)}
+                pin={pinnedSources[pinKey("tv", series.id, sel, ep.episodeNumber)]}
+                connected={connected}
                 onHold={() => setActionsEp(ep)}
+                onRelink={() => setRelinkEp(ep)}
               />
             ))}
       </div>
@@ -145,6 +224,20 @@ export function SeasonBrowser({
           episode={actionsEp.episodeNumber}
           title={actionsEp.name}
           onClose={() => setActionsEp(null)}
+        />
+      )}
+
+      {relinkEp && (
+        <TorboxPickerDialog
+          onClose={() => setRelinkEp(null)}
+          onPick={(f) =>
+            pinSource(pinKey("tv", series.id, sel, relinkEp.episodeNumber), {
+              type: f.type,
+              id: f.id,
+              fileId: f.fileId,
+              label: f.name,
+            })
+          }
         />
       )}
     </section>
